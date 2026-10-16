@@ -6,12 +6,14 @@
   <title>Hodnocení protokolu | {{ student_name }} - {{ measurement_code }}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="/static/vendor/pdf.min.js"></script>
   <style>
     :root {
-      --bg-main: #f8fafc;
+      --bg-main: #f1f5f9;
       --bg-card: #ffffff;
       --border: #e2e8f0;
+      --border-dark: #cbd5e1;
       --text-main: #0f172a;
       --text-muted: #64748b;
       --primary: #2563eb;
@@ -25,7 +27,8 @@
       --danger-bg: #fee2e2;
       --radius: 10px;
       --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
-      --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+      --shadow-md: 0 4px 14px rgba(0,0,0,0.08);
+      --shadow-lg: 0 10px 25px rgba(0,0,0,0.12);
     }
 
     * {
@@ -39,18 +42,21 @@
       background: var(--bg-main);
       color: var(--text-main);
       line-height: 1.5;
-      padding-bottom: 60px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
+    /* Top Sticky Header */
     header {
       background: #ffffff;
       border-bottom: 1px solid var(--border);
-      padding: 14px 24px;
+      padding: 10px 20px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      position: sticky;
-      top: 0;
+      flex-shrink: 0;
       z-index: 50;
     }
 
@@ -59,7 +65,7 @@
       align-items: center;
       gap: 12px;
       font-weight: 700;
-      font-size: 1.1rem;
+      font-size: 1.05rem;
       color: var(--text-main);
       text-decoration: none;
     }
@@ -77,151 +83,35 @@
       font-size: 0.95rem;
     }
 
-    .container {
-      max-width: 1060px;
-      margin: 28px auto 0 auto;
-      padding: 0 20px;
-    }
-
-    /* Hero Summary Card */
-    .hero-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow-md);
-      padding: 24px 28px;
-      margin-bottom: 24px;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 24px;
+    .header-center {
+      display: flex;
       align-items: center;
+      gap: 8px;
+      font-size: 0.88rem;
     }
 
-    @media (max-width: 768px) {
-      .hero-card {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .meta-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
+    .header-pill {
       background: var(--primary-subtle);
       color: var(--primary);
-      border-radius: 6px;
-      font-size: 0.8rem;
+      padding: 4px 12px;
+      border-radius: 20px;
       font-weight: 600;
-      margin-bottom: 10px;
+      font-size: 0.82rem;
     }
 
-    .student-title {
-      font-size: 1.6rem;
-      font-weight: 800;
-      color: var(--text-main);
-      letter-spacing: -0.02em;
-    }
-
-    .task-sub {
-      font-size: 1.05rem;
-      color: var(--text-muted);
-      margin-top: 4px;
-    }
-
-    .eval-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 16px;
-      margin-top: 14px;
-      font-size: 0.85rem;
-      color: var(--text-muted);
-    }
-
-    .eval-meta span {
+    .header-actions {
       display: flex;
       align-items: center;
-      gap: 5px;
-    }
-
-    .grade-badge-wrap {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: #f8fafc;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px 24px;
-      min-width: 150px;
-      text-align: center;
-    }
-
-    .grade-letter {
-      font-size: 2.8rem;
-      font-weight: 800;
-      line-height: 1;
-    }
-
-    .grade-A, .grade-B { color: var(--success); }
-    .grade-C, .grade-D { color: var(--warning); }
-    .grade-E, .grade-F { color: var(--danger); }
-
-    .points-score {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 1.05rem;
-      font-weight: 700;
-      margin-top: 6px;
-      color: var(--text-main);
-    }
-
-    /* Breakdown Grid */
-    .breakdown-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-      gap: 14px;
-      margin-bottom: 24px;
-    }
-
-    .breakdown-item {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 14px 18px;
-      box-shadow: var(--shadow-sm);
-    }
-
-    .breakdown-item .label {
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-
-    .breakdown-item .score-val {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 1.35rem;
-      font-weight: 700;
-      color: var(--text-main);
-      margin-top: 2px;
-    }
-
-    /* Actions Bar */
-    .actions-bar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-bottom: 28px;
+      gap: 10px;
     }
 
     .btn {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 20px;
+      gap: 6px;
+      padding: 7px 14px;
       border-radius: 8px;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       font-weight: 600;
       cursor: pointer;
       text-decoration: none;
@@ -243,18 +133,259 @@
       border-color: var(--border);
     }
     .btn-secondary:hover {
-      background: #f1f5f9;
+      background: #f8fafc;
+      border-color: var(--border-dark);
     }
 
-    /* Section Heading */
-    .section-title {
-      font-size: 1.25rem;
-      font-weight: 700;
-      color: var(--text-main);
-      margin-bottom: 14px;
+    /* Main Two-Pane Viewport */
+    .app-viewport {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 53px);
+      overflow: hidden;
+    }
+
+    /* Left Pane: PDF Viewer Area */
+    .pdf-viewer-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #e2e8f0;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .pdf-toolbar {
+      background: #ffffff;
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
       display: flex;
       align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-shrink: 0;
+      box-shadow: var(--shadow-sm);
+      z-index: 10;
+    }
+
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tool-btn {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+    .tool-btn:hover {
+      background: #f1f5f9;
+      border-color: var(--border-dark);
+    }
+
+    .page-indicator {
+      font-size: 0.82rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      color: var(--text-muted);
+      padding: 0 4px;
+    }
+
+    .pdf-scroll-container {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      scroll-behavior: smooth;
+    }
+
+    .pdf-page-wrapper {
+      position: relative;
+      background: #ffffff;
+      box-shadow: var(--shadow-md);
+      border-radius: 4px;
+      transition: outline 0.2s ease;
+    }
+
+    .pdf-page-wrapper.highlight-pulse {
+      outline: 4px solid var(--primary);
+    }
+
+    .pdf-page-wrapper canvas {
+      display: block;
+      border-radius: 4px;
+    }
+
+    .page-footer-badge {
+      position: absolute;
+      bottom: -22px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #64748b;
+      background: rgba(255, 255, 255, 0.85);
+      padding: 1px 8px;
+      border-radius: 10px;
+    }
+
+    /* Right Pane: Evaluation Feedback & Notes Sidebar */
+    .sidebar-pane {
+      width: 440px;
+      background: #ffffff;
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .sidebar-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Score Hero Card */
+    .hero-card {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .hero-info .student-name {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--text-main);
+      line-height: 1.2;
+    }
+
+    .hero-info .task-name {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    .hero-info .eval-meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .grade-badge-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 16px;
+      min-width: 110px;
+      text-align: center;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .grade-letter {
+      font-size: 2.2rem;
+      font-weight: 800;
+      line-height: 1;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .grade-A, .grade-B { color: var(--success); }
+    .grade-C, .grade-D { color: var(--warning); }
+    .grade-E, .grade-F { color: var(--danger); }
+
+    .points-score {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.92rem;
+      font-weight: 700;
+      margin-top: 4px;
+      color: var(--text-main);
+    }
+
+    /* Breakdown Grid */
+    .breakdown-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 8px;
+    }
+
+    .breakdown-item {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+    }
+
+    .breakdown-item .label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .breakdown-item .score-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-top: 2px;
+    }
+
+    /* General Comment Card */
+    .general-comment-box {
+      background: #f0f7ff;
+      border: 1px solid #bfdbfe;
+      border-left: 4px solid var(--primary);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+    }
+
+    .general-comment-header {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .general-comment-text {
+      font-size: 0.88rem;
+      color: #1e293b;
+      white-space: pre-wrap;
+      line-height: 1.45;
     }
 
     /* Deductions Card */
@@ -262,8 +393,7 @@
       background: #fffbeb;
       border: 1px solid #fde68a;
       border-radius: var(--radius);
-      padding: 18px 22px;
-      margin-bottom: 28px;
+      padding: 14px 16px;
     }
 
     .deductions-box.clean {
@@ -271,19 +401,29 @@
       border-color: #bbf7d0;
     }
 
+    .deductions-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
     .deduction-list {
       list-style: none;
-      margin-top: 10px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     }
 
     .deduction-list li {
-      font-size: 0.9rem;
+      font-size: 0.82rem;
       display: flex;
       align-items: flex-start;
-      gap: 8px;
+      gap: 6px;
     }
 
     .deduction-pts {
@@ -291,43 +431,62 @@
       font-weight: 700;
       color: var(--danger);
       background: #fee2e2;
-      padding: 1px 6px;
+      padding: 1px 5px;
       border-radius: 4px;
       white-space: nowrap;
+      font-size: 0.78rem;
     }
 
-    /* Note Cards */
+    /* Notes List */
+    .notes-section-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-main);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 4px;
+    }
+
     .notes-list {
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      margin-bottom: 32px;
+      gap: 8px;
     }
 
     .note-card {
-      background: var(--bg-card);
+      background: #ffffff;
       border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 16px 20px;
+      border-radius: 8px;
+      padding: 10px 12px;
       box-shadow: var(--shadow-sm);
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      border-left: 5px solid var(--primary);
+      gap: 6px;
+      border-left: 4px solid var(--primary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .note-card:hover {
+      border-color: var(--primary);
+      background: #f8fafc;
+      transform: translateX(2px);
     }
 
     .note-card-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: 8px;
     }
 
     .note-badge-tag {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      font-size: 0.82rem;
+      font-size: 0.78rem;
       font-weight: 700;
     }
 
@@ -335,174 +494,421 @@
       font-family: 'JetBrains Mono', monospace;
       background: #f1f5f9;
       color: var(--text-main);
-      padding: 2px 7px;
-      border-radius: 5px;
+      padding: 1px 6px;
+      border-radius: 4px;
       font-weight: 700;
       border: 1px solid var(--border);
-    }
-
-    .note-context {
-      font-size: 0.84rem;
-      color: #475569;
-      font-style: italic;
-      background: #f8fafc;
-      padding: 6px 12px;
-      border-radius: 6px;
-      border-left: 3px solid #cbd5e1;
+      font-size: 0.75rem;
     }
 
     .note-content-text {
-      font-size: 0.92rem;
+      font-size: 0.84rem;
       color: var(--text-main);
       white-space: pre-wrap;
+      line-height: 1.4;
     }
 
-    /* PDF Viewer Embed */
-    .pdf-viewer-wrap {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow: hidden;
-      box-shadow: var(--shadow-md);
-      margin-bottom: 40px;
+    /* Loading state */
+    .loading-spinner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      color: var(--text-muted);
+      gap: 12px;
     }
 
-    .pdf-viewer-wrap iframe {
-      width: 100%;
-      height: 750px;
-      border: none;
-      display: block;
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid rgba(37, 99, 235, 0.2);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Mobile Responsive Stacking */
+    @media (max-width: 900px) {
+      body {
+        height: auto;
+        overflow-y: auto;
+      }
+      .app-viewport {
+        flex-direction: column;
+        height: auto;
+        overflow: visible;
+      }
+      .sidebar-pane {
+        width: 100%;
+        border-left: none;
+        border-bottom: 1px solid var(--border);
+        order: -1;
+      }
+      .sidebar-scroll {
+        max-height: 500px;
+      }
+      .pdf-viewer-pane {
+        height: 700px;
+      }
     }
   </style>
 </head>
 <body>
 
+  <!-- Top Header -->
   <header>
     <a href="/" class="brand">
       <div class="brand-icon">P</div>
-      <span>Praktika Evaluation Studio</span>
+      <span>Praktika Studio</span>
     </a>
-    <span style="font-size:0.85rem; color:var(--text-muted); font-weight:600;">Studentský náhled protokolu</span>
+
+    <div class="header-center">
+      <span class="header-pill">{{ measurement_code }}: {{ measurement_name }}</span>
+      <span style="color:var(--text-muted); font-size:0.8rem;">• {{ student_name }}</span>
+    </div>
+
+    <div class="header-actions">
+      <a href="/api/public/protocol/{{ share_token }}/pdf" download class="btn btn-primary" title="Stáhnout kompletní PDF s opravou a přílohou">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>Stáhnout PDF</span>
+      </a>
+      <a href="/api/public/protocol/{{ share_token }}/pdf" target="_blank" class="btn btn-secondary" title="Otevřít v nové záložce prohlížeče">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        <span>Nová záložka</span>
+      </a>
+    </div>
   </header>
 
-  <div class="container">
+  <!-- Main Viewport (Two-Pane) -->
+  <div class="app-viewport">
     
-    <!-- Hero Summary Card -->
-    <div class="hero-card">
-      <div>
-        <div class="meta-badge">
-          <span>Úloha: {{ measurement_code }}</span>
-          <span>•</span>
-          <span>{{ semester_name }}</span>
+    <!-- Left Pane: Interactive PDF Canvas Viewer -->
+    <main class="pdf-viewer-pane">
+      <div class="pdf-toolbar">
+        <div class="toolbar-group">
+          <button type="button" class="tool-btn" onclick="prevPage()" title="Předchozí strana">◀</button>
+          <span class="page-indicator" id="page-indicator">Strana 1 / 1</span>
+          <button type="button" class="tool-btn" onclick="nextPage()" title="Další strana">▶</button>
         </div>
-        <h1 class="student-title">{{ student_name }}</h1>
-        <div class="task-sub">{{ measurement_name }}</div>
 
-        <div class="eval-meta">
-          <span>👤 Hodnotil: <strong>{{ evaluator_name }}</strong></span>
-          <span>📅 Datum: {{ eval_date }}</span>
-          {% if slot_name %}<span>📍 Kroužek: {{ slot_name }}</span>{% endif %}
+        <div class="toolbar-group">
+          <button type="button" class="tool-btn" onclick="zoomOut()" title="Zmenšit (−)">−</button>
+          <button type="button" class="tool-btn" onclick="resetZoom()" id="zoom-label" title="Výchozí měřítko">100%</button>
+          <button type="button" class="tool-btn" onclick="zoomIn()" title="Zvětšit (+)">+</button>
+          <button type="button" class="tool-btn" onclick="fitWidth()" title="Přizpůsobit šířce">↔ Šířka</button>
+        </div>
+
+        <div class="toolbar-group">
+          <span style="font-size:0.75rem; color:var(--text-muted);">💡 Kliknutím na poznámku vpravo přejdete na dané místo</span>
         </div>
       </div>
 
-      <div class="grade-badge-wrap">
-        <span style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Výsledná známka</span>
-        <div class="grade-letter grade-{{ grade }}">{{ grade }}</div>
-        <div class="points-score">{{ total_points }} / 10 b</div>
+      <div class="pdf-scroll-container" id="pdf-scroll-container">
+        <div class="loading-spinner" id="pdf-loading">
+          <div class="spinner"></div>
+          <span>Načítám opravený protokol v PDF.js prohlížeči...</span>
+        </div>
       </div>
-    </div>
+    </main>
 
-    <!-- Category Breakdown Grid -->
-    <div class="breakdown-grid">
-      <div class="breakdown-item">
-        <div class="label">Výsledky & Grafy</div>
-        <div class="score-val">{{ vysledky_score }} <span style="font-size:0.85rem; color:var(--text-muted); font-weight:500;">/ 3.0 b</span></div>
-      </div>
-      <div class="breakdown-item">
-        <div class="label">Diskuze & Závěr</div>
-        <div class="score-val">{{ diskuze_score }} <span style="font-size:0.85rem; color:var(--text-muted); font-weight:500;">/ 3.0 b</span></div>
-      </div>
-      <div class="breakdown-item">
-        <div class="label">Formát & Úprava</div>
-        <div class="score-val">{{ format_score }} <span style="font-size:0.85rem; color:var(--text-muted); font-weight:500;">/ 2.0 b</span></div>
-      </div>
-      <div class="breakdown-item">
-        <div class="label">Chyby měření</div>
-        <div class="score-val">{{ chyby_score }} <span style="font-size:0.85rem; color:var(--text-muted); font-weight:500;">/ 2.0 b</span></div>
-      </div>
-    </div>
+    <!-- Right Pane: Summary, Deductions, Notes -->
+    <aside class="sidebar-pane">
+      <div class="sidebar-scroll">
 
-    <!-- Actions Bar -->
-    <div class="actions-bar">
-      <a href="/api/public/protocol/{{ share_token }}/pdf" download class="btn btn-primary">
-        <span>📥 Stáhnout opravené PDF</span>
-      </a>
-      <a href="/api/public/protocol/{{ share_token }}/pdf" target="_blank" class="btn btn-secondary">
-        <span>📄 Otevřít PDF v nové záložce</span>
-      </a>
-    </div>
-
-    <!-- Deductions Section -->
-    <h2 class="section-title">
-      <span>⚖️ Bodové srážky a zdůvodnění</span>
-    </h2>
-    {% if deductions and deductions|length > 0 %}
-      <div class="deductions-box">
-        <strong style="color:#92400e; font-size:0.95rem;">Rozpis srážek bodů z hodnocení:</strong>
-        <ul class="deduction-list">
-          {% for d in deductions %}
-            <li>
-              <span class="deduction-pts">-{{ d.pts }} b</span>
-              <span><strong>[{{ d.category|capitalize }}]</strong> {{ d.reason }}</span>
-            </li>
-          {% endfor %}
-        </ul>
-      </div>
-    {% else %}
-      <div class="deductions-box clean">
-        <strong style="color:#166534; font-size:0.95rem;">🎉 Plný počet bodů</strong>
-        <p style="font-size:0.88rem; color:#14532d; margin-top:4px;">Protokol byl vypracován bez bodových srážek.</p>
-      </div>
-    {% endif %}
-
-    <!-- Inline Annotations & Comments Section -->
-    {% if indexed_notes and indexed_notes|length > 0 %}
-      <h2 class="section-title">
-        <span>📝 Poznámky a komentáře v textu ({{ indexed_notes|length }})</span>
-      </h2>
-      <div class="notes-list">
-        {% for n in indexed_notes %}
-          <div class="note-card" style="border-left-color: {{ n.color }};">
-            <div class="note-card-header">
-              <div class="note-badge-tag">
-                <span class="note-index-badge" style="color: {{ n.color }};">[{{ n.index }}]</span>
-                <span style="font-weight:700; color:var(--text-main);">Strana {{ n.page_num }}</span>
-                <span style="color:var(--text-muted); font-size:0.8rem;">• {{ n.type_label }}</span>
-              </div>
-              <span style="font-size:0.75rem; color:var(--text-muted);">{{ n.author }}</span>
+        <!-- Hero Card -->
+        <div class="hero-card">
+          <div class="hero-info">
+            <h1 class="student-name">{{ student_name }}</h1>
+            <div class="task-name">{{ measurement_code }}: {{ measurement_name }}</div>
+            <div class="eval-meta">
+              <span>👤 Hodnotil: <strong>{{ evaluator_name }}</strong></span>
+              <span>📅 Datum: {{ eval_date }}</span>
+              {% if slot_name %}<span>📍 Kroužek: {{ slot_name }}</span>{% endif %}
             </div>
-
-            {% if n.context_snippet %}
-              <div class="note-context">
-                Kontext: „{{ n.context_snippet }}“
-              </div>
-            {% endif %}
-
-            <div class="note-content-text">{{ n.content }}</div>
           </div>
-        {% endfor %}
-      </div>
-    {% endif %}
 
-    <!-- Embedded PDF Viewer -->
-    <h2 class="section-title">
-      <span>👁️ Náhled opraveného protokolu</span>
-    </h2>
-    <div class="pdf-viewer-wrap">
-      <iframe src="/api/public/protocol/{{ share_token }}/pdf#toolbar=1" title="Náhled PDF protokolu"></iframe>
-    </div>
+          <div class="grade-badge-wrap">
+            <span style="font-size:0.68rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Známka</span>
+            <div class="grade-letter grade-{{ grade }}">{{ grade }}</div>
+            <div class="points-score">{{ total_points }} / 10 b</div>
+          </div>
+        </div>
+
+        <!-- Breakdown Grid -->
+        <div class="breakdown-grid">
+          <div class="breakdown-item">
+            <div class="label">Výsledky & Grafy</div>
+            <div class="score-val">{{ vysledky_score }} <span style="font-size:0.75rem; color:var(--text-muted); font-weight:500;">/ 3 b</span></div>
+          </div>
+          <div class="breakdown-item">
+            <div class="label">Diskuze & Závěr</div>
+            <div class="score-val">{{ diskuze_score }} <span style="font-size:0.75rem; color:var(--text-muted); font-weight:500;">/ 3 b</span></div>
+          </div>
+          <div class="breakdown-item">
+            <div class="label">Formát & Úprava</div>
+            <div class="score-val">{{ format_score }} <span style="font-size:0.75rem; color:var(--text-muted); font-weight:500;">/ 2 b</span></div>
+          </div>
+          <div class="breakdown-item">
+            <div class="label">Chyby měření</div>
+            <div class="score-val">{{ chyby_score }} <span style="font-size:0.75rem; color:var(--text-muted); font-weight:500;">/ 2 b</span></div>
+          </div>
+        </div>
+
+        <!-- Overall Comment Card (if present) -->
+        {% if general_comment %}
+        <div class="general-comment-box">
+          <div class="general-comment-header">
+            <span>💬 Slovní hodnocení asistenta</span>
+          </div>
+          <div class="general-comment-text">{{ general_comment }}</div>
+        </div>
+        {% endif %}
+
+        <!-- Deductions Section -->
+        {% if deductions and deductions|length > 0 %}
+          <div class="deductions-box">
+            <div class="deductions-title" style="color:#92400e;">
+              <span>⚖️ Bodové srážky (Moodle)</span>
+            </div>
+            <ul class="deduction-list">
+              {% for d in deductions %}
+                <li>
+                  <span class="deduction-pts">-{{ d.pts }} b</span>
+                  <span><strong>[{{ d.category|capitalize }}]</strong> {{ d.reason }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% else %}
+          <div class="deductions-box clean">
+            <div class="deductions-title" style="color:#166534;">
+              <span>🎉 Plný počet bodů</span>
+            </div>
+            <p style="font-size:0.82rem; color:#14532d;">Protokol byl vypracován bez bodových srážek.</p>
+          </div>
+        {% endif %}
+
+        <!-- Indexed Notes List -->
+        {% if indexed_notes and indexed_notes|length > 0 %}
+          <div class="notes-section-title">
+            <span>📝 Poznámky v textu ({{ indexed_notes|length }})</span>
+            <span style="font-size:0.7rem; color:var(--text-muted); font-weight:500; text-transform:none;">Kliknutím zobrazíte stranu</span>
+          </div>
+
+          <div class="notes-list">
+            {% for n in indexed_notes %}
+              <div class="note-card" style="border-left-color: {{ n.color }};" onclick="jumpToPage({{ n.page_num }})" title="Přejít na stranu {{ n.page_num }}">
+                <div class="note-card-header">
+                  <div class="note-badge-tag">
+                    <span class="note-index-badge" style="color: {{ n.color }};">[{{ n.index }}]</span>
+                    <span style="font-weight:700; color:var(--text-main);">Strana {{ n.page_num }}</span>
+                    <span style="color:var(--text-muted); font-size:0.75rem;">• {{ n.type_label }}</span>
+                  </div>
+                  <span style="font-size:0.72rem; color:var(--text-muted);">{{ n.author }}</span>
+                </div>
+
+                {% if n.context_snippet %}
+                  <div style="font-size:0.78rem; color:#475569; font-style:italic; background:#f8fafc; padding:4px 8px; border-radius:4px; border-left:2px solid #cbd5e1;">
+                    „{{ n.context_snippet }}“
+                  </div>
+                {% endif %}
+
+                <div class="note-content-text">{{ n.content }}</div>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+      </div>
+    </aside>
 
   </div>
+
+  <script>
+    // Offline PDF.js Canvas Viewer Implementation
+    if (window.pdfjsLib) {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = '/static/vendor/pdf.worker.min.js';
+    }
+
+    const pdfUrl = '/api/public/protocol/{{ share_token }}/pdf';
+    let pdfDoc = null;
+    let currentScale = 1.15;
+    let totalPages = 0;
+    let currentPage = 1;
+    let pageRendering = false;
+
+    async function initPDF() {
+      const container = document.getElementById('pdf-scroll-container');
+      const loading = document.getElementById('pdf-loading');
+
+      try {
+        const loadingTask = window.pdfjsLib.getDocument({
+          url: pdfUrl,
+          cMapPacked: true
+        });
+        pdfDoc = await loadingTask.promise;
+        totalPages = pdfDoc.numPages;
+        updatePageIndicator();
+
+        if (loading) loading.style.display = 'none';
+
+        // Render all pages
+        for (let num = 1; num <= totalPages; num++) {
+          await renderPage(num);
+        }
+
+        setupScrollObserver();
+      } catch (err) {
+        console.error("PDF load error:", err);
+        if (loading) {
+          loading.innerHTML = `
+            <div style="color:var(--danger); font-weight:600;">Nepodařilo se načíst PDF protokol.</div>
+            <a href="${pdfUrl}" target="_blank" class="btn btn-secondary" style="margin-top:10px;">Otevřít PDF přímo</a>
+          `;
+        }
+      }
+    }
+
+    async function renderPage(num) {
+      const container = document.getElementById('pdf-scroll-container');
+      const page = await pdfDoc.getPage(num);
+      const viewport = page.getViewport({ scale: currentScale });
+
+      let pageWrapper = document.getElementById(`pdf-page-${num}`);
+      let canvas, ctx;
+
+      if (!pageWrapper) {
+        pageWrapper = document.createElement('div');
+        pageWrapper.id = `pdf-page-${num}`;
+        pageWrapper.className = 'pdf-page-wrapper';
+        pageWrapper.dataset.pageNum = num;
+
+        canvas = document.createElement('canvas');
+        pageWrapper.appendChild(canvas);
+
+        const badge = document.createElement('div');
+        badge.className = 'page-footer-badge';
+        badge.textContent = `Strana ${num} z ${totalPages}`;
+        pageWrapper.appendChild(badge);
+
+        container.appendChild(pageWrapper);
+      } else {
+        canvas = pageWrapper.querySelector('canvas');
+      }
+
+      ctx = canvas.getContext('2d');
+      const outputScale = window.devicePixelRatio || 1;
+      canvas.width = Math.floor(viewport.width * outputScale);
+      canvas.height = Math.floor(viewport.height * outputScale);
+      canvas.style.width = Math.floor(viewport.width) + "px";
+      canvas.style.height = Math.floor(viewport.height) + "px";
+
+      const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
+
+      const renderContext = {
+        canvasContext: ctx,
+        transform: transform,
+        viewport: viewport
+      };
+
+      await page.render(renderContext).promise;
+    }
+
+    async function reRenderAll() {
+      if (!pdfDoc) return;
+      document.getElementById('zoom-label').textContent = Math.round(currentScale * 100) + '%';
+      for (let num = 1; num <= totalPages; num++) {
+        await renderPage(num);
+      }
+    }
+
+    function zoomIn() {
+      if (currentScale < 2.5) {
+        currentScale += 0.15;
+        reRenderAll();
+      }
+    }
+
+    function zoomOut() {
+      if (currentScale > 0.6) {
+        currentScale -= 0.15;
+        reRenderAll();
+      }
+    }
+
+    function resetZoom() {
+      currentScale = 1.15;
+      reRenderAll();
+    }
+
+    function fitWidth() {
+      const container = document.getElementById('pdf-scroll-container');
+      if (!container || !pdfDoc) return;
+      pdfDoc.getPage(1).then(page => {
+        const unscaled = page.getViewport({ scale: 1.0 });
+        const availableW = container.clientWidth - 60;
+        currentScale = Math.max(0.6, Math.min(2.5, availableW / unscaled.width));
+        reRenderAll();
+      });
+    }
+
+    function updatePageIndicator() {
+      const el = document.getElementById('page-indicator');
+      if (el) el.textContent = `Strana ${currentPage} / ${totalPages || 1}`;
+    }
+
+    function prevPage() {
+      if (currentPage > 1) {
+        jumpToPage(currentPage - 1);
+      }
+    }
+
+    function nextPage() {
+      if (currentPage < totalPages) {
+        jumpToPage(currentPage + 1);
+      }
+    }
+
+    function jumpToPage(num) {
+      const el = document.getElementById(`pdf-page-${num}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        el.classList.add('highlight-pulse');
+        setTimeout(() => el.classList.remove('highlight-pulse'), 1200);
+        currentPage = num;
+        updatePageIndicator();
+      }
+    }
+
+    function setupScrollObserver() {
+      const container = document.getElementById('pdf-scroll-container');
+      container.addEventListener('scroll', () => {
+        const wrappers = container.querySelectorAll('.pdf-page-wrapper');
+        const containerTop = container.scrollTop;
+        const containerCenter = containerTop + (container.clientHeight / 3);
+
+        for (const w of wrappers) {
+          const top = w.offsetTop - container.offsetTop;
+          const bottom = top + w.clientHeight;
+          if (top <= containerCenter && bottom >= containerCenter) {
+            const p = parseInt(w.dataset.pageNum, 10);
+            if (p !== currentPage) {
+              currentPage = p;
+              updatePageIndicator();
+            }
+            break;
+          }
+        }
+      });
+    }
+
+    window.addEventListener('DOMContentLoaded', initPDF);
+  </script>
 
 </body>
 </html>

@@ -4,6 +4,32 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.12.0] - 2026-10-16
+
+### 🚀 Novinky a vylepšení ve verzi 2.12.0
+
+#### 📱 Interaktivní studentský náhled s PDF.js prohlížečem (`/v/{share_token}`)
+- **Plnohodnotný PDF.js engine**: Místo statického `<iframe>` student nyní vidí identický ostrý canvas viewer jako asistent ve Studiu, a to včetně offline podpory v plném rozlišení obrazovky (HiDPI / Retina).
+- **Dvoupanelové rozvržení**:
+  - *Vlevo*: Interaktivní PDF plátno s ovládáním zoomu (+, −, přizpůsobení na šířku okna) a indikátorem stran.
+  - *Vpravo*: Přehled hodnocení s velkou známkou, body, dílčími kategoriemi, celkovým slovním hodnocením asistenta a interaktivním seznamem všech poznámek.
+- **Klikací proskakování na poznámky**: Kliknutí na libovolnou poznámku v pravém sloupci okamžitě a plynule posune PDF prohlížeč na příslušnou stranu a na moment ji zvýrazní.
+- **Plná mobilní responzivita**: Na telefonech a tabletech se panely automaticky poskládají pod sebe s optimalizovaným vertikálním posunem.
+
+#### 💬 Celkové slovní hodnocení protokolu pro Moodle i studenta
+- **Vyhrazené pole v bodovacím doku**: Přidáno pole *Celkové slovní hodnocení (pro Moodle i studenta)*, kam může cvičící uvést souhrnný dojem a zhodnocení celého protokolu.
+- **Automatická propagace do všech výstupů**: Text se automaticky propisuje do Moodle textového výstupu (`generateOutput2`), do Acrobat samolepicí poznámky na 1. straně PDF, do souhrnné přílohy (Appendix) i do studentského náhledu.
+
+#### 🎯 Oprava hover tooltipů nad ostrými pravoúhlými zvýrazněními v PDF
+- **Interaktivní komentáře při najetí myší**: K vektorovým pravoúhlým zvýrazněním byla doplněna neviditelná obdélníková anotace (`/Square`, `border=0`, transparentní barva). Prohlížeče Adobe Acrobat, Chrome i Brave tak spolehlivě zobrazují plovoucí bublinu s komentářem a jménem autora při najetí kurzoru myši, aniž by docházelo k deformaci či zaoblení hran zvýraznění.
+
+#### 🎥 Přegenerování reálných animací a snímků s protokoly Štěpána Skalky
+- **Výhradní použití autorových testovacích protokolů**: Všechny screenshoty a animované ukázky v dokumentaci i README byly nově pořízeny pomocí Playwright a ffmpeg přímo nad protokoly Štěpána Skalky (`Protokoly testovaci/Kalorimetrie.pdf`).
+- **Nové specializované animované klipy**: Pro jednotlivé fáze hodnocení byly vytvořeny plynulé odlehčené WebP/GIF klipy (import s autodetekcí, práce s AI asistentem, kreslení anotací, bodování a export).
+- **Zlidštění příručky pro asistenty**: Doplněny praktické rady pro cvičící a zvýrazněno pravidlo uložení konceptu (`Ctrl+S` / `Dokončit`) před stažením PDF.
+
+---
+
 ## [2.11.0] - 2026-10-16
 
 ### 🚀 Novinky a vylepšení ve verzi 2.11.0

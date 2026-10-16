@@ -1084,8 +1084,8 @@ def save_evaluation(proto_id: int, req: EvaluationSaveRequest, request: Request,
     INSERT INTO evaluations (
         protocol_id, vysledky_score, diskuze_score, format_score, chyby_score,
         total_points, grade, manual_grade_override, deductions_json,
-        raw_output_1, raw_output_2, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        raw_output_1, raw_output_2, general_comment, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(protocol_id) DO UPDATE SET
         vysledky_score = excluded.vysledky_score,
         diskuze_score = excluded.diskuze_score,
@@ -1097,11 +1097,12 @@ def save_evaluation(proto_id: int, req: EvaluationSaveRequest, request: Request,
         deductions_json = excluded.deductions_json,
         raw_output_1 = excluded.raw_output_1,
         raw_output_2 = excluded.raw_output_2,
+        general_comment = excluded.general_comment,
         updated_at = excluded.updated_at
     """, (
         proto_id, req.vysledky_score, req.diskuze_score, req.format_score, req.chyby_score,
         req.total_points, grade_val, clean_override, deductions_json_str,
-        req.raw_output_1, req.raw_output_2, now
+        req.raw_output_1, req.raw_output_2, req.general_comment or "", now
     ))
 
     slot_folder = format_slot_folder(day_of_week=proto["day_of_week"], time_start=proto["time_start"], room=proto["slot_room"], raw_name=proto["slot_name"])
@@ -1142,7 +1143,8 @@ def save_evaluation(proto_id: int, req: EvaluationSaveRequest, request: Request,
             "diskuze_score": req.diskuze_score,
             "format_score": req.format_score,
             "chyby_score": req.chyby_score,
-            "deductions": deductions_raw
+            "deductions": deductions_raw,
+            "general_comment": req.general_comment or ""
         }
 
         source_path = Path(proto["source_path"])
@@ -1181,7 +1183,8 @@ def save_evaluation(proto_id: int, req: EvaluationSaveRequest, request: Request,
                 share_token=share_tok,
                 base_url=base_url,
                 student_name=proto.get("student_name"),
-                task_code=proto.get("measurement_code")
+                task_code=proto.get("measurement_code"),
+                general_comment=req.general_comment
             )
             saved_path = save_corrected_file(
                 file_bytes=burned_bytes,
@@ -1259,12 +1262,13 @@ def autosave_protocol(proto_id: int, req: AutosaveRequest, user: dict = Depends(
         clean_override = ev.manual_grade_override if (isinstance(ev.manual_grade_override, str) and ev.manual_grade_override.upper() in ['A', 'B', 'C', 'D', 'E', 'F']) else None
         tot_pts = ev.total_points if ev.total_points is not None else 10.0
         grade_val = clean_override or (ev.grade if ev.grade and ev.grade in ['A', 'B', 'C', 'D', 'E', 'F'] else calculate_grade_mark(tot_pts))
+        gen_comm_val = ev.general_comment if (ev and ev.general_comment is not None) else (req.general_comment or "")
         cur.execute("""
         INSERT INTO evaluations (
             protocol_id, vysledky_score, diskuze_score, format_score, chyby_score,
             total_points, grade, manual_grade_override, deductions_json,
-            raw_output_1, raw_output_2, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            raw_output_1, raw_output_2, general_comment, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(protocol_id) DO UPDATE SET
             vysledky_score = excluded.vysledky_score,
             diskuze_score = excluded.diskuze_score,
@@ -1276,11 +1280,12 @@ def autosave_protocol(proto_id: int, req: AutosaveRequest, user: dict = Depends(
             deductions_json = excluded.deductions_json,
             raw_output_1 = excluded.raw_output_1,
             raw_output_2 = excluded.raw_output_2,
+            general_comment = excluded.general_comment,
             updated_at = excluded.updated_at
         """, (
             proto_id, ev.vysledky_score or 3.0, ev.diskuze_score or 3.0, ev.format_score or 2.0, ev.chyby_score or 2.0,
             tot_pts, grade_val, clean_override, deductions_json_str,
-            ev.raw_output_1 or "", ev.raw_output_2 or "", now
+            ev.raw_output_1 or "", ev.raw_output_2 or "", gen_comm_val or "", now
         ))
 
     cur.execute("""
@@ -2381,7 +2386,7 @@ def view_student_protocol(share_token: str, request: Request):
            u.full_name as evaluator_name,
            e.vysledky_score, e.diskuze_score, e.format_score, e.chyby_score,
            e.total_points as eval_total_points, e.grade as eval_grade,
-           e.deductions_json, e.updated_at as eval_updated_at,
+           e.deductions_json, e.general_comment, e.updated_at as eval_updated_at,
            a.annotations_json
     FROM protocols p
     LEFT JOIN semesters s ON p.semester_id = s.id
@@ -2468,8 +2473,10 @@ def view_student_protocol(share_token: str, request: Request):
             "diskuze_score": format_points(proto_dict.get("diskuze_score", 0.0)),
             "format_score": format_points(proto_dict.get("format_score", 0.0)),
             "chyby_score": format_points(proto_dict.get("chyby_score", 0.0)),
+            "general_comment": (proto_dict.get("general_comment") or "").strip(),
             "deductions": raw_deds,
-            "indexed_notes": indexed_notes
+            "indexed_notes": indexed_notes,
+            "annotations_json": proto_dict.get("annotations_json") or "[]"
         }
     )
 

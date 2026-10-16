@@ -181,7 +181,8 @@ def burn_annotations_to_pdf(
     share_token: Optional[str] = None,
     base_url: Optional[str] = None,
     student_name: Optional[str] = None,
-    task_code: Optional[str] = None
+    task_code: Optional[str] = None,
+    general_comment: Optional[str] = None
 ) -> bytes:
     """
     Renders high-quality annotations into PDF:
@@ -349,6 +350,16 @@ def burn_annotations_to_pdf(
                 for fr in target_rects:
                     page.draw_rect(fr, color=None, fill=color_rgb, fill_opacity=0.35)
                     page.draw_line(pymupdf.Point(fr.x0, fr.y1), pymupdf.Point(fr.x1, fr.y1), color=color_rgb, width=1.4)
+                    if content:
+                        try:
+                            ra = page.add_rect_annot(fr)
+                            ra.set_border(width=0)
+                            ra.set_colors(stroke=None, fill=None)
+                            ra.set_info(content=_clean_unicode_str(content), title=_clean_unicode_str(author))
+                            ra.set_opacity(0)
+                            ra.update()
+                        except Exception:
+                            pass
                     w_text = page.get_text("text", clip=fr).strip()
                     if w_text:
                         extracted_words.append(w_text)
@@ -391,6 +402,16 @@ def burn_annotations_to_pdf(
                 for fr in target_rects:
                     mid_y = (fr.y0 + fr.y1) / 2.0
                     page.draw_line(pymupdf.Point(fr.x0, mid_y), pymupdf.Point(fr.x1, mid_y), color=color_rgb, width=1.5)
+                    if content:
+                        try:
+                            ra = page.add_rect_annot(fr)
+                            ra.set_border(width=0)
+                            ra.set_colors(stroke=None, fill=None)
+                            ra.set_info(content=_clean_unicode_str(content), title=_clean_unicode_str(author))
+                            ra.set_opacity(0)
+                            ra.update()
+                        except Exception:
+                            pass
 
                 if target_rects and badge_idx:
                     fr0 = target_rects[0]
@@ -555,6 +576,12 @@ def burn_annotations_to_pdf(
         else:
             moodle_lines.append("• Bez bodových srážek (plný počet bodů).")
 
+        gen_comm = (general_comment or (evaluation.get("general_comment") if evaluation else "") or "").strip()
+        if gen_comm:
+            moodle_lines.append("")
+            moodle_lines.append("Slovní hodnocení protokolu:")
+            moodle_lines.append(gen_comm)
+
         if evaluator_name:
             moodle_lines.append("")
             moodle_lines.append(f"Hodnotil: {evaluator_name}")
@@ -603,7 +630,7 @@ def burn_annotations_to_pdf(
                 print("QR code generation error:", e)
 
     # 7. Generate Appendix Summary Pages ("PŘEHLED HODNOCENÍ A POZNÁMEK")
-    if indexed_notes or (evaluation and evaluation.get("deductions")):
+    if indexed_notes or (evaluation and evaluation.get("deductions")) or gen_comm:
         first_page_rect = doc[0].rect if len(doc) > 0 else pymupdf.Rect(0, 0, 595, 842)
         app_page = doc.new_page(width=first_page_rect.width, height=first_page_rect.height)
         font_id = _ensure_font(app_page)
@@ -675,6 +702,37 @@ def burn_annotations_to_pdf(
                 )
                 d_y += 13.5
             cur_y += ded_h + 12.0
+
+        # Overall protocol comment card
+        if gen_comm:
+            lines_est = max(1, math.ceil(len(gen_comm) / 78))
+            gen_h = 26.0 + (lines_est * 13.0)
+            gen_h = max(40.0, min(180.0, gen_h))
+            if cur_y + gen_h > first_page_rect.height - 40.0:
+                app_page = doc.new_page(width=first_page_rect.width, height=first_page_rect.height)
+                font_id = _ensure_font(app_page)
+                font_bold_id = "dejavu-bold" if font_id == "dejavu" and os.path.exists(FONT_DEJAVU_BOLD) else font_id
+                cur_y = 36.0
+                _draw_appendix_header(app_page, 1)
+
+            gen_rect = pymupdf.Rect(margin_x, cur_y, margin_x + content_w, cur_y + gen_h)
+            app_page.draw_rect(gen_rect, color=(0.18, 0.45, 0.85), fill=(0.96, 0.98, 1.0), width=0.8, radius=0.03)
+            app_page.draw_rect(pymupdf.Rect(margin_x, cur_y, margin_x + 4, cur_y + gen_h), color=(0.18, 0.45, 0.85), fill=(0.18, 0.45, 0.85), radius=0.05)
+            app_page.insert_text(
+                pymupdf.Point(margin_x + 12, cur_y + 13),
+                "SLOVNÍ HODNOCENÍ CELÉHO PROTOKOLU",
+                fontsize=8.5,
+                color=(0.12, 0.28, 0.70),
+                fontname=font_bold_id
+            )
+            app_page.insert_textbox(
+                pymupdf.Rect(margin_x + 12, cur_y + 18, margin_x + content_w - 12, cur_y + gen_h - 4),
+                _clean_unicode_str(gen_comm),
+                fontsize=8.2,
+                color=(0.15, 0.18, 0.25),
+                fontname=font_id
+            )
+            cur_y += gen_h + 12.0
 
         # Render structured cards for each indexed note
         for n in indexed_notes:

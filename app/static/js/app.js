@@ -1312,6 +1312,8 @@ const App = {
       grade: GradingEngine.getMark(GradingEngine.getTotalPoints()),
       manual_grade_override: GradingEngine.state.manualGradeOverride,
       deductions: GradingEngine.state.deductions,
+      general_comment: (window.GradingEngine && GradingEngine.state.generalComment) ? GradingEngine.state.generalComment : "",
+      annotations: (window.PDFStudio && PDFStudio.annotations) ? PDFStudio.annotations : null,
       raw_output_1: GradingEngine.generateOutput1(),
       raw_output_2: GradingEngine.generateOutput2(),
       burn_to_pdf: andBurn,
@@ -2991,7 +2993,8 @@ const App = {
           manual_grade_override: engine.state.manualGradeOverride,
           deductions: engine.state.deductions,
           raw_output_1: engine.generateOutput1(),
-          raw_output_2: engine.generateOutput2()
+          raw_output_2: engine.generateOutput2(),
+          general_comment: engine.state.generalComment || ""
         } : null,
         ai_proposals: this.currentAIResult || { deductions: [], annotations: [] }
       };

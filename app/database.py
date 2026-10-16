@@ -206,6 +206,7 @@ def init_db():
         deductions_json TEXT NOT NULL DEFAULT '[]',
         raw_output_1 TEXT,
         raw_output_2 TEXT,
+        general_comment TEXT DEFAULT '',
         updated_at TEXT NOT NULL,
         FOREIGN KEY(protocol_id) REFERENCES protocols(id) ON DELETE CASCADE
     )
@@ -317,6 +318,11 @@ def init_db():
         for r in missing_token_rows:
             tok = secrets.token_urlsafe(16)
             cur.execute("UPDATE protocols SET share_token = ? WHERE id = ?", (tok, r[0]))
+    except Exception:
+        pass
+
+    try:
+        cur.execute("ALTER TABLE evaluations ADD COLUMN general_comment TEXT DEFAULT ''")
     except Exception:
         pass
 

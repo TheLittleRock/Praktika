@@ -139,6 +139,7 @@ class EvaluationSaveRequest(BaseModel):
     manual_grade_override: Optional[Union[str, bool]] = None
     deductions: List[DeductionItem] = []
     annotations: Optional[List[Any]] = None
+    general_comment: Optional[str] = ""
     raw_output_1: str = ""
     raw_output_2: str = ""
     burn_to_pdf: bool = True
@@ -149,6 +150,7 @@ class AutosaveRequest(BaseModel):
     annotations: Optional[List[Any]] = None
     evaluation: Optional[EvaluationSaveRequest] = None
     ai_proposals: Optional[Dict[str, Any]] = None
+    general_comment: Optional[str] = None
     vysledky_score: Optional[float] = None
     diskuze_score: Optional[float] = None
     format_score: Optional[float] = None

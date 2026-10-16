@@ -1,155 +1,149 @@
-# Příručka pro asistenty: Workflow opravy protokolů
+# Příručka pro asistenty: Průvodce opravou protokolů
 
-Tato příručka detailně popisuje každodenní práci asistenta (cvičícího) při hodnocení a opravě laboratorních protokolů v **Praktika Evaluation Studio**.
+Tento průvodce vás krok za krokem provede hodnocením a opravou studentských laboratorních protokolů v **Praktika Evaluation Studio**. Cílem aplikace je ušetřit vám čas při rutinních činnostech (přepisování bodů, formátování srážek pro Moodle) a umožnit vám soustředit se na věcnou a pedagogickou zpětnou vazbu pro studenta.
 
 ---
 
-## 1. Celkový přehled procesu opravy
+## 1. Import protokolů a automatická detekce
 
-Práce asistenta probíhá v plně integrovaném grafickém prostředí, kde se kombinují manuální anotační nástroje, asistence umělé inteligence a automatizované bodování s exportem do Moodle:
+Nový protokol nahrajete na hlavní stránce tlačítkem **+ Nahrát protokol**:
 
-```mermaid
-flowchart TD
-    A["Výběr protokolu z Dashboardu"] --> B["Otevření v Korekčním PDF Studiu"]
-    B --> C["Prohlížení protokolu & Zoomování"]
-    C --> D{"Využití AI Asistenta?"}
-    D -- "Ano" --> E["Revize a schvalování AI návrhů přímo v textu"]
-    D -- "Ne" --> F["Ruční kreslení anotací a komentářů"]
-    E --> F
-    F --> G["Bodovací dock: zadání bodů a výběr srážek"]
-    G --> H["Zkopírování komentáře pro Moodle"]
-    H --> I["Dokončení a export opraveného PDF"]
-```
+<picture>
+  <source srcset="../assets/images/clip_import.webp" type="image/webp">
+  <img src="../assets/images/clip_import.gif" alt="Ukázka nahrání protokolu a autodetekce údajů">
+</picture>
+
+- **Hromadný výběr**: Můžete přetáhnout i více PDF souborů najednou.
+- **Inteligentní autodetekce**: Aplikace automaticky přečte text první strany PDF a sama předvyplní jméno studenta, název i číslo laboratorní úlohy a rozvrhový termín.
+- Nemusíte složitě vyplňovat formulář – stačí zkontrolovat detekované údaje a potvrdit import.
 
 ---
 
 ## 2. Pracovní plocha Korekčního PDF Studia
 
-Kliknutím na tlačítko **Opravit** nebo řádek protokolu na hlavní stránce se otevře Studio:
+Kliknutím na tlačítko **Opravit** nebo přímo na řádek studenta v tabulce se otevře Studio:
 
-![Korekční PDF Studio](../assets/images/studio_overview.png)
+![Pracovní plocha Korekčního PDF Studia](../assets/images/studio_overview.png)
 
-### Ovládání zobrazení a zoomu
-- **Plynulý zoom touchpadem (Pinch-to-zoom)**: Přirozené plynulé zvětšování a zmenšování se samostatně kalibrovanou citlivostí.
-- **Kolečko myši s Ctrl (`Ctrl + Scroll`)**: Krokový zoom v přesných 8% intervalech centrovaný na pozici kurzoru.
-- **Tlačítka zoomu**: V horní liště jsou k dispozici tlačítka `+`, `-`, reset na `100 %` a automatické přizpůsobení na šířku okna (`Na šířku`).
-- **Celoobrazovkový režim (Fullscreen)**: Tlačítko `⛶` maximalizuje studio pro ničím nerušenou práci na celém monitoru.
-- **Roztahování bočních panelů**: Okraje obou bočních doků (AI Asistent i Bodování) lze jednoduše uchopit kurzorem myši a tažením přizpůsobit jejich šířku velikosti vaší obrazovky.
+### Způsoby zoomování a navigace
+- **Plynulý zoom touchpadem (Pinch-to-zoom)**: Přirozené zvětšování dvěma prsty se samostatně kalibrovanou citlivostí.
+- **Kolečko myši s klávesou Ctrl (`Ctrl + Scroll`)**: Rychlé krokové přibližování centrované na pozici kurzoru.
+- **Tlačítka v nástrojové liště**: K dispozici jsou tlačítka `+`, `−`, reset na `100 %` a přizpůsobení na celou šířku obrazovky (`Na šířku`).
+- **Celoobrazovkový režim (`⛶`)**: Tlačítko vpravo nahoře maximalizuje okno na celý monitor.
+- **Přizpůsobení bočních doků**: Šířku panelů AI Asistenta i Bodovacího doku můžete jednoduše měnit tažením za jejich levý okraj.
 
 ---
 
-## 3. Animační ukázka práce ve Studiu
+## 3. Celkový průběh opravy (Video ukázka)
 
-Následující animace zachycuje reálné používání anotačních nástrojů, výběru nakreslených objektů, schvalování AI návrhů a zadávání srážek bodů:
+Následující animace zachycuje reálnou práci asistenta od prohlížení protokolu přes kreslení, schválení AI návrhu až po zadání bodů:
 
 <picture>
   <source srcset="../assets/images/studio_workflow.webp" type="image/webp">
-  <img src="../assets/images/studio_workflow.gif" alt="Animovaná ukázka práce v Korekčním Studiu">
+  <img src="../assets/images/studio_workflow.gif" alt="Kompletní ukázka práce ve Studiu">
 </picture>
 
 ---
 
-## 4. Anotační nástroje (Acrobat-standard)
+## 4. Anotace a kreslení v PDF
 
-Nástrojová lišta v horní části nabízí paletu nástrojů plně kompatibilních se standardem Adobe Acrobat:
+Horní nástrojová lišta poskytuje standardní nástroje kompatibilní s Adobe Acrobat:
 
-| Ikona | Nástroj | Klávesa | Popis použití |
+<picture>
+  <source srcset="../assets/images/clip_annotations.webp" type="image/webp">
+  <img src="../assets/images/clip_annotations.gif" alt="Kreslení a úpravy anotací na plátně">
+</picture>
+
+| Ikona | Nástroj | Klávesa | Jak nástroj používat |
 | :---: | :--- | :---: | :--- |
-| ✋ | **Ruka / Výběr** | `H` | Posun dokumentu (pan) a výběr/přesouvání nakreslených objektů. |
-| 🖍️ | **Zvýrazňovač** | `U` | Označení řádků textu. Kliknutím na zvýraznění lze dopsat textový komentář. |
-| <s>S</s> | **Přeškrtnutí** | `S` | Vodorovné přeškrtnutí nesprávného textu či vzorce. |
-| ✏️ | **Kreslení perem** | `P` | Volná kresba od ruky (např. zakroužkování, fajfka, vlnovka). |
-| 💬 | **Poznámka** | `N` | Vložení samolepicí poznámky (Acrobat speech bubble ikona) s rozbalovacím komentářem. |
-| 🔲 | **Obdélník** | `R` | Ohraničení grafu, tabulky nebo odstavce s jemnou barevnou výplní. |
-| ↗ | **Šipka** | `A` | Směrová šipka s plným hrotem ukazující na konkrétní chybu. |
-| **T** | **Přímý text** | `T` | Vepsání textového hodnocení přímo do plochy dokumentu (psací stroj). |
+| ✋ | **Ruka / Výběr** | `H` | Posun dokumentu (pan) a kliknutím výběr nakreslených objektů k přesunu či smazání. |
+| 🖍️ | **Zvýrazňovač** | `U` | Označení textu tažením myši. Po puštění lze dopsat vysvětlující komentář. |
+| <s>S</s> | **Přeškrtnutí** | `S` | Vodorovné přeškrtnutí chybného výrazu či vzorce. |
+| ✏️ | **Kreslení perem** | `P` | Plynulá kaligrafická kresba (fajfky, otazníky, zakroužkování chyb). |
+| 💬 | **Poznámka** | `N` | Umístění samolepicí poznámky (speech bubble) s rozklikávacím komentářem. |
+| 🔲 | **Obdélník** | `R` | Rámeček s jemnou průhlednou výplní pro označení grafu, tabulky nebo odstavce. |
+| ↗ | **Šipka** | `A` | Směrová šipka mířící na konkrétní číselnou či formální chybu. |
+| **T** | **Přímý text** | `T` | Vepsání textového hodnocení přímo do plochy PDF (psací stroj). |
 
-### Výběr barvy
-Před použitím libovolného nástroje můžete zvolit barvu z palety (červená, modrá, zelená, oranžová, fialová). Volba barvy ovlivňuje pouze nově vytvářené anotace a nikdy zpětně nepřebarvuje existující prvky.
-
----
-
-## 5. Výběr, přesouvání a mazání nakreslených tvarů
-
-Aplikace podporuje plnou manipulaci se všemi nakreslenými objekty (obdélníky, šipky, perokresby, textové poznámky):
-
-1. **Aktivace výběru**: Přepněte se na nástroj **Ruka / Výběr** (klávesa `H`) a klikněte na libovolný tvar na plátně.
-2. **Manipulační rámeček**: Kolem vybraného objektu se zobrazí ohraničující rámeček se 4 manipulačními body v rozích a červenou ikonou koše.
-3. **Přesouvání**: Uchopte vybraný tvar myší a libovolně jej přetáhněte na nové místo na stránce.
-4. **Smazání**: 
-   - Stiskněte klávesu **`Delete`** nebo **`Backspace`** na klávesnici.
-   - Nebo klikněte na červenou **ikonu koše** v pravém horním rohu výběrového rámečku.
+### Výběr a manipulace s objekty
+- Chcete-li libovolný nakreslený tvar (obdélník, šipku, kresbu perem) posunout, přepněte na nástroj **Ruka / Výběr** (`H`) a na tvar klikněte.
+- Kolem tvaru se zobrazí manipulační rámeček. Tvar lze chytit myší a přetáhnout na jiné místo.
+- Pro smazání stiskněte klávesu **`Delete`** / **`Backspace`**, nebo klikněte na červenou ikonu koše v rohu rámečku.
+- Volba barvy v liště ovlivňuje pouze nově kreslené prvky; již nakreslené anotace se zpětně nepřebarvují.
 
 ---
 
-## 6. Práce s AI Asistentem (Gemini)
+## 5. Práce s AI Asistentem (Google Gemini)
 
-AI Asistent automaticky projde odevzdaný protokol a připraví detailní návrhy korektur i bodových srážek:
+AI Asistent vám poslouží jako druhý pár očí. Přečte celý protokol a připraví návrhy věcných, formálních i syntaktických nedostatků:
 
-![Boční panel AI Asistenta](../assets/images/studio_ai_drawer.png)
+<picture>
+  <source srcset="../assets/images/clip_ai_assistant.webp" type="image/webp">
+  <img src="../assets/images/clip_ai_assistant.gif" alt="Práce s AI asistentem a schvalování návrhů">
+</picture>
 
-### Zobrazení a orientace v návrzích
-- Kliknutím na tlačítko **AI Asistent** v pravém horním rohu otevřete boční panel.
-- V horní části je přehledné textové shrnutí hlavních nedostatků protokolu.
-- V sekci **Navržená označení v textu** vidíte seznam nalezených chyb s číslem strany a přesným textem.
-- **Kliknutí na libovolnou položku** v panelu okamžitě posune stránku a vystředí dané místo na obrazovce.
-
-### Schvalování a zamítání přímo v textu PDF
-Každé navržené problematické místo v textu protokolu je zvýrazněno a opatřeno interaktivním panelem se třemi akcemi:
-
-- **✓ Schválit**: Okamžitě převede AI návrh na vaši oficiální anotaci v PDF, odstraní návrhový box a promítne změnu do systému.
-- **✕ Zamítnout**: Návrh ihned smaže z dokumentu i ze seznamu návrhů.
-- **✏️ Upravit**: Otevře editační okno komentáře, kde můžete upravit formulaci nebo přiřadit konkrétní bodovou srážku.
-
-> [!NOTE]
-> Schválené i zamítnuté návrhy se okamžitě ukládají do databáze. Stav korektur zůstává zachován i při zavření a opětovném otevření protokolu.
-
-### Opakované spuštění analýzy
-V hlavičce AI panelu máte dvě možnosti opětovného spuštění:
-1. **+ Přidat nové návrhy (Merge)**: Ponechá všechny dosud schválené či existující návrhy a doplní pouze nově objevené chyby.
-2. **↻ Kompletně nahradit (Replace)**: Vyčistí stávající neschválené návrhy a vygeneruje kompletně novou analýzu od začátku.
+### Jak pracovat s návrhy
+1. Otevřete boční panel kliknutím na tlačítko **AI Asistent** v pravém horním rohu.
+2. V přehledu vidíte stručné shrnutí kvality protokolu a seznam nalezených nedostatků.
+3. Kliknutím na libovolnou položku v panelu se PDF okamžitě posune přímo na dané místo.
+4. **Schválení návrhu**: Klikněte na **✓ Aplikovat do PDF** (buď v bočním panelu, nebo přímo na plátně u zvýrazněného textu). Návrh se okamžitě převede na vaši oficiální anotaci.
+5. **Zamítnutí návrhu**: Kliknutím na **✕ Zahodit** návrh odstraníte, pokud jej nepovažujete za relevantní.
 
 ---
 
-## 7. Bodovací dock a srážky bodů
+## 6. Bodovací dok a Celkové slovní hodnocení
 
-Hodnocení protokolu se provádí v praktickém doku, který lze mít přikotvený vpravo/vlevo nebo volně plovoucí:
+Bodování je rozděleno do čtyř standardních kategorií odpovídajících pravidlům fyzikálního praktika:
 
-- **Čtyři hodnoticí kategorie**:
-  - *Výsledky* (0.0 až 3.0 b)
-  - *Diskuze* (0.0 až 3.0 b)
-  - *Formát* (0.0 až 2.0 b)
-  - *Chyby* (0.0 až 2.0 b)
-- **Katalog častých chyb**: Kliknutím na předvolbu (např. *-0.25 b: chybějící čárka před ", kde"*) se srážka ihned aplikuje a promítne do součtu. Všechny srážky jsou striktně v násobcích **0.125 b**.
-- **Výsledná známka**: Aplikace automaticky počítá známku ECTS (A–F) podle celkového součtu:
-  - **A**: 9.00 až 10.00 b
-  - **B**: 8.00 až 8.875 b
-  - **C**: 6.00 až 7.875 b
-  - **D**: 4.00 až 5.875 b
-  - **E**: 2.00 až 3.875 b
-  - **F**: pod 2.00 b (nevyhověl)
+<picture>
+  <source srcset="../assets/images/clip_grading.webp" type="image/webp">
+  <img src="../assets/images/clip_grading.gif" alt="Bodovací dok a zadání celkového slovního hodnocení">
+</picture>
+
+- **Hodnoticí kategorie**:
+  - *Výsledky & Grafy* (max. 3.0 b)
+  - *Diskuze & Závěr* (max. 3.0 b)
+  - *Formát & Úprava* (max. 2.0 b)
+  - *Chyby měření & Nejistoty* (max. 2.0 b)
+- **Rychlé šablony srážek**: Z rozbalovací nabídky můžete jedním kliknutím vybrat časté chyby (např. *-0.25 b: chybějící čárka před ", kde"*). Srážky jsou počítány v přesných násobcích **0.125 b**.
+- **Celkové slovní hodnocení**: Do textového pole napište shrnující komentář o tom, jak protokol hodnotíte jako celek. Tento komentář se automaticky propíše:
+  - do textového výstupu pro Moodle,
+  - do samolepicí Acrobat poznámky na 1. straně PDF,
+  - do závěrečné souhrnné přílohy (Appendix),
+  - do webového studentského náhledu.
+- **Automatická známka ECTS**: Známka A až F se počítá v reálném čase podle součtu bodů. Kliknutím na známku v záhlaví doku ji můžete v případě potřeby ručně upravit.
 
 ---
 
-## 8. Export opraveného protokolu a text pro Moodle
+## 7. Uložení, dokončení a export PDF
 
-Jakmile je protokol zkontrolován:
+> [!IMPORTANT]
+> **Vždy nejprve uložte koncept před stažením PDF:**
+> Před exportem PDF vždy klikněte na tlačítko **💾 Koncept** (`Ctrl+S`) nebo přímo na zelené tlačítko **✓ Dokončit** (`Ctrl+Enter`). Tím se provede uložení všech vrstev anotací do databáze a vygeneruje se aktuální opravené PDF. Pokud byste soubor stahovali ze záložek bez uložení, soubor by neobsahoval vaše poslední provedené změny.
 
-1. **Zkopírování pro Moodle**: Klikněte na tlačítko **📋 Kopírovat pro Moodle**. Do schránky se zkopíruje strukturovaný text s celkovým hodnocením, dílčími body a odrážkovým seznamem všech bodových srážek, připravený k vložení do odevzdávárny LMS Moodle.
-2. **Dokončení a PDF Export**: Klikněte na zelené tlačítko **✓ Dokončit**.
-   - Vygeneruje se finální opravené PDF s vizuální hodnoticí hlavičkou na 1. straně a souhrnnou přílohou na konci dokumentu:
+<picture>
+  <source srcset="../assets/images/clip_export.webp" type="image/webp">
+  <img src="../assets/images/clip_export.gif" alt="Dokončení hodnocení a studentský náhled">
+</picture>
 
-![Ukázka exportovaného PDF s hodnocením](../assets/images/pdf_export_sample.png)
+### Výstupy hodnocení:
+1. **📋 Kopírovat pro Moodle**: Tlačítko v bodovacím doku zkopíruje do schránky kompletní formátovaný text s body, srážkami a celkovým slovním hodnocením pro vložení do poznámky k hodnocení v LMS Moodle.
+2. **✓ Dokončit**: Označí protokol jako opravený a vygeneruje finální PDF:
+   - **Ostré pravoúhlé zvýraznění**: Všechna zvýraznění mají dokonale ostré hrany, pevnou spodní linku a interaktivní tooltip s komentářem při najetí myší v Adobe Acrobat, Google Chrome i Brave.
+   - **Moodle samolepicí poznámka na 1. straně**: V záhlaví první strany je vložena Acrobat poznámka obsahující kompletní rozpis srážek a slovní hodnocení.
+   - **Plynulá perokresba**: Kresby perem jsou automaticky vyhlazeny Chaikinovým algoritmem.
+   - **Závěrečná příloha (Appendix)**: Přehledná tabulka všech srážek a karet komentářů s obousměrnými odkazy (`[1]`, `[2]`, ...).
+   - **QR kód & Studentský náhled**: QR kód na 1. straně odkazuje na interaktivní webové zobrazení.
 
-### Co obsahuje exportované PDF:
-- **Kompaktní hodnoticí záhlaví s QR kódem**: Výrazná známka, celkový počet bodů z 10 b, rozpis dílčích kategorií, jméno cvičícího, datum exportu a QR kód s klikacím odkazem pro studenta.
-- **Acrobat Moodle komentář**: V pravém horním rohu záhlaví je umístěna nativní samolepicí poznámka, která po otevření v libovolném PDF prohlížeči (Adobe Acrobat, Chrome, Brave, Preview) obsahuje kompletní rozpis srážek bodů připravený k překopírování do IS/Moodle.
-- **Ostré pravoúhlé zvýraznění textu**: Zvýraznění má dokonale ostré rohy a pevnou spodní linku na účaří textu, přesně jako v aplikaci.
-- **Jednotné ikony volných poznámek**: Každá poznámka má jednu čistou ikonu doplněnou o indexový štítek `[1]`, `[2]`, ...
-- **Plynule vyhlazená perokresba**: Volné tahy perem jsou automaticky vyhlazovány Chaikinovým algoritmem pro přirozený kaligrafický vzhled.
-- **Závěrečná příloha (Přehled hodnocení a poznámek)**: Na konci PDF je generován přehled všech poznámek s kontextovými výňatky textu, rozpisem srážek a obousměrnými klikacími odkazy (`[1]` v textu přeskočí na kartu v příloze; tlačítko `Zpět na str. X ↗` vrátí čtenáře na příslušnou stranu):
+---
 
-![Závěrečná stránka Přehled hodnocení a poznámek v exportovaném PDF](../assets/images/pdf_appendix_sample.png)
+## 8. Nový interaktivní studentský náhled (`/v/{share_token}`)
 
-- **Zabezpečený studentský náhled (`/v/{share_token}`)**: Po naskenování QR kódu nebo kliknutí na odkaz se studentovi otevře responzivní webové zobrazení hodnocení bez nutnosti přihlášení.
-- **Plná podpora české i slovenské diakritiky**: Znaky jako `ě`, `š`, `č`, `ř`, `ž`, `ť`, `ľ` se zobrazují bez jakéhokoliv poškození v libovolném čtenáři PDF díky UTF-16BE podpoře.
+Po naskenování QR kódu nebo otevření odkazu se studentovi zobrazí dvoupanelové rozhraní:
+
+![Studentský náhled protokolu](../assets/images/student_view.png)
+
+- **Vlevo**: Plnohodnotný prohlížeč PDF.js v plném rozlišení se zoomem, stránkováním a přizpůsobením na šířku.
+- **Vpravo**: Přehledná karta s výslednou známkou, body, dílčími kategoriemi, celkovým slovním hodnocením asistenta a interaktivním seznamem všech poznámek v textu.
+- **Kliknutí na poznámku**: Kliknutí na jakoukoliv poznámku v pravém sloupci okamžitě posune PDF prohlížeč na příslušnou stranu a zvýrazní ji.
+- **Responzivita**: Na mobilních zařízeních a tabletech se panely automaticky poskládají pod sebe pro pohodlné čtení.

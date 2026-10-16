@@ -10,7 +10,8 @@ const GradingEngine = {
   presets: [], // Loaded from /api/presets?type=deduction
   state: {
     deductions: [], // [{ category, pts, reason }]
-    manualGradeOverride: null
+    manualGradeOverride: null,
+    generalComment: ""
   },
 
   async init(containerEl, onStateChangeCallback) {
@@ -36,9 +37,11 @@ const GradingEngine = {
       this.state.deductions = evalData.deductions || [];
       const ov = evalData.manual_grade_override;
       this.state.manualGradeOverride = (typeof ov === 'string' && ['A', 'B', 'C', 'D', 'E', 'F'].includes(ov.toUpperCase())) ? ov.toUpperCase() : null;
+      this.state.generalComment = evalData.general_comment || "";
     } else {
       this.state.deductions = [];
       this.state.manualGradeOverride = null;
+      this.state.generalComment = "";
     }
     this.render();
   },
@@ -210,7 +213,11 @@ const GradingEngine = {
       blocks.push(block);
     });
 
-    return blocks.join("\n\n") + `\n\nCelkem bodů: ${this.formatPoints(total)} / 10, Známka: ${mark}`;
+    let res = blocks.join("\n\n") + `\n\nCelkem bodů: ${this.formatPoints(total)} / 10, Známka: ${mark}`;
+    if (this.state.generalComment && this.state.generalComment.trim()) {
+      res += `\n\nSlovní hodnocení protokolu:\n${this.state.generalComment.trim()}`;
+    }
+    return res;
   },
 
   render() {
@@ -317,6 +324,17 @@ const GradingEngine = {
     html += `
       </div>
 
+      <!-- Overall Comment Block for Moodle & Student -->
+      <div class="general-comment-card" style="padding:10px 12px; border-radius:6px; background:var(--card-bg); border:1px solid var(--border); margin-top:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-weight:700; font-size:0.82rem; color:var(--text-main);">💬 Celkové slovní hodnocení</span>
+            <span style="font-size:0.68rem; color:var(--text-muted);">(pro Moodle i studenta)</span>
+          </div>
+        </div>
+        <textarea id="general-comment-input" placeholder="Souhrnné slovní hodnocení protokolu jako celku..." rows="2" class="form-control" style="width:100%; box-sizing:border-box; font-size:0.75rem; padding:6px 8px; line-height:1.35; resize:vertical; min-height:48px;" oninput="GradingEngine.onGeneralCommentInput(this)">${this.escape(this.state.generalComment || '')}</textarea>
+      </div>
+
       <!-- Dedicated Outputs Section (Independently Copyable Cards) -->
       <div style="margin-top:10px; display:flex; flex-direction:column; gap:8px;">
         <!-- Card 1: Moodle Summary -->
@@ -355,6 +373,15 @@ const GradingEngine = {
 
     this.container.innerHTML = html;
     this.container.querySelectorAll('textarea[id^="reason-input-"]').forEach(ta => this.autoResizeTextarea(ta));
+  },
+
+  onGeneralCommentInput(el) {
+    this.state.generalComment = el.value;
+    const preEl = this.container ? this.container.querySelector('.output-code-pre') : null;
+    if (preEl) {
+      preEl.textContent = this.generateOutput2();
+    }
+    if (this.onStateChange) this.onStateChange();
   },
 
   handleAddFromInputs(catId) {

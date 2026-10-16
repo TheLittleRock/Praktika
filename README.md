@@ -49,6 +49,13 @@ Výstupní PDF s přehlednou hodnoticí hlavičkou, vektorovými anotacemi s dia
 
 ---
 
+### 5. Interaktivní studentský náhled (`/v/{share_token}`)
+Responzivní dvoupanelový webový náhled pro studenty s plnohodnotným PDF.js prohlížečem, přehledem bodů, celkovým slovním hodnocením asistenta a proklikáváním na poznámky:
+
+![Studentský náhled](docs/assets/images/student_view.png)
+
+---
+
 ## 🚀 Rychlá instalace
 
 ### Varianta A: Spuštění přes Docker & Portainer (Doporučeno)
