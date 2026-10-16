@@ -1,0 +1,40 @@
+:root {
+  --md-primary-fg-color: #4f46e5;
+  --md-primary-fg-color--light: #6366f1;
+  --md-primary-fg-color--dark: #4338ca;
+  --md-accent-fg-color: #06b6d4;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #6366f1;
+  --md-primary-fg-color--light: #818cf8;
+  --md-primary-fg-color--dark: #4f46e5;
+  --md-accent-fg-color: #38bdf8;
+  --md-default-bg-color: #0f172a;
+  --md-default-fg-color: #e2e8f0;
+}
+
+.md-typeset table:not([class]) {
+  font-size: 0.85rem;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.md-header {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+img {
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+[data-md-color-scheme="slate"] img {
+  border-color: rgba(255, 255, 255, 0.12);
+}

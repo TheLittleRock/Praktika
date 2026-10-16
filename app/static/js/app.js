@@ -3693,6 +3693,8 @@ const App = {
   }
 };
 
+window.App = App;
+
 window.addEventListener('DOMContentLoaded', () => {
   App.init();
 });

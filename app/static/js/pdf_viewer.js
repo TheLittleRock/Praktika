@@ -15,6 +15,7 @@ const PDFStudio = {
   isRendering: false,
   pendingRender: false,
   activeSelectedAnnot: null,
+  activeEditingCommentAnnot: null,
   highlightColor: '#ef4444',
   penColor: '#ef4444',
   highlightColors: [
@@ -33,11 +34,46 @@ const PDFStudio = {
       if (btn.dataset.color === hex) btn.classList.add('active');
       else btn.classList.remove('active');
     });
-    if (this.activeSelectedAnnot) {
-      this.activeSelectedAnnot.color = hex;
-      this.redrawPageAnnotations(this.activeSelectedAnnot.page);
+    // Never retroactively recolor previously drawn tools/shapes.
+    // Only update if user is actively in the comment editing dialog for a highlight/strikeout/note:
+    if (this.activeEditingCommentAnnot) {
+      this.activeEditingCommentAnnot.color = hex;
+      this.redrawPageAnnotations(this.activeEditingCommentAnnot.page);
       this.syncAnnotationsWithBackend();
     }
+  },
+
+  changeCommentHighlightColor(hex) {
+    if (this.activeEditingCommentAnnot) {
+      this.activeEditingCommentAnnot.color = hex;
+      if (this.floatingBoxEl) {
+        this.floatingBoxEl.querySelectorAll('.comment-box-color-btn').forEach(b => {
+          b.style.borderColor = (b.dataset.color === hex) ? 'var(--text-main)' : 'transparent';
+          b.style.transform = (b.dataset.color === hex) ? 'scale(1.2)' : 'scale(1)';
+        });
+      }
+      this.redrawPageAnnotations(this.activeEditingCommentAnnot.page);
+      this.syncAnnotationsWithBackend();
+    }
+  },
+
+  getFillColorForStroke(strokeColor, opacity = 0.12) {
+    if (!strokeColor) return `rgba(239, 68, 68, ${opacity})`;
+    if (strokeColor.startsWith('#')) {
+      const hex = strokeColor.replace('#', '');
+      if (hex.length === 6) {
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+      } else if (hex.length === 3) {
+        const r = parseInt(hex[0] + hex[0], 16);
+        const g = parseInt(hex[1] + hex[1], 16);
+        const b = parseInt(hex[2] + hex[2], 16);
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+      }
+    }
+    return strokeColor;
   },
 
   normalizeRect(r) {
@@ -472,6 +508,7 @@ const PDFStudio = {
 
   setTool(toolName) {
     this.activeTool = toolName;
+    this.activeSelectedAnnot = null;
     document.querySelectorAll('.tool-btn').forEach(btn => {
       if (btn.dataset.tool === toolName) btn.classList.add('active');
       else btn.classList.remove('active');
@@ -855,7 +892,7 @@ const PDFStudio = {
       // Rect or Arrow
       if (this.activeTool === 'rect') {
         currentShapeEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        currentShapeEl.setAttribute('fill', 'rgba(225, 29, 72, 0.08)');
+        currentShapeEl.setAttribute('fill', this.getFillColorForStroke(this.penColor, 0.12));
         currentShapeEl.setAttribute('stroke', this.penColor);
         currentShapeEl.setAttribute('stroke-width', 2);
         svg.appendChild(currentShapeEl);
@@ -1062,6 +1099,7 @@ const PDFStudio = {
     if (!card) return;
 
     this.activeSelectedAnnot = annot;
+    this.activeEditingCommentAnnot = annot;
     this.redrawPageAnnotations(annot.page);
 
     const author = this.getAuthorName(annot ? annot.author : null);
@@ -1086,6 +1124,20 @@ const PDFStudio = {
           </div>
         </div>
         <button class="acrobat-close-btn" onclick="PDFStudio.closeCommentBox()" title="Zavřít">✕</button>
+      </div>
+
+      <!-- Color selector for this highlight/comment -->
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid var(--border);">
+        <span style="font-size:0.74rem; color:var(--text-muted); font-weight:600;">Barva označení:</span>
+        <div style="display:flex; gap:6px; align-items:center;">
+          ${this.highlightColors.map(c => `
+            <button type="button" class="comment-box-color-btn" 
+              data-color="${c.hex}" 
+              style="width:18px; height:18px; border-radius:50%; background:${c.hex}; border: 2px solid ${(annot.color || '#ef4444') === c.hex ? 'var(--text-main)' : 'transparent'}; cursor:pointer; padding:0; transition:transform 0.1s ease; ${(annot.color || '#ef4444') === c.hex ? 'transform:scale(1.25);' : ''}"
+              onclick="PDFStudio.changeCommentHighlightColor('${c.hex}')"
+              title="${c.name}"></button>
+          `).join('')}
+        </div>
       </div>
 
       <textarea id="acrobat-comment-textarea" class="acrobat-textarea" placeholder="Napište poznámku k označenému místu...">${this.escape(annot.content || '')}</textarea>
@@ -1251,6 +1303,7 @@ const PDFStudio = {
       this.floatingBoxEl.style.display = 'none';
     }
     this.activeSelectedAnnot = null;
+    this.activeEditingCommentAnnot = null;
     if (this.container) {
       const pages = this.container.querySelectorAll('.pdf-page-container');
       pages.forEach(p => this.redrawPageAnnotations(parseInt(p.dataset.pageNumber)));
@@ -1269,7 +1322,7 @@ const PDFStudio = {
 
   addAnnotation(annot) {
     this.annotations.push(annot);
-    this.activeSelectedAnnot = annot;
+    this.activeSelectedAnnot = null;
     this.redrawPageAnnotations(annot.page);
     this.syncAnnotationsWithBackend();
   },
@@ -1454,13 +1507,14 @@ const PDFStudio = {
       // 5. Rect (Bounding box)
       else if (a.type === 'rect' && a.rect) {
         const [x0, y0, x1, y1] = this.normalizeRect(a.rect);
+        const rectColor = a.color || this.penColor || '#ef4444';
         const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
         rect.setAttribute('x', x0 * this.scale);
         rect.setAttribute('y', y0 * this.scale);
         rect.setAttribute('width', (x1 - x0) * this.scale);
         rect.setAttribute('height', (y1 - y0) * this.scale);
-        rect.setAttribute('fill', 'rgba(239, 68, 68, 0.08)');
-        rect.setAttribute('stroke', a.color || this.penColor || '#ef4444');
+        rect.setAttribute('fill', this.getFillColorForStroke(rectColor, 0.12));
+        rect.setAttribute('stroke', rectColor);
         rect.setAttribute('stroke-width', 2);
         svg.appendChild(rect);
       }

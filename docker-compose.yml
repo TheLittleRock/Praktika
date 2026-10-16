@@ -1,15 +1,23 @@
 version: '3.8'
 
 services:
-  praktika-studio:
-    build: .
-    container_name: praktika_studio
+  praktika:
+    image: ghcr.io/thelittlerock/praktika:${PRAKTIKA_TAG:-latest}
+    # To build locally from source instead of pulling from GHCR, uncomment:
+    # build: .
+    container_name: praktika
     restart: unless-stopped
     ports:
       - "8000:8000"
     volumes:
-      - ./data:/app/data
+      - praktika_data:/app/data
     environment:
       - PRAKTIKA_DATA_DIR=/app/data
-      - PRAKTIKA_SECRET_KEY=change-this-in-production-to-a-secure-random-key
+      - PRAKTIKA_SECRET_KEY=${PRAKTIKA_SECRET_KEY:-change-this-in-production-to-a-secure-random-key}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+
+volumes:
+  praktika_data:
+    name: praktika_data
+
 

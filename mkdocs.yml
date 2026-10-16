@@ -1,0 +1,86 @@
+site_name: Praktika – Dokumentace
+site_description: Profesionální webová platforma pro opravu a hodnocení laboratorních protokolů z fyziky s integrovaným AI asistentem.
+site_author: Štěpán Skalka
+site_url: https://thelittlerock.github.io/Praktika/
+repo_url: https://github.com/TheLittleRock/Praktika
+repo_name: TheLittleRock/Praktika
+
+theme:
+  name: material
+  language: cs
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.expand
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+  palette:
+    # Světlý režim
+    - scheme: default
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: Přepnout na tmavý režim
+    # Tmavý režim
+    - scheme: slate
+      primary: indigo
+      accent: light blue
+      toggle:
+        icon: material/brightness-4
+        name: Přepnout na světlý režim
+  font:
+    text: Inter
+    code: JetBrains Mono
+  favicon: assets/favicon.svg
+  logo: assets/favicon.svg
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Úvod:
+      - Přehled systému: index.md
+      - Rychlý start: getting-started.md
+  - Uživatelská příručka:
+      - Uživatelské rozhraní & Filtry: guide/ui-overview.md
+      - Korekční PDF Studio: guide/pdf-studio.md
+      - Bodování & Export pro Moodle: guide/grading-system.md
+      - AI Asistent (Gemini): guide/ai-assistant.md
+      - Správa databáze & Diagnostika: guide/database-admin.md
+  - Architektura systému:
+      - Architektura & Struktura: architecture/overview.md
+      - Backend & Datové modely: architecture/backend.md
+      - PDF & Grafické jádro: architecture/pdf-engine.md
+      - AI Analytická pipeline: architecture/ai-pipeline.md
+  - Instalace & Provoz:
+      - Docker & Portainer (GHCR): installation/docker.md
+      - Lokální instalace (Python): installation/local.md
+  - Historie:
+      - Changelog: changelog.md

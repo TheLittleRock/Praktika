@@ -2,9 +2,10 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install system dependencies (build-essential and libmupdf headers if needed)
+# Install system dependencies (curl and TrueType fonts for Czech/Slovak diacritics)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

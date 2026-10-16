@@ -1133,11 +1133,12 @@ def save_evaluation(proto_id: int, req: EvaluationSaveRequest, user: dict = Depe
 
         eval_summary = {
             "total_points": req.total_points,
-            "grade": req.grade,
+            "grade": grade_val or calculate_grade_mark(req.total_points),
             "vysledky_score": req.vysledky_score,
             "diskuze_score": req.diskuze_score,
             "format_score": req.format_score,
-            "chyby_score": req.chyby_score
+            "chyby_score": req.chyby_score,
+            "deductions": deductions_raw
         }
 
         source_path = Path(proto["source_path"])
@@ -1666,8 +1667,9 @@ def ai_proposal_action(
             found_idx = -1
             found_item = None
             for idx, a in enumerate(ai_proposals["annotations"]):
-                p_id = a.get("proposal_id") or f"annot_{proto_id}_{idx+1}"
-                if p_id == target_id or f"ai_prop_{idx}" == target_id or f"annot_{idx}" == target_id:
+                p_id = str(a.get("proposal_id") or f"annot_{proto_id}_{idx+1}")
+                tid = str(target_id)
+                if p_id == tid or f"ai_prop_{idx}" == tid or f"annot_{idx}" == tid or f"annot_{proto_id}_{idx+1}" == tid or tid.endswith(f"_{idx+1}"):
                     found_idx = idx
                     found_item = a
                     break
@@ -1685,7 +1687,7 @@ def ai_proposal_action(
                     "point": raw_point or ([raw_rect[0], raw_rect[1]] if raw_rect else [80, 80]),
                     "content": found_item.get("comment", ""),
                     "author": user.get("full_name") or "Vyučující",
-                    "color": "#ffeb3b",
+                    "color": "#ef4444",
                     "created_at": now
                 }
                 cur.execute("SELECT annotations_json FROM annotations WHERE protocol_id = ?", (proto_id,))
@@ -1704,8 +1706,9 @@ def ai_proposal_action(
         elif action == "reject_annotation":
             found_idx = -1
             for idx, a in enumerate(ai_proposals["annotations"]):
-                p_id = a.get("proposal_id") or f"annot_{proto_id}_{idx+1}"
-                if p_id == target_id or f"ai_prop_{idx}" == target_id or f"annot_{idx}" == target_id:
+                p_id = str(a.get("proposal_id") or f"annot_{proto_id}_{idx+1}")
+                tid = str(target_id)
+                if p_id == tid or f"ai_prop_{idx}" == tid or f"annot_{idx}" == tid or f"annot_{proto_id}_{idx+1}" == tid or tid.endswith(f"_{idx+1}"):
                     found_idx = idx
                     break
             if found_idx != -1:
@@ -1785,7 +1788,7 @@ def ai_proposal_action(
                     "point": raw_point or ([raw_rect[0], raw_rect[1]] if raw_rect else [80, 80]),
                     "content": a.get("comment", ""),
                     "author": user.get("full_name") or "Vyučující",
-                    "color": "#ffeb3b",
+                    "color": "#ef4444",
                     "created_at": now
                 }
                 existing_annots.append(c_ann)

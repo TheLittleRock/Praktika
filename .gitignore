@@ -64,3 +64,10 @@ Thumbs.db
 # Environment variables
 .env
 .env.local
+
+# Documentation build output
+site/
+
+# Test suites & source files excluded from repo
+tests/
+Protokoly testovaci/
