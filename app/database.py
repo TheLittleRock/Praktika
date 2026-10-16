@@ -1,5 +1,6 @@
 import sqlite3
 import bcrypt
+import secrets
 from datetime import datetime
 from pathlib import Path
 from app.config import DB_PATH, BACKUPS_DIR
@@ -298,6 +299,25 @@ def init_db():
             cur.execute("DROP TABLE measurements")
             cur.execute("ALTER TABLE measurements_new RENAME TO measurements")
     except Exception as e:
+        pass
+
+    try:
+        cur.execute("ALTER TABLE protocols ADD COLUMN share_token TEXT DEFAULT NULL")
+    except Exception:
+        pass
+
+    try:
+        cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_protocols_share_token ON protocols(share_token)")
+    except Exception:
+        pass
+
+    try:
+        cur.execute("SELECT id FROM protocols WHERE share_token IS NULL OR share_token = ''")
+        missing_token_rows = cur.fetchall()
+        for r in missing_token_rows:
+            tok = secrets.token_urlsafe(16)
+            cur.execute("UPDATE protocols SET share_token = ? WHERE id = ?", (tok, r[0]))
+    except Exception:
         pass
 
     # Seed Admin User if none exists

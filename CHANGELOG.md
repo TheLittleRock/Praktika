@@ -4,6 +4,29 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.11.0] - 2026-10-16
+
+### 🚀 Novinky a vylepšení ve verzi 2.11.0
+
+#### 📐 Ostré pravoúhlé zvýraznění textu v exportovaném PDF
+- **Vzhled shodný s aplikací**: Zvýrazněný text je v exportovaném PDF vykreslen jako čistý pravoúhlý obdélník s pevnou podtrhávací linkou na účaří textu (35% krytí).
+- **Konec zaoblených pilulek v Chromium**: Odstraněna nativní vrstva `add_highlight_annot`, která v prohlížečích Chrome a Brave způsobovala nevzhledné zakulacování a deformaci hran textových bloků.
+
+#### 💬 Odstranění duplicitních ikon volných poznámek
+- **Čistá nativní ikona**: Vypuštěna vlastní kreslená vektorová bublina; v PDF zůstává pouze jediná nativní ikona PDF prohlížeče doplněná o přehledný indexový štítek `[X]`.
+
+#### ✍️ Plynulé vyhlazování kreslení perem (Ink Smoothing)
+- **Chaikinův vyhlazovací algoritmus**: Tahy perem jsou ve webovém canvasu (`pdf_viewer.js`) i v exportním modulu (`pdf_service.py`) automaticky vyhlazovány pomocí sub-divizního algoritmu rohů (Chaikin / B-spline).
+- **Filtrace mikropohybů**: Vstupní vzorkování filtruje drobné chvění ruky a micro-jitter (body bližší než 1.8 px), díky čemuž jsou volné křivky organické, plynulé a přirozené.
+
+#### 📑 Závěrečná stránka „Přehled hodnocení a poznámek“ (Appendix)
+- **Kompletní přehled komentářů**: Na konec PDF se automaticky generuje strukturovaná příloha s kartami všech poznámek (`[1]`, `[2]`, ...), kontextovými výňatky zvýrazněného textu a srážkami bodů pro Moodle.
+- **Obousměrné PDF odkazy**: Kliknutím na číslo poznámky `[X]` v textu protokolu čtenář okamžitě skočí na příslušnou kartu v příloze; kliknutím na tlačítko `Zpět na str. X ↗` se okamžitě vrátí na přesné místo v textu protokolu.
+
+#### 📱 QR kód & Veřejný studentský náhled (`/v/{share_token}`)
+- **QR kód na 1. straně**: V hlavičkové kartě hodnocení na první straně PDF je vložen QR kód a klikací hypertextový odkaz směřující na zabezpečený veřejný náhled.
+- **Responzivní studentské zobrazení**: Student si může bez nutnosti přihlášení otevřít přehled hodnocení na libovolném zařízení (PC, tablet, mobil), prohlédnout si známku, body, rozpis srážek, interaktivní PDF náhled s tooltipy a stáhnout opravený soubor.
+
 ---
 
 ## [2.10.0] - 2026-10-16

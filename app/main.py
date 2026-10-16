@@ -5,6 +5,7 @@ import zipfile
 import json
 import re
 import time
+import secrets
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
@@ -19,6 +20,7 @@ from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
+from fastapi.templating import Jinja2Templates
 from app.config import BASE_DIR, DATA_DIR, PROTOCOLS_DIR, DB_PATH, BACKUPS_DIR
 from app.database import get_db, init_db, create_sqlite_backup, perform_daily_auto_backup
 from app.auth import verify_password, get_password_hash, create_access_token, get_current_user
@@ -33,7 +35,7 @@ from app.models import (
     UserAdminUpdateRequest, AutodetectResponse, AIProposalActionRequest
 )
 from app.storage import save_source_file, save_corrected_file, save_bodovani_file, slugify, format_slot_folder, format_semester_folder
-from app.pdf_service import extract_pdf_annotations, burn_annotations_to_pdf, format_points
+from app.pdf_service import extract_pdf_annotations, burn_annotations_to_pdf, format_points, calculate_grade_letter
 from app.ai_service import analyze_protocol, get_gemini_api_key, save_gemini_api_key, get_ai_setting, save_ai_setting, run_background_ai_analysis, generate_task_rubric, merge_ai_results
 from app.version import VERSION
 
@@ -819,13 +821,14 @@ async def upload_protocol(
     now = datetime.now().isoformat()
     # Automatically assign current user (assistant or admin) as initial evaluator so it immediately appears in "Moje protokoly"
     evaluator_id = user["id"]
+    share_token = secrets.token_urlsafe(16)
 
     cur.execute("""
     INSERT INTO protocols (
         semester_id, slot_id, measurement_id, student_name, status,
-        source_filename, source_path, evaluator_id, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, 'new', ?, ?, ?, ?, ?)
-    """, (semester_id, slot_id, measurement_id, actual_student_name, file.filename, str(source_path), evaluator_id, now, now))
+        source_filename, source_path, evaluator_id, share_token, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?)
+    """, (semester_id, slot_id, measurement_id, actual_student_name, file.filename, str(source_path), evaluator_id, share_token, now, now))
     protocol_id = cur.lastrowid
 
     if existing_annots:
@@ -1053,7 +1056,7 @@ def save_annotations(proto_id: int, req: AnnotationSaveRequest, user: dict = Dep
     return {"status": "ok", "count": len(req.annotations)}
 
 @app.post("/api/protocols/{proto_id}/evaluation")
-def save_evaluation(proto_id: int, req: EvaluationSaveRequest, user: dict = Depends(get_current_user)):
+def save_evaluation(proto_id: int, req: EvaluationSaveRequest, request: Request, user: dict = Depends(get_current_user)):
     conn = get_db()
     cur = conn.cursor()
     cur.execute("""
@@ -1154,12 +1157,31 @@ def save_evaluation(proto_id: int, req: EvaluationSaveRequest, user: dict = Depe
             except Exception as ex:
                 print("Could not recreate missing source PDF:", ex)
 
+        share_tok = proto.get("share_token")
+        if not share_tok:
+            share_tok = secrets.token_urlsafe(16)
+            cur.execute("UPDATE protocols SET share_token = ? WHERE id = ?", (share_tok, proto_id))
+            conn.commit()
+
+        base_url = str(request.base_url).rstrip("/")
+        try:
+            cur.execute("SELECT value FROM app_settings WHERE key = 'app_public_url'")
+            setting_row = cur.fetchone()
+            if setting_row and setting_row[0] and setting_row[0].strip():
+                base_url = setting_row[0].strip().rstrip("/")
+        except Exception:
+            pass
+
         try:
             burned_bytes = burn_annotations_to_pdf(
                 source_pdf_path=source_path,
                 annotations_list=annots,
                 evaluation=eval_summary,
-                evaluator_name=user["full_name"]
+                evaluator_name=user["full_name"],
+                share_token=share_tok,
+                base_url=base_url,
+                student_name=proto.get("student_name"),
+                task_code=proto.get("measurement_code")
             )
             saved_path = save_corrected_file(
                 file_bytes=burned_bytes,
@@ -2342,6 +2364,162 @@ async def test_gemini_connection(user: dict = Depends(get_current_user)):
             "error": str(e),
             "message": f"Chyba spojení s Gemini: {str(e)}"
         }
+
+# ==========================================
+# PUBLIC STUDENT VIEW (SECURE SHARE TOKEN)
+# ==========================================
+
+templates = Jinja2Templates(directory=str(BASE_DIR / "app" / "templates"))
+
+@app.get("/v/{share_token}", response_class=HTMLResponse)
+def view_student_protocol(share_token: str, request: Request):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("""
+    SELECT p.*, s.name as semester_name, sl.name as slot_name,
+           m.code as measurement_code, m.name as measurement_name,
+           u.full_name as evaluator_name,
+           e.vysledky_score, e.diskuze_score, e.format_score, e.chyby_score,
+           e.total_points as eval_total_points, e.grade as eval_grade,
+           e.deductions_json, e.updated_at as eval_updated_at,
+           a.annotations_json
+    FROM protocols p
+    LEFT JOIN semesters s ON p.semester_id = s.id
+    LEFT JOIN slots sl ON p.slot_id = sl.id
+    LEFT JOIN measurements m ON p.measurement_id = m.id
+    LEFT JOIN users u ON p.evaluator_id = u.id
+    LEFT JOIN evaluations e ON p.id = e.protocol_id
+    LEFT JOIN annotations a ON p.id = a.protocol_id
+    WHERE p.share_token = ?
+    """, (share_token,))
+    row = cur.fetchone()
+    conn.close()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Protokol nebyl nalezen nebo odkaz není platný.")
+
+    proto_dict = dict(row)
+    
+    # Parse deductions
+    raw_deds = []
+    try:
+        raw_deds = json.loads(proto_dict.get("deductions_json") or "[]")
+    except Exception:
+        raw_deds = []
+
+    # Parse annotations to build indexed notes list
+    raw_annots = []
+    try:
+        raw_annots = json.loads(proto_dict.get("annotations_json") or "[]")
+    except Exception:
+        raw_annots = []
+
+    indexed_notes = []
+    for item in raw_annots:
+        content = (item.get("content") or item.get("comment") or "").strip()
+        if content:
+            item_type = item.get("type", "highlight")
+            type_label = "Zvýrazněný text" if item_type == "highlight" else ("Volná poznámka" if item_type == "note" else "Anotace v textu")
+            p_num = int(item.get("page", 1))
+            rect_c = item.get("rect") or (item.get("rects")[0] if item.get("rects") else None)
+            pt_c = item.get("point")
+            y_pos = float(rect_c[1]) if rect_c and len(rect_c) >= 2 else (float(pt_c[1]) if pt_c and len(pt_c) >= 2 else 0.0)
+            x_pos = float(rect_c[0]) if rect_c and len(rect_c) >= 1 else (float(pt_c[0]) if pt_c and len(pt_c) >= 1 else 0.0)
+
+            indexed_notes.append({
+                "page_num": p_num,
+                "x": x_pos,
+                "y": y_pos,
+                "type_label": type_label,
+                "author": item.get("author") or proto_dict.get("evaluator_name") or "Asistent",
+                "content": content,
+                "color": item.get("color", "#ef4444"),
+                "context_snippet": ""
+            })
+
+    indexed_notes.sort(key=lambda n: (n["page_num"], n["y"], n["x"]))
+    for i, n in enumerate(indexed_notes):
+        n["index"] = i + 1
+
+    total_pts = float(proto_dict.get("eval_total_points") or proto_dict.get("total_points") or 10.0)
+    grade = proto_dict.get("eval_grade") or proto_dict.get("grade") or calculate_grade_letter(total_pts)
+    eval_date_str = datetime.now().strftime("%d.%m.%Y")
+    if proto_dict.get("eval_updated_at"):
+        try:
+            eval_date_str = datetime.fromisoformat(proto_dict["eval_updated_at"]).strftime("%d.%m.%Y")
+        except Exception:
+            pass
+
+    return templates.TemplateResponse(
+        request=request,
+        name="student_view.html",
+        context={
+            "share_token": share_token,
+            "student_name": proto_dict.get("student_name", "Student"),
+            "measurement_code": proto_dict.get("measurement_code", "Úloha"),
+            "measurement_name": proto_dict.get("measurement_name", "Měření"),
+            "semester_name": proto_dict.get("semester_name", "Semestr"),
+            "slot_name": proto_dict.get("slot_name", ""),
+            "evaluator_name": proto_dict.get("evaluator_name", "Cvičící"),
+            "eval_date": eval_date_str,
+            "grade": grade,
+            "total_points": format_points(total_pts),
+            "vysledky_score": format_points(proto_dict.get("vysledky_score", 0.0)),
+            "diskuze_score": format_points(proto_dict.get("diskuze_score", 0.0)),
+            "format_score": format_points(proto_dict.get("format_score", 0.0)),
+            "chyby_score": format_points(proto_dict.get("chyby_score", 0.0)),
+            "deductions": raw_deds,
+            "indexed_notes": indexed_notes
+        }
+    )
+
+@app.get("/api/public/protocol/{share_token}/pdf")
+def get_public_pdf(share_token: str):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT corrected_path, corrected_filename, source_path, source_filename FROM protocols WHERE share_token = ?", (share_token,))
+    row = cur.fetchone()
+    conn.close()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Protokol nebyl nalezen")
+
+    pdf_path = row["corrected_path"] if (row["corrected_path"] and Path(row["corrected_path"]).exists()) else row["source_path"]
+    filename = row["corrected_filename"] or row["source_filename"] or "protokol.pdf"
+
+    if not pdf_path or not Path(pdf_path).exists():
+        raise HTTPException(status_code=404, detail="PDF soubor nebyl na serveru nalezen")
+
+    return FileResponse(
+        path=pdf_path,
+        media_type="application/pdf",
+        filename=filename,
+        headers={"Content-Disposition": f'inline; filename="{filename}"'}
+    )
+
+@app.get("/api/public/protocol/{share_token}")
+def get_public_protocol_data(share_token: str):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("""
+    SELECT p.student_name, p.status, m.code as measurement_code, m.name as measurement_name,
+           u.full_name as evaluator_name, e.total_points, e.grade, e.deductions_json, e.updated_at
+    FROM protocols p
+    JOIN measurements m ON p.measurement_id = m.id
+    LEFT JOIN users u ON p.evaluator_id = u.id
+    LEFT JOIN evaluations e ON p.id = e.protocol_id
+    WHERE p.share_token = ?
+    """, (share_token,))
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Protokol nenalezen")
+    d = dict(row)
+    try:
+        d["deductions"] = json.loads(d.get("deductions_json") or "[]")
+    except Exception:
+        d["deductions"] = []
+    return d
 
 # ==========================================
 # FRONTEND SPA ENTRY POINT & VERSION

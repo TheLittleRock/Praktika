@@ -71,3 +71,4 @@ site/
 # Test suites & source files excluded from repo
 tests/
 Protokoly testovaci/
+scratch/

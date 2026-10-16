@@ -151,6 +151,24 @@ const PDFStudio = {
     return d;
   },
 
+  smoothStrokeChaikin(points, iterations = 2) {
+    if (!points || points.length <= 2) return points ? points.map(p => [p[0], p[1]]) : [];
+    let pts = points.map(p => [p[0], p[1]]);
+    for (let it = 0; it < iterations; it++) {
+      const smoothed = [pts[0]];
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[i];
+        const p1 = pts[i + 1];
+        const q = [0.75 * p0[0] + 0.25 * p1[0], 0.75 * p0[1] + 0.25 * p1[1]];
+        const r = [0.25 * p0[0] + 0.75 * p1[0], 0.25 * p0[1] + 0.75 * p1[1]];
+        smoothed.push(q, r);
+      }
+      smoothed.push(pts[pts.length - 1]);
+      pts = smoothed;
+    }
+    return pts;
+  },
+
   getAuthorName(annotAuthor) {
     if (annotAuthor && annotAuthor !== 'Správce aplikace' && annotAuthor !== 'Správce praktika') {
       return annotAuthor;
@@ -972,8 +990,11 @@ const PDFStudio = {
       const pt = getCoords(e);
 
       if (this.activeTool === 'pen' && currentShapeEl) {
-        currentStroke.push([pt.x, pt.y]);
-        currentShapeEl.setAttribute('d', this.buildSmoothSvgPath(currentStroke, this.scale));
+        const last = currentStroke[currentStroke.length - 1];
+        if (!last || Math.hypot(pt.x - last[0], pt.y - last[1]) >= 1.8) {
+          currentStroke.push([pt.x, pt.y]);
+          currentShapeEl.setAttribute('d', this.buildSmoothSvgPath(currentStroke, this.scale));
+        }
       } else if (this.activeTool === 'rect' && currentShapeEl) {
         const x = Math.min(startPoint.viewX, pt.viewX);
         const y = Math.min(startPoint.viewY, pt.viewY);
@@ -1013,10 +1034,11 @@ const PDFStudio = {
         if (currentStroke.length === 1) {
           currentStroke.push([currentStroke[0][0] + 0.5, currentStroke[0][1] + 0.5]);
         }
+        const smoothedStroke = this.smoothStrokeChaikin(currentStroke, 2);
         this.addAnnotation({
           page: pageNum,
           type: 'ink',
-          strokes: [currentStroke],
+          strokes: [smoothedStroke],
           color: this.penColor || '#ef4444',
           width: this.penWidth || 2
         });

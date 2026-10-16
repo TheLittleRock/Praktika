@@ -137,12 +137,19 @@ Jakmile je protokol zkontrolován:
 
 1. **Zkopírování pro Moodle**: Klikněte na tlačítko **📋 Kopírovat pro Moodle**. Do schránky se zkopíruje strukturovaný text s celkovým hodnocením, dílčími body a odrážkovým seznamem všech bodových srážek, připravený k vložení do odevzdávárny LMS Moodle.
 2. **Dokončení a PDF Export**: Klikněte na zelené tlačítko **✓ Dokončit**.
-   - Vygeneruje se finální opravené PDF s vizuální hodnoticí hlavičkou na 1. straně:
+   - Vygeneruje se finální opravené PDF s vizuální hodnoticí hlavičkou na 1. straně a souhrnnou přílohou na konci dokumentu:
 
 ![Ukázka exportovaného PDF s hodnocením](../assets/images/pdf_export_sample.png)
 
 ### Co obsahuje exportované PDF:
-- **Kompaktní hodnoticí záhlaví**: Výrazná známka, celkový počet bodů z 10 b, rozpis dílčích kategorií, jméno cvičícího a datum exportu.
-- **Acrobat Moodle komentář**: V pravém horním rohu záhlaví je umístěna samolepicí poznámka, která po otevření v libovolném PDF prohlížeči (Adobe Acrobat, Chrome, Preview) obsahuje kompletní rozpis srážek bodů připravený k překopírování.
-- **Všechny vektorové anotace**: Zvýraznění, perokresby, obdélníky a šipky vypadají na tištěném i elektronickém výstupu naprosto stejně jako v aplikaci.
-- **Plná podpora české i slovenské diakritiky**: Znaky jako `ě`, `š`, `č`, `ř`, `ž`, `ť`, `ľ` se zobrazují bez jakéhokoliv poškození v libovolném čtenáři PDF.
+- **Kompaktní hodnoticí záhlaví s QR kódem**: Výrazná známka, celkový počet bodů z 10 b, rozpis dílčích kategorií, jméno cvičícího, datum exportu a QR kód s klikacím odkazem pro studenta.
+- **Acrobat Moodle komentář**: V pravém horním rohu záhlaví je umístěna nativní samolepicí poznámka, která po otevření v libovolném PDF prohlížeči (Adobe Acrobat, Chrome, Brave, Preview) obsahuje kompletní rozpis srážek bodů připravený k překopírování do IS/Moodle.
+- **Ostré pravoúhlé zvýraznění textu**: Zvýraznění má dokonale ostré rohy a pevnou spodní linku na účaří textu, přesně jako v aplikaci.
+- **Jednotné ikony volných poznámek**: Každá poznámka má jednu čistou ikonu doplněnou o indexový štítek `[1]`, `[2]`, ...
+- **Plynule vyhlazená perokresba**: Volné tahy perem jsou automaticky vyhlazovány Chaikinovým algoritmem pro přirozený kaligrafický vzhled.
+- **Závěrečná příloha (Přehled hodnocení a poznámek)**: Na konci PDF je generován přehled všech poznámek s kontextovými výňatky textu, rozpisem srážek a obousměrnými klikacími odkazy (`[1]` v textu přeskočí na kartu v příloze; tlačítko `Zpět na str. X ↗` vrátí čtenáře na příslušnou stranu):
+
+![Závěrečná stránka Přehled hodnocení a poznámek v exportovaném PDF](../assets/images/pdf_appendix_sample.png)
+
+- **Zabezpečený studentský náhled (`/v/{share_token}`)**: Po naskenování QR kódu nebo kliknutí na odkaz se studentovi otevře responzivní webové zobrazení hodnocení bez nutnosti přihlášení.
+- **Plná podpora české i slovenské diakritiky**: Znaky jako `ě`, `š`, `č`, `ř`, `ž`, `ť`, `ľ` se zobrazují bez jakéhokoliv poškození v libovolném čtenáři PDF díky UTF-16BE podpoře.
