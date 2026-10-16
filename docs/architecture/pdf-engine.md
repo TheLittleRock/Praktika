@@ -24,6 +24,12 @@ graph TD
 2. **Text Layer**: Průhledné DOM prvky obsahující textové řetězce z PDF. Umožňuje nativní označení textu pro zvýrazňovač a přeškrtnutí.
 3. **SVG Annotation Layer**: Zajišťuje ostré vykreslení uživatelských kreseb, tahů pera, rámečků, šipek a štítků AI návrhů nezávisle na rozlišení monitoru.
 
+### Duální vykreslovací architektura pro studenty
+Od verze **v2.13.0** studentský náhled (`/v/{share_token}`) využívá identickou vrstvenou architekturu jako asistent v Korekčním Studiu:
+- Namísto načítání pre-renderovaného PDF se načítá čistý zdrojový dokument a nad ním klientský skript dynamicky generuje vrstvu SVG anotací přímo z `annotations_json`.
+- Tím student získává plně interaktivní zážitek: živé hover tooltips nad zvýrazněným textem, obousměrné provázání se seznamem poznámek v pravém sloupci a plnou podporu nočního režimu (Dark Mode).
+- Exportované PDF s vypálenými křivkami z PyMuPDF a závěrečnou přílohou (Appendix) slouží jako volitelný alternativní pohled a spolehlivá záloha pro stažení.
+
 ---
 
 ## 🖨 Serverová vrstva (PyMuPDF)

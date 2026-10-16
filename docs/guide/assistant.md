@@ -1,6 +1,6 @@
 # Příručka pro asistenty: Průvodce opravou protokolů
 
-Tento průvodce vás krok za krokem provede hodnocením a opravou studentských laboratorních protokolů v **Praktika Evaluation Studio**. Cílem aplikace je ušetřit vám čas při rutinních činnostech (přepisování bodů, formátování srážek pro Moodle) a umožnit vám soustředit se na věcnou a pedagogickou zpětnou vazbu pro studenta.
+Tento průvodce vás krok za krokem provede hodnocením a opravou studentských laboratorních protokolů v **Praktika Evaluation Studio v2.13.0**. Cílem aplikace je ušetřit vám čas při rutinních činnostech (přepisování bodů, formátování srážek pro Moodle) a umožnit vám soustředit se na věcnou a pedagogickou zpětnou vazbu pro studenta.
 
 ---
 
@@ -19,7 +19,23 @@ Nový protokol nahrajete na hlavní stránce tlačítkem **+ Nahrát protokol**:
 
 ---
 
-## 2. Pracovní plocha Korekčního PDF Studia
+## 2. Hromadné operace a správa protokolů
+
+V tabulkovém přehledu na hlavní stránce můžete snadno spravovat větší množství protokolů současně:
+
+<picture>
+  <source srcset="../assets/images/clip_batch_ops.webp" type="image/webp">
+  <img src="../assets/images/clip_batch_ops.gif" alt="Hromadný výběr a úprava protokolů">
+</picture>
+
+- **Hromadný výběr (Multi-select)**: Zaškrtnutím políček v levém sloupci tabulky vyberete libovolné protokoly. V záhlaví tabulky je k dispozici hromadné zaškrtávátko pro celou zobrazenou skupinu.
+- **Plovoucí akční panel**: Po označení protokolů se v dolní části obrazovky vysune akční panel:
+  - **Hromadná úprava**: Změna cvičícího (asistenta), stavu hodnocení (např. *Rozpracováno* / *Opraveno*) nebo přesun do jiného rozvrhového termínu pro celou skupinu studentů najednou.
+  - **Hromadné smazání**: Bezpečné hromadné odstranění vybraných protokolů s potvrzovacím dialogem a ochranou proti nechtěnému smazání.
+
+---
+
+## 3. Pracovní plocha Korekčního PDF Studia
 
 Kliknutím na tlačítko **Opravit** nebo přímo na řádek studenta v tabulce se otevře Studio:
 
@@ -34,7 +50,7 @@ Kliknutím na tlačítko **Opravit** nebo přímo na řádek studenta v tabulce 
 
 ---
 
-## 3. Celkový průběh opravy (Video ukázka)
+## 4. Celkový průběh opravy (Video ukázka)
 
 Následující animace zachycuje reálnou práci asistenta od prohlížení protokolu přes kreslení, schválení AI návrhu až po zadání bodů:
 
@@ -45,7 +61,7 @@ Následující animace zachycuje reálnou práci asistenta od prohlížení prot
 
 ---
 
-## 4. Anotace a kreslení v PDF
+## 5. Anotace a kreslení v PDF
 
 Horní nástrojová lišta poskytuje standardní nástroje kompatibilní s Adobe Acrobat:
 
@@ -73,7 +89,7 @@ Horní nástrojová lišta poskytuje standardní nástroje kompatibilní s Adobe
 
 ---
 
-## 5. Práce s AI Asistentem (Google Gemini)
+## 6. Práce s AI Asistentem (Google Gemini)
 
 AI Asistent vám poslouží jako druhý pár očí. Přečte celý protokol a připraví návrhy věcných, formálních i syntaktických nedostatků:
 
@@ -91,7 +107,7 @@ AI Asistent vám poslouží jako druhý pár očí. Přečte celý protokol a p�
 
 ---
 
-## 6. Bodovací dok a Celkové slovní hodnocení
+## 7. Bodovací dok a Celkové slovní hodnocení
 
 Bodování je rozděleno do čtyř standardních kategorií odpovídajících pravidlům fyzikálního praktika:
 
@@ -115,7 +131,7 @@ Bodování je rozděleno do čtyř standardních kategorií odpovídajících pr
 
 ---
 
-## 7. Uložení, dokončení a export PDF
+## 8. Uložení, dokončení a export PDF
 
 > [!IMPORTANT]
 > **Vždy nejprve uložte koncept před stažením PDF:**
@@ -137,13 +153,17 @@ Bodování je rozděleno do čtyř standardních kategorií odpovídajících pr
 
 ---
 
-## 8. Nový interaktivní studentský náhled (`/v/{share_token}`)
+## 9. Interaktivní studentský náhled a Tmavý režim (`/v/{share_token}`)
 
-Po naskenování QR kódu nebo otevření odkazu se studentovi zobrazí dvoupanelové rozhraní:
+Po naskenování QR kódu nebo otevření vygenerovaného zabezpečeného odkazu se studentovi otevře moderní webový náhled:
 
-![Studentský náhled protokolu](../assets/images/student_view.png)
+<picture>
+  <source srcset="../assets/images/clip_student_view.webp" type="image/webp">
+  <img src="../assets/images/clip_student_view.gif" alt="Interaktivní studentský náhled a tmavý režim">
+</picture>
 
-- **Vlevo**: Plnohodnotný prohlížeč PDF.js v plném rozlišení se zoomem, stránkováním a přizpůsobením na šířku.
-- **Vpravo**: Přehledná karta s výslednou známkou, body, dílčími kategoriemi, celkovým slovním hodnocením asistenta a interaktivním seznamem všech poznámek v textu.
-- **Kliknutí na poznámku**: Kliknutí na jakoukoliv poznámku v pravém sloupci okamžitě posune PDF prohlížeč na příslušnou stranu a zvýrazní ji.
-- **Responzivita**: Na mobilních zařízeních a tabletech se panely automaticky poskládají pod sebe pro pohodlné čtení.
+- **Živé vykreslovací jádro (Studio Engine)**: Student vidí přesně totéž rozhraní jako asistent během hodnocení. Prohlížeč načítá čisté zdrojové PDF a dynamicky nad ním vykresluje interaktivní SVG vrstvu anotací (ostrá pravoúhlá zvýraznění se spodní linkou, ikonky komentářů `[⊖]`, plynulé perokresby, šipky a psací stroj).
+- **Interaktivní bubliny (Hover Tooltips)**: Při najetí myší na libovolné zvýraznění nebo ikonu v textu se okamžitě zobrazí bublina s celým komentářem asistenta a jeho jménem.
+- **Obousměrná navigace**: Kliknutí na jakoukoliv položku v seznamu poznámek v pravém sloupci plynule odscrolluje PDF na příslušné místo a vizuálně zvýrazní danou anotaci pulzním rámečkem.
+- **Plnohodnotný Tmavý režim (Dark Mode)**: Tlačítko `🌙 Tmavý režim` v záhlaví přepíná mezi světlým a nočním režimem šetřícím zrak. Zvolený režim se ukládá do paměti prohlížeče.
+- **Přepnutí na exportované PDF**: V horní liště má student možnost kliknout na `📄 Exportované PDF` a zobrazit pre-renderovanou verzi s vepsanými poznámkami a závěrečnou přílohou (Appendix), nebo si kompletní opravené PDF přímo stáhnout do počítače tlačítkem **Stáhnout PDF**.

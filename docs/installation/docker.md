@@ -74,7 +74,7 @@ V GitHub Container Registry jsou udržovány následující tagy:
 | Tag | Větev v repozitáři | Popis |
 |---|---|---|
 | `:latest` | `main` | Stabilní produkční verze doporučená pro běžný provoz. |
-| `:v2.9` | `main` | Konkrétní číslované vydání verze v2.9. |
+| `:v2.13` | `main` | Konkrétní číslované vydání verze v2.13.0. |
 | `:dev` | `dev` | Nejnovější vývojová verze obsahující čerstvé úpravy před vydáním. |
 
 Pro přepnutí na vývojovou verzi stačí v konfiguraci uvést:

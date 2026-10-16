@@ -57,7 +57,8 @@ Praktika/
 │   ├── pdf_service.py          # PyMuPDF jádro pro čtení a zápis PDF anotací
 │   ├── ai_service.py           # Gemini 2.5 integrace, prompt inženýrství, merge návrhů
 │   ├── templates/              # Jinja2 HTML šablony
-│   │   └── index.html          # Hlavní jednostránková aplikace (SPA)
+│   │   ├── index.html          # Hlavní jednostránková aplikace (SPA)
+│   │   └── student_view.html   # Studentský náhled s živým Studio renderingem a Dark Mode
 │   └── static/                 # Statické soubory
 │       ├── css/                # Styly aplikace (app.css)
 │       └── js/                 # Klientská logika (app.js, pdf_viewer.js, grading.js)

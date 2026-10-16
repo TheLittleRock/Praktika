@@ -2476,12 +2476,14 @@ def view_student_protocol(share_token: str, request: Request):
             "general_comment": (proto_dict.get("general_comment") or "").strip(),
             "deductions": raw_deds,
             "indexed_notes": indexed_notes,
-            "annotations_json": proto_dict.get("annotations_json") or "[]"
+            "annotations_json": proto_dict.get("annotations_json") or "[]",
+            "has_exported": bool(proto_dict.get("corrected_path") and Path(proto_dict["corrected_path"]).exists()),
+            "has_source": bool(proto_dict.get("source_path") and Path(proto_dict["source_path"]).exists())
         }
     )
 
 @app.get("/api/public/protocol/{share_token}/pdf")
-def get_public_pdf(share_token: str):
+def get_public_pdf(share_token: str, mode: str = "source"):
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT corrected_path, corrected_filename, source_path, source_filename FROM protocols WHERE share_token = ?", (share_token,))
@@ -2491,8 +2493,12 @@ def get_public_pdf(share_token: str):
     if not row:
         raise HTTPException(status_code=404, detail="Protokol nebyl nalezen")
 
-    pdf_path = row["corrected_path"] if (row["corrected_path"] and Path(row["corrected_path"]).exists()) else row["source_path"]
-    filename = row["corrected_filename"] or row["source_filename"] or "protokol.pdf"
+    if mode == "exported":
+        pdf_path = row["corrected_path"] if (row["corrected_path"] and Path(row["corrected_path"]).exists()) else row["source_path"]
+        filename = row["corrected_filename"] or row["source_filename"] or "opraveny_protokol.pdf"
+    else:
+        pdf_path = row["source_path"] if (row["source_path"] and Path(row["source_path"]).exists()) else row["corrected_path"]
+        filename = row["source_filename"] or row["corrected_filename"] or "protokol.pdf"
 
     if not pdf_path or not Path(pdf_path).exists():
         raise HTTPException(status_code=404, detail="PDF soubor nebyl na serveru nalezen")

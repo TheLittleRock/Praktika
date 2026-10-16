@@ -13,8 +13,8 @@ V horní části Studia se nachází lišta s nástroji:
 | Ikona / Nástroj | Klávesa | Popis |
 |---|---|---|
 | **Ruka / Výběr (Pan / Select)** | `H` | Posun plátna a výběr nakreslených objektů (zobrazení manipulačního rámečku s táhly a košem). |
-| **Zvýrazňovač (Highlight)** | `S` | Vytváří ostré zvýraznění s podtržením přes vybrané řádky textu s volitelnou barvou. |
-| **Přeškrtnutí (Strikeout)** | `X` | Červená přeškrtávací linka pro chybné vzorce nebo zavádějící text. |
+| **Zvýrazňovač (Highlight)** | `U` | Vytváří ostré zvýraznění s podtržením přes vybrané řádky textu s volitelnou barvou. |
+| **Přeškrtnutí (Strikeout)** | `S` | Červená přeškrtávací linka pro chybné vzorce nebo zavádějící text. |
 | **Poznámka (Sticky Note)** | `N` | Vloží na libovolné místo v dokumentu vektorovou Acrobat-kompatibilní bublinu s komentářem. |
 | **Volné pero (Pen)** | `P` | Hladké kreslení od ruky pro podtrhávání nebo ruční poznámky. |
 | **Obdélník (Rect)** | `R` | Ohraničující rámeček s pevnou linkou a jemnou polo-průhlednou výplní (18 % opacita). |

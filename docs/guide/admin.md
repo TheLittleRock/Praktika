@@ -1,6 +1,6 @@
 # Příručka pro správce: Administrace a konfigurace systému
 
-Tato příručka je určena pro garanty fyzikálních praktik a správce systému **Praktika Evaluation Studio**. Popisuje konfiguraci semestrů, laboratorních úloh, AI modelů, uživatelských účtů a správu databáze se zálohováním.
+Tato příručka je určena pro garanty fyzikálních praktik a správce systému **Praktika Evaluation Studio v2.13.0**. Popisuje konfiguraci semestrů, laboratorních úloh, AI modelů, uživatelských účtů a správu databáze se zálohováním.
 
 ---
 
@@ -25,7 +25,25 @@ Správce otevírá administraci kliknutím na ikonu **⚙ Nastavení** v záhlav
 
 ---
 
-## 2. Správa semestrů a rozvrhových termínů
+## 2. Přehled administrátorského rozhraní
+
+V modálním okně konfigurace mají správci k dispozici přehledné záložky pro nastavení všech aspektů systému:
+
+<picture>
+  <source srcset="../assets/images/clip_admin_settings.webp" type="image/webp">
+  <img src="../assets/images/clip_admin_settings.gif" alt="Administrátorské nastavení – přehled záložek">
+</picture>
+
+- **🔬 Laboratorní úlohy**: katalog úloh, AI rubriky a zadání.
+- **🤖 AI Asistent**: konfigurace Gemini API klíče, volba modelů a jazyka výstupu.
+- **📅 Semestry & Kroužky**: organizace akademických období a rozvrhových termínů.
+- **👥 Uživatelé**: správa účtů asistentů a přiřazování rolí.
+- **💾 Správa databáze**: statistiky velikosti WAL žurnálu, vakuování a zálohy.
+- **🔍 Diagnostika**: systémové metriky serveru a test integrity databáze.
+
+---
+
+## 3. Správa semestrů a rozvrhových termínů
 
 V administraci můžete organizovat výuku podle akademických období:
 
@@ -35,7 +53,7 @@ V administraci můžete organizovat výuku podle akademických období:
 
 ---
 
-## 3. Laboratorní úlohy a AI syntéza hodnoticích rubrik
+## 4. Laboratorní úlohy a AI syntéza hodnoticích rubrik
 
 V záložce **🔬 Laboratorní úlohy** může správce konfigurovat katalog úloh:
 
@@ -55,7 +73,7 @@ Pro každou laboratorní úlohu lze nahrát oficiální univerzitní zadání (P
 
 ---
 
-## 4. Konfigurace AI Asistenta (Google Gemini)
+## 5. Konfigurace AI Asistenta (Google Gemini)
 
 V záložce **🤖 AI Asistent** správce nastavuje parametry umělé inteligence:
 
@@ -77,7 +95,7 @@ V záložce **🤖 AI Asistent** správce nastavuje parametry umělé inteligenc
 
 ---
 
-## 5. Správa uživatelských účtů
+## 6. Správa uživatelských účtů
 
 V záložce **👥 Uživatelé** správce spravuje účty vyučujících a cvičících:
 
@@ -87,7 +105,7 @@ V záložce **👥 Uživatelé** správce spravuje účty vyučujících a cvič
 
 ---
 
-## 6. Správa databáze & Automatické zálohy
+## 7. Správa databáze & Automatické zálohy
 
 V záložce **💾 Správa databáze & Zálohy** má správce plnou kontrolu nad datovou vrstvou:
 
@@ -111,7 +129,7 @@ Kliknutím na tlačítko **⚡ Optimalizovat databázi (VACUUM)** dojde k:
 
 ---
 
-## 7. Diagnostika a stav serveru
+## 8. Diagnostika a stav serveru
 
 V záložce **🔍 Diagnostika & Stav** jsou dostupné metriky provozu serveru:
 - Verze aplikace (v souladu s `app/version.py`).

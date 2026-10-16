@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="cs">
+<html lang="cs" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -29,6 +29,39 @@
       --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
       --shadow-md: 0 4px 14px rgba(0,0,0,0.08);
       --shadow-lg: 0 10px 25px rgba(0,0,0,0.12);
+      --pdf-container-bg: #e2e8f0;
+      --pdf-page-bg: #ffffff;
+      --card-subtle: #f8fafc;
+      --header-bg: #ffffff;
+      --toolbar-bg: #ffffff;
+      --sidebar-bg: #ffffff;
+    }
+
+    [data-theme="dark"] {
+      --bg-main: #0b0f19;
+      --bg-card: #131b2e;
+      --border: #1e293b;
+      --border-dark: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #3b82f6;
+      --primary-hover: #60a5fa;
+      --primary-subtle: #1e293b;
+      --success: #22c55e;
+      --success-bg: #052e16;
+      --warning: #f59e0b;
+      --warning-bg: #362106;
+      --danger: #ef4444;
+      --danger-bg: #450a0a;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+      --shadow-md: 0 4px 14px rgba(0,0,0,0.4);
+      --shadow-lg: 0 10px 25px rgba(0,0,0,0.5);
+      --pdf-container-bg: #070a12;
+      --pdf-page-bg: #ffffff;
+      --card-subtle: #182238;
+      --header-bg: #0f172a;
+      --toolbar-bg: #0f172a;
+      --sidebar-bg: #0f172a;
     }
 
     * {
@@ -46,11 +79,12 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      transition: background-color 0.2s ease, color 0.2s ease;
     }
 
     /* Top Sticky Header */
     header {
-      background: #ffffff;
+      background: var(--header-bg);
       border-bottom: 1px solid var(--border);
       padding: 10px 20px;
       display: flex;
@@ -58,6 +92,7 @@
       justify-content: space-between;
       flex-shrink: 0;
       z-index: 50;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
     }
 
     .brand {
@@ -97,12 +132,13 @@
       border-radius: 20px;
       font-weight: 600;
       font-size: 0.82rem;
+      border: 1px solid var(--border);
     }
 
     .header-actions {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
     }
 
     .btn {
@@ -111,12 +147,13 @@
       gap: 6px;
       padding: 7px 14px;
       border-radius: 8px;
-      font-size: 0.85rem;
+      font-size: 0.84rem;
       font-weight: 600;
       cursor: pointer;
       text-decoration: none;
       transition: all 0.15s ease;
       border: 1px solid transparent;
+      user-select: none;
     }
 
     .btn-primary {
@@ -128,12 +165,12 @@
     }
 
     .btn-secondary {
-      background: #ffffff;
+      background: var(--bg-card);
       color: var(--text-main);
       border-color: var(--border);
     }
     .btn-secondary:hover {
-      background: #f8fafc;
+      background: var(--card-subtle);
       border-color: var(--border-dark);
     }
 
@@ -150,13 +187,14 @@
       flex: 1;
       display: flex;
       flex-direction: column;
-      background: #e2e8f0;
+      background: var(--pdf-container-bg);
       overflow: hidden;
       position: relative;
+      transition: background-color 0.2s ease;
     }
 
     .pdf-toolbar {
-      background: #ffffff;
+      background: var(--toolbar-bg);
       border-bottom: 1px solid var(--border);
       padding: 8px 16px;
       display: flex;
@@ -166,6 +204,7 @@
       flex-shrink: 0;
       box-shadow: var(--shadow-sm);
       z-index: 10;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
     }
 
     .toolbar-group {
@@ -175,7 +214,7 @@
     }
 
     .tool-btn {
-      background: #ffffff;
+      background: var(--bg-card);
       border: 1px solid var(--border);
       color: var(--text-main);
       padding: 5px 10px;
@@ -189,8 +228,21 @@
       transition: all 0.15s ease;
     }
     .tool-btn:hover {
-      background: #f1f5f9;
+      background: var(--card-subtle);
       border-color: var(--border-dark);
+    }
+
+    .mode-indicator-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(37, 99, 235, 0.12);
+      color: var(--primary);
+      border: 1px solid rgba(37, 99, 235, 0.25);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
     }
 
     .page-indicator {
@@ -209,20 +261,22 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 20px;
+      gap: 24px;
       scroll-behavior: smooth;
     }
 
     .pdf-page-wrapper {
       position: relative;
-      background: #ffffff;
+      background: var(--pdf-page-bg);
       box-shadow: var(--shadow-md);
       border-radius: 4px;
-      transition: outline 0.2s ease;
+      transition: outline 0.2s ease, box-shadow 0.2s ease;
+      user-select: text;
     }
 
     .pdf-page-wrapper.highlight-pulse {
       outline: 4px solid var(--primary);
+      box-shadow: 0 0 25px rgba(37, 99, 235, 0.4);
     }
 
     .pdf-page-wrapper canvas {
@@ -237,21 +291,132 @@
       transform: translateX(-50%);
       font-size: 0.72rem;
       font-weight: 600;
-      color: #64748b;
-      background: rgba(255, 255, 255, 0.85);
+      color: var(--text-muted);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
       padding: 1px 8px;
       border-radius: 10px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* SVG and Annotation Overlays (Acrobat-style) */
+    .annotation-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    .acrobat-highlight-overlay {
+      position: absolute;
+      cursor: pointer;
+      pointer-events: auto;
+      mix-blend-mode: multiply;
+      z-index: 15;
+      transition: background-color 0.15s ease, opacity 0.15s ease;
+    }
+    .acrobat-highlight-overlay:hover {
+      filter: brightness(0.92);
+    }
+
+    .acrobat-comment-icon {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #ef4444;
+      color: #ffffff;
+      border: 2px solid #ffffff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      cursor: pointer;
+      pointer-events: auto;
+      z-index: 25;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1;
+      transition: transform 0.15s ease;
+    }
+    .acrobat-comment-icon::before {
+      content: "⊖";
+    }
+    .acrobat-comment-icon:hover {
+      transform: scale(1.25);
+    }
+
+    .pdf-pin {
+      position: absolute;
+      width: 26px;
+      height: 26px;
+      cursor: pointer;
+      pointer-events: auto;
+      z-index: 25;
+      transition: transform 0.15s ease;
+      filter: drop-shadow(0 2px 5px rgba(0,0,0,0.3));
+    }
+    .pdf-pin:hover {
+      transform: scale(1.25);
+    }
+
+    .pdf-direct-text-item {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-weight: 600;
+      line-height: 1.2;
+      pointer-events: auto;
+      z-index: 20;
+      white-space: pre-wrap;
+    }
+
+    /* Floating Tooltip Bubble (Student View) */
+    #student-tooltip {
+      position: fixed;
+      display: none;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      z-index: 1000;
+      max-width: 340px;
+      line-height: 1.45;
+      pointer-events: none;
+      border: 1px solid #334155;
+      transition: opacity 0.1s ease;
+    }
+    #student-tooltip .tt-author {
+      font-weight: 700;
+      color: #60a5fa;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    #student-tooltip .tt-content {
+      color: #f1f5f9;
+      font-size: 0.84rem;
+      white-space: pre-wrap;
     }
 
     /* Right Pane: Evaluation Feedback & Notes Sidebar */
     .sidebar-pane {
       width: 440px;
-      background: #ffffff;
+      background: var(--sidebar-bg);
       border-left: 1px solid var(--border);
       display: flex;
       flex-direction: column;
       overflow: hidden;
       flex-shrink: 0;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
     }
 
     .sidebar-scroll {
@@ -265,7 +430,7 @@
 
     /* Score Hero Card */
     .hero-card {
-      background: #f8fafc;
+      background: var(--card-subtle);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 16px;
@@ -302,7 +467,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: #ffffff;
+      background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 10px 16px;
@@ -338,7 +503,7 @@
     }
 
     .breakdown-item {
-      background: #f8fafc;
+      background: var(--card-subtle);
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 8px 12px;
@@ -368,6 +533,11 @@
       border-radius: var(--radius);
       padding: 14px 16px;
     }
+    [data-theme="dark"] .general-comment-box {
+      background: #172554;
+      border-color: #1e40af;
+      border-left-color: var(--primary);
+    }
 
     .general-comment-header {
       font-size: 0.82rem;
@@ -383,7 +553,7 @@
 
     .general-comment-text {
       font-size: 0.88rem;
-      color: #1e293b;
+      color: var(--text-main);
       white-space: pre-wrap;
       line-height: 1.45;
     }
@@ -395,10 +565,18 @@
       border-radius: var(--radius);
       padding: 14px 16px;
     }
+    [data-theme="dark"] .deductions-box {
+      background: #362106;
+      border-color: #78350f;
+    }
 
     .deductions-box.clean {
       background: #f0fdf4;
       border-color: #bbf7d0;
+    }
+    [data-theme="dark"] .deductions-box.clean {
+      background: #052e16;
+      border-color: #166534;
     }
 
     .deductions-title {
@@ -430,7 +608,7 @@
       font-family: 'JetBrains Mono', monospace;
       font-weight: 700;
       color: var(--danger);
-      background: #fee2e2;
+      background: var(--danger-bg);
       padding: 1px 5px;
       border-radius: 4px;
       white-space: nowrap;
@@ -457,7 +635,7 @@
     }
 
     .note-card {
-      background: #ffffff;
+      background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 10px 12px;
@@ -471,7 +649,7 @@
     }
     .note-card:hover {
       border-color: var(--primary);
-      background: #f8fafc;
+      background: var(--card-subtle);
       transform: translateX(2px);
     }
 
@@ -492,7 +670,7 @@
 
     .note-index-badge {
       font-family: 'JetBrains Mono', monospace;
-      background: #f1f5f9;
+      background: var(--bg-main);
       color: var(--text-main);
       padding: 1px 6px;
       border-radius: 4px;
@@ -560,6 +738,12 @@
 </head>
 <body>
 
+  <!-- Floating Tooltip Element -->
+  <div id="student-tooltip">
+    <div class="tt-author" id="tt-author">Asistent</div>
+    <div class="tt-content" id="tt-content">Komentář</div>
+  </div>
+
   <!-- Top Header -->
   <header>
     <a href="/" class="brand">
@@ -573,13 +757,22 @@
     </div>
 
     <div class="header-actions">
-      <a href="/api/public/protocol/{{ share_token }}/pdf" download class="btn btn-primary" title="Stáhnout kompletní PDF s opravou a přílohou">
+      <!-- Dark Mode Toggle Button -->
+      <button type="button" class="btn btn-secondary" id="theme-toggle" onclick="toggleTheme()" title="Přepnout světlý / tmavý režim">
+        <span id="theme-icon">🌙</span>
+        <span id="theme-label">Tmavý režim</span>
+      </button>
+
+      <!-- View Mode Toggle (Live Annotations vs Exported PDF) -->
+      <button type="button" class="btn btn-secondary" id="mode-toggle-btn" onclick="toggleViewMode()" title="Přepnout mezi interaktivním náhledem a exportovaným PDF">
+        <span id="mode-icon">📄</span>
+        <span id="mode-label">Exportované PDF</span>
+      </button>
+
+      <!-- Download Button -->
+      <a href="/api/public/protocol/{{ share_token }}/pdf?mode=exported" download class="btn btn-primary" title="Stáhnout kompletní PDF s opravou a přílohou">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         <span>Stáhnout PDF</span>
-      </a>
-      <a href="/api/public/protocol/{{ share_token }}/pdf" target="_blank" class="btn btn-secondary" title="Otevřít v nové záložce prohlížeče">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-        <span>Nová záložka</span>
       </a>
     </div>
   </header>
@@ -604,14 +797,18 @@
         </div>
 
         <div class="toolbar-group">
-          <span style="font-size:0.75rem; color:var(--text-muted);">💡 Kliknutím na poznámku vpravo přejdete na dané místo</span>
+          <span class="mode-indicator-badge" id="mode-badge">
+            <span>🎨</span>
+            <span id="mode-badge-text">Interaktivní náhled (Studio)</span>
+          </span>
+          <span style="font-size:0.75rem; color:var(--text-muted); margin-left:6px;">💡 Najeďte myší na zvýraznění pro zobrazení poznámky</span>
         </div>
       </div>
 
       <div class="pdf-scroll-container" id="pdf-scroll-container">
         <div class="loading-spinner" id="pdf-loading">
           <div class="spinner"></div>
-          <span>Načítám opravený protokol v PDF.js prohlížeči...</span>
+          <span id="loading-text">Načítám protokol v interaktivním PDF.js prohlížeči...</span>
         </div>
       </div>
     </main>
@@ -672,7 +869,7 @@
         <!-- Deductions Section -->
         {% if deductions and deductions|length > 0 %}
           <div class="deductions-box">
-            <div class="deductions-title" style="color:#92400e;">
+            <div class="deductions-title" style="color:var(--warning);">
               <span>⚖️ Bodové srážky (Moodle)</span>
             </div>
             <ul class="deduction-list">
@@ -686,10 +883,10 @@
           </div>
         {% else %}
           <div class="deductions-box clean">
-            <div class="deductions-title" style="color:#166534;">
+            <div class="deductions-title" style="color:var(--success);">
               <span>🎉 Plný počet bodů</span>
             </div>
-            <p style="font-size:0.82rem; color:#14532d;">Protokol byl vypracován bez bodových srážek.</p>
+            <p style="font-size:0.82rem; color:var(--text-main);">Protokol byl vypracován bez bodových srážek.</p>
           </div>
         {% endif %}
 
@@ -702,7 +899,7 @@
 
           <div class="notes-list">
             {% for n in indexed_notes %}
-              <div class="note-card" style="border-left-color: {{ n.color }};" onclick="jumpToPage({{ n.page_num }})" title="Přejít na stranu {{ n.page_num }}">
+              <div class="note-card" id="note-card-{{ n.index }}" style="border-left-color: {{ n.color }};" onclick="jumpToNote({{ n.page_num }}, {{ n.x }}, {{ n.y }})" title="Přejít na stranu {{ n.page_num }}">
                 <div class="note-card-header">
                   <div class="note-badge-tag">
                     <span class="note-index-badge" style="color: {{ n.color }};">[{{ n.index }}]</span>
@@ -713,7 +910,7 @@
                 </div>
 
                 {% if n.context_snippet %}
-                  <div style="font-size:0.78rem; color:#475569; font-style:italic; background:#f8fafc; padding:4px 8px; border-radius:4px; border-left:2px solid #cbd5e1;">
+                  <div style="font-size:0.78rem; color:var(--text-muted); font-style:italic; background:var(--card-subtle); padding:4px 8px; border-radius:4px; border-left:2px solid var(--border);">
                     „{{ n.context_snippet }}“
                   </div>
                 {% endif %}
@@ -730,25 +927,185 @@
   </div>
 
   <script>
-    // Offline PDF.js Canvas Viewer Implementation
+    // Theme Management (Light / Dark)
+    function initTheme() {
+      const savedTheme = localStorage.getItem('student_theme') || 'light';
+      setTheme(savedTheme);
+    }
+
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('student_theme', theme);
+      const icon = document.getElementById('theme-icon');
+      const label = document.getElementById('theme-label');
+      if (theme === 'dark') {
+        if (icon) icon.textContent = '☀️';
+        if (label) label.textContent = 'Světlý režim';
+      } else {
+        if (icon) icon.textContent = '🌙';
+        if (label) label.textContent = 'Tmavý režim';
+      }
+    }
+
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme') || 'light';
+      setTheme(current === 'dark' ? 'light' : 'dark');
+    }
+
+    initTheme();
+
+    // PDF & Annotation State
     if (window.pdfjsLib) {
       window.pdfjsLib.GlobalWorkerOptions.workerSrc = '/static/vendor/pdf.worker.min.js';
     }
 
-    const pdfUrl = '/api/public/protocol/{{ share_token }}/pdf';
+    const shareToken = '{{ share_token }}';
+    const hasExported = {{ 'true' if has_exported else 'false' }};
+    const hasSource = {{ 'true' if has_source else 'false' }};
+    const rawAnnotations = {{ annotations_json | safe }};
+
+    let currentMode = 'live'; // 'live' (Studio dynamic overlay) | 'exported' (Pre-burned PDF)
     let pdfDoc = null;
     let currentScale = 1.15;
     let totalPages = 0;
     let currentPage = 1;
-    let pageRendering = false;
 
+    // Tooltip Helpers
+    const tooltipEl = document.getElementById('student-tooltip');
+    const ttAuthor = document.getElementById('tt-author');
+    const ttContent = document.getElementById('tt-content');
+
+    function showTooltip(author, content, clientX, clientY) {
+      if (!tooltipEl || !content) return;
+      ttAuthor.textContent = author || 'Asistent';
+      ttContent.textContent = content;
+      tooltipEl.style.display = 'block';
+
+      let left = clientX + 14;
+      let top = clientY + 14;
+      const rect = tooltipEl.getBoundingClientRect();
+      if (left + rect.width > window.innerWidth - 10) {
+        left = window.innerWidth - rect.width - 10;
+      }
+      if (top + rect.height > window.innerHeight - 10) {
+        top = clientY - rect.height - 10;
+      }
+      tooltipEl.style.left = `${Math.max(10, left)}px`;
+      tooltipEl.style.top = `${Math.max(10, top)}px`;
+    }
+
+    function hideTooltip() {
+      if (tooltipEl) tooltipEl.style.display = 'none';
+    }
+
+    // Colors and Path Math Helpers
+    function normalizeRect(r) {
+      if (!r) return [0, 0, 0, 0];
+      if (Array.isArray(r) && r.length >= 4) {
+        return [Number(r[0]), Number(r[1]), Number(r[2]), Number(r[3])];
+      }
+      if (typeof r === 'object') {
+        const x0 = Number(r.x ?? r.x0 ?? 0);
+        const y0 = Number(r.y ?? r.y0 ?? 0);
+        const w = r.width !== undefined ? Number(r.width) : (Number(r.x1 ?? x0) - x0);
+        const h = r.height !== undefined ? Number(r.height) : (Number(r.y1 ?? y0) - y0);
+        return [x0, y0, x0 + w, y0 + h];
+      }
+      return [0, 0, 0, 0];
+    }
+
+    function getHighlightColorConfig(colorVal) {
+      if (Array.isArray(colorVal) && colorVal.length >= 3) {
+        const r = Math.round(colorVal[0] * 255);
+        const g = Math.round(colorVal[1] * 255);
+        const b = Math.round(colorVal[2] * 255);
+        return {
+          bg: `rgba(${r}, ${g}, ${b}, 0.55)`,
+          border: `rgba(${r}, ${g}, ${b}, 0.85)`
+        };
+      }
+      if (typeof colorVal === 'string') {
+        if (colorVal.startsWith('#') && colorVal.length === 7) {
+          const r = parseInt(colorVal.slice(1, 3), 16);
+          const g = parseInt(colorVal.slice(3, 5), 16);
+          const b = parseInt(colorVal.slice(5, 7), 16);
+          return {
+            bg: `rgba(${r}, ${g}, ${b}, 0.55)`,
+            border: `rgba(${r}, ${g}, ${b}, 0.85)`
+          };
+        }
+      }
+      return { bg: 'rgba(239, 68, 68, 0.55)', border: 'rgba(220, 38, 38, 0.85)' };
+    }
+
+    function getFillColorForStroke(strokeColor, opacity = 0.15) {
+      if (!strokeColor) return `rgba(239, 68, 68, ${opacity})`;
+      if (strokeColor.startsWith('#') && strokeColor.length === 7) {
+        const r = parseInt(strokeColor.slice(1, 3), 16);
+        const g = parseInt(strokeColor.slice(3, 5), 16);
+        const b = parseInt(strokeColor.slice(5, 7), 16);
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+      }
+      return strokeColor;
+    }
+
+    function buildSmoothSvgPath(points, scale = 1) {
+      if (!points || points.length === 0) return '';
+      if (points.length === 1) {
+        const p = points[0];
+        return `M ${p[0] * scale} ${p[1] * scale} L ${p[0] * scale + 0.1} ${p[1] * scale + 0.1}`;
+      }
+      if (points.length === 2) {
+        return `M ${points[0][0] * scale} ${points[0][1] * scale} L ${points[1][0] * scale} ${points[1][1] * scale}`;
+      }
+      let d = `M ${points[0][0] * scale} ${points[0][1] * scale}`;
+      for (let i = 1; i < points.length - 1; i++) {
+        const xc = ((points[i][0] + points[i + 1][0]) / 2) * scale;
+        const yc = ((points[i][1] + points[i + 1][1]) / 2) * scale;
+        const cpX = points[i][0] * scale;
+        const cpY = points[i][1] * scale;
+        d += ` Q ${cpX} ${cpY}, ${xc} ${yc}`;
+      }
+      const last = points[points.length - 1];
+      d += ` L ${last[0] * scale} ${last[1] * scale}`;
+      return d;
+    }
+
+    // Toggle between Live Studio Annotations mode and Exported PDF mode
+    function toggleViewMode() {
+      if (currentMode === 'live') {
+        currentMode = 'exported';
+        document.getElementById('mode-icon').textContent = '🎨';
+        document.getElementById('mode-label').textContent = 'Živý náhled (Studio)';
+        document.getElementById('mode-badge').innerHTML = '<span>📄</span><span>Exportované PDF</span>';
+      } else {
+        currentMode = 'live';
+        document.getElementById('mode-icon').textContent = '📄';
+        document.getElementById('mode-label').textContent = 'Exportované PDF';
+        document.getElementById('mode-badge').innerHTML = '<span>🎨</span><span>Interaktivní náhled (Studio)</span>';
+      }
+      initPDF();
+    }
+
+    // Initialize and Render PDF
     async function initPDF() {
       const container = document.getElementById('pdf-scroll-container');
       const loading = document.getElementById('pdf-loading');
+      if (loading) {
+        loading.style.display = 'flex';
+        document.getElementById('loading-text').textContent = currentMode === 'live' 
+          ? 'Načítám čistý protokol s interaktivními anotacemi...' 
+          : 'Načítám exportované PDF...';
+      }
+
+      // Clear existing pages
+      container.querySelectorAll('.pdf-page-wrapper').forEach(p => p.remove());
+
+      const url = `/api/public/protocol/${shareToken}/pdf?mode=${currentMode}`;
 
       try {
         const loadingTask = window.pdfjsLib.getDocument({
-          url: pdfUrl,
+          url: url,
           cMapPacked: true
         });
         pdfDoc = await loadingTask.promise;
@@ -765,10 +1122,17 @@
         setupScrollObserver();
       } catch (err) {
         console.error("PDF load error:", err);
+        // Fallback to exported PDF if live mode failed
+        if (currentMode === 'live' && hasExported) {
+          console.warn("Live source failed, falling back to exported PDF...");
+          toggleViewMode();
+          return;
+        }
+
         if (loading) {
           loading.innerHTML = `
             <div style="color:var(--danger); font-weight:600;">Nepodařilo se načíst PDF protokol.</div>
-            <a href="${pdfUrl}" target="_blank" class="btn btn-secondary" style="margin-top:10px;">Otevřít PDF přímo</a>
+            <a href="${url}" target="_blank" class="btn btn-secondary" style="margin-top:10px;">Otevřít PDF přímo</a>
           `;
         }
       }
@@ -780,7 +1144,7 @@
       const viewport = page.getViewport({ scale: currentScale });
 
       let pageWrapper = document.getElementById(`pdf-page-${num}`);
-      let canvas, ctx;
+      let canvas, ctx, svg;
 
       if (!pageWrapper) {
         pageWrapper = document.createElement('div');
@@ -791,6 +1155,10 @@
         canvas = document.createElement('canvas');
         pageWrapper.appendChild(canvas);
 
+        svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', 'annotation-layer');
+        pageWrapper.appendChild(svg);
+
         const badge = document.createElement('div');
         badge.className = 'page-footer-badge';
         badge.textContent = `Strana ${num} z ${totalPages}`;
@@ -799,6 +1167,7 @@
         container.appendChild(pageWrapper);
       } else {
         canvas = pageWrapper.querySelector('canvas');
+        svg = pageWrapper.querySelector('svg.annotation-layer');
       }
 
       ctx = canvas.getContext('2d');
@@ -807,6 +1176,9 @@
       canvas.height = Math.floor(viewport.height * outputScale);
       canvas.style.width = Math.floor(viewport.width) + "px";
       canvas.style.height = Math.floor(viewport.height) + "px";
+
+      pageWrapper.style.width = Math.floor(viewport.width) + "px";
+      pageWrapper.style.height = Math.floor(viewport.height) + "px";
 
       const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
 
@@ -817,8 +1189,207 @@
       };
 
       await page.render(renderContext).promise;
+
+      // Render Dynamic Annotations in Live Mode
+      if (currentMode === 'live') {
+        renderPageAnnotations(num, pageWrapper, svg);
+      } else {
+        svg.innerHTML = '';
+        pageWrapper.querySelectorAll('.acrobat-highlight-overlay, .acrobat-comment-icon, .pdf-pin, .pdf-direct-text-item').forEach(el => el.remove());
+      }
     }
 
+    // Render Studio Annotations Over Clean PDF Canvas
+    function renderPageAnnotations(pageNum, pageWrapper, svg) {
+      svg.innerHTML = '';
+      pageWrapper.querySelectorAll('.acrobat-highlight-overlay, .acrobat-comment-icon, .pdf-pin, .pdf-direct-text-item').forEach(el => el.remove());
+
+      if (!rawAnnotations || !Array.isArray(rawAnnotations)) return;
+      const pageAnnots = rawAnnotations.filter(a => (parseInt(a.page, 10) || 1) === pageNum);
+
+      pageAnnots.forEach((a) => {
+        const author = a.author || '{{ evaluator_name }}' || 'Asistent';
+        const content = a.content || a.comment || '';
+
+        // 1. Direct Text (Typewriter)
+        if (a.type === 'text_direct' && a.point) {
+          const div = document.createElement('div');
+          div.className = 'pdf-direct-text-item';
+          div.style.position = 'absolute';
+          div.style.left = `${a.point[0] * currentScale}px`;
+          div.style.top = `${(a.point[1] - 12) * currentScale}px`;
+          div.style.color = a.color || '#ef4444';
+          div.style.fontSize = `${(a.fontsize || 14) * currentScale}px`;
+          div.textContent = content;
+          if (content) {
+            div.addEventListener('mouseenter', (e) => showTooltip(author, content, e.clientX, e.clientY));
+            div.addEventListener('mouseleave', hideTooltip);
+          }
+          pageWrapper.appendChild(div);
+        }
+
+        // 2. Ink / Freehand drawing
+        else if (a.type === 'ink' && a.strokes) {
+          const strokeColor = a.color || '#ef4444';
+          a.strokes.forEach(stroke => {
+            if (!stroke || stroke.length === 0) return;
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', buildSmoothSvgPath(stroke, currentScale));
+            path.setAttribute('stroke', strokeColor);
+            path.setAttribute('stroke-width', Math.max(3, (a.width || 2) * currentScale));
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke-linecap', 'round');
+            path.setAttribute('stroke-linejoin', 'round');
+            svg.appendChild(path);
+          });
+        }
+
+        // 3. Highlight with Multi-rects & Acrobat comment circle [⊖]
+        else if (a.type === 'highlight' && (a.rect || a.rects)) {
+          const rectList = (a.rects && a.rects.length > 0) ? a.rects : [a.rect];
+          const colorCfg = getHighlightColorConfig(a.color);
+
+          rectList.forEach(r => {
+            const [x0, y0, x1, y1] = normalizeRect(r);
+            if (x1 <= x0 || y1 <= y0) return;
+
+            const hDiv = document.createElement('div');
+            hDiv.className = 'acrobat-highlight-overlay';
+            hDiv.style.left = `${x0 * currentScale}px`;
+            hDiv.style.top = `${y0 * currentScale}px`;
+            hDiv.style.width = `${(x1 - x0) * currentScale}px`;
+            hDiv.style.height = `${(y1 - y0) * currentScale}px`;
+            hDiv.style.background = colorCfg.bg;
+            hDiv.style.borderBottom = `2px solid ${colorCfg.border}`;
+
+            if (content) {
+              hDiv.addEventListener('mouseenter', (e) => showTooltip(author, content, e.clientX, e.clientY));
+              hDiv.addEventListener('mouseleave', hideTooltip);
+            }
+            pageWrapper.appendChild(hDiv);
+          });
+
+          // Circular comment icon
+          const mainRect = normalizeRect(a.rect || (a.rects && a.rects[0]));
+          if (mainRect && (mainRect[2] > mainRect[0])) {
+            const [rx0, ry0] = mainRect;
+            const icon = document.createElement('div');
+            icon.className = 'acrobat-comment-icon';
+            icon.style.left = `${(rx0 * currentScale) - 9}px`;
+            icon.style.top = `${(ry0 * currentScale) - 9}px`;
+            if (content) {
+              icon.addEventListener('mouseenter', (e) => showTooltip(author, content, e.clientX, e.clientY));
+              icon.addEventListener('mouseleave', hideTooltip);
+            }
+            pageWrapper.appendChild(icon);
+          }
+        }
+
+        // 4. Strikeout
+        else if (a.type === 'strikeout' && (a.rect || a.rects)) {
+          const [x0, y0, x1, y1] = normalizeRect(a.rect || (a.rects && a.rects[0]));
+          const midY = ((y0 + y1) / 2) * currentScale;
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', x0 * currentScale);
+          line.setAttribute('y1', midY);
+          line.setAttribute('x2', x1 * currentScale);
+          line.setAttribute('y2', midY);
+          line.setAttribute('stroke', a.color || '#ef4444');
+          line.setAttribute('stroke-width', Math.max(2, 2.5 * currentScale));
+          line.setAttribute('stroke-linecap', 'round');
+          line.style.pointerEvents = 'stroke';
+          line.style.cursor = 'pointer';
+
+          if (content) {
+            line.addEventListener('mouseenter', (e) => showTooltip(author, content, e.clientX, e.clientY));
+            line.addEventListener('mouseleave', hideTooltip);
+          }
+          svg.appendChild(line);
+        }
+
+        // 5. Rect (Bounding box)
+        else if (a.type === 'rect' && a.rect) {
+          const [x0, y0, x1, y1] = normalizeRect(a.rect);
+          const rectColor = a.color || '#ef4444';
+          const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          rect.setAttribute('x', x0 * currentScale);
+          rect.setAttribute('y', y0 * currentScale);
+          rect.setAttribute('width', Math.max(4, (x1 - x0) * currentScale));
+          rect.setAttribute('height', Math.max(4, (y1 - y0) * currentScale));
+          rect.setAttribute('fill', getFillColorForStroke(rectColor, 0.15));
+          rect.setAttribute('stroke', rectColor);
+          rect.setAttribute('stroke-width', 2);
+          rect.style.pointerEvents = 'auto';
+          rect.style.cursor = 'pointer';
+
+          if (content) {
+            rect.addEventListener('mouseenter', (e) => showTooltip(author, content, e.clientX, e.clientY));
+            rect.addEventListener('mouseleave', hideTooltip);
+          }
+          svg.appendChild(rect);
+        }
+
+        // 6. Arrow with polygon arrowhead
+        else if (a.type === 'arrow' && a.p1 && a.p2) {
+          const arrowColor = a.color || '#ef4444';
+          const startX = a.p1[0] * currentScale;
+          const startY = a.p1[1] * currentScale;
+          const endX = a.p2[0] * currentScale;
+          const endY = a.p2[1] * currentScale;
+
+          const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+          g.style.pointerEvents = 'auto';
+          g.style.cursor = 'pointer';
+
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', startX);
+          line.setAttribute('y1', startY);
+          line.setAttribute('x2', endX);
+          line.setAttribute('y2', endY);
+          line.setAttribute('stroke', arrowColor);
+          line.setAttribute('stroke-width', Math.max(2, 2.5 * currentScale));
+          line.setAttribute('stroke-linecap', 'round');
+
+          const head = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+          const theta = Math.atan2(endY - startY, endX - startX);
+          const headLen = Math.max(10, 14 * Math.min(1.5, currentScale));
+          const p1x = endX - headLen * Math.cos(theta - 0.45);
+          const p1y = endY - headLen * Math.sin(theta - 0.45);
+          const p2x = endX - headLen * Math.cos(theta + 0.45);
+          const p2y = endY - headLen * Math.sin(theta + 0.45);
+          head.setAttribute('points', `${endX},${endY} ${p1x},${p1y} ${p2x},${p2y}`);
+          head.setAttribute('fill', arrowColor);
+
+          g.appendChild(line);
+          g.appendChild(head);
+          if (content) {
+            g.addEventListener('mouseenter', (e) => showTooltip(author, content, e.clientX, e.clientY));
+            g.addEventListener('mouseleave', hideTooltip);
+          }
+          svg.appendChild(g);
+        }
+
+        // 7. Sticky Note Pin
+        else if (a.type === 'note' && a.point) {
+          const pin = document.createElement('div');
+          pin.className = 'pdf-pin';
+          pin.style.left = `${(a.point[0] * currentScale) - 13}px`;
+          pin.style.top = `${(a.point[1] * currentScale) - 13}px`;
+          pin.innerHTML = `
+            <svg viewBox="0 0 24 24" fill="#fbbf24" stroke="#d97706" stroke-width="1.5">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+          `;
+          if (content) {
+            pin.addEventListener('mouseenter', (e) => showTooltip(author, content, e.clientX, e.clientY));
+            pin.addEventListener('mouseleave', hideTooltip);
+          }
+          pageWrapper.appendChild(pin);
+        }
+      });
+    }
+
+    // Zoom Controls
     async function reRenderAll() {
       if (!pdfDoc) return;
       document.getElementById('zoom-label').textContent = Math.round(currentScale * 100) + '%';
@@ -882,6 +1453,21 @@
         setTimeout(() => el.classList.remove('highlight-pulse'), 1200);
         currentPage = num;
         updatePageIndicator();
+      }
+    }
+
+    // Jump to specific note annotation with smooth scroll and visual pulse
+    function jumpToNote(pageNum, x, y) {
+      jumpToPage(pageNum);
+      const pageWrap = document.getElementById(`pdf-page-${pageNum}`);
+      if (!pageWrap) return;
+
+      // Also highlight the note card in sidebar
+      document.querySelectorAll('.note-card').forEach(c => c.style.outline = 'none');
+      const targetCard = event?.currentTarget;
+      if (targetCard) {
+        targetCard.style.outline = '2px solid var(--primary)';
+        setTimeout(() => targetCard.style.outline = 'none', 1800);
       }
     }
 

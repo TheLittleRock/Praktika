@@ -2,11 +2,11 @@
 
 **Praktika** je specializovaná webová aplikace pro vyučující a asistenty fyzikálních praktik, určená k efektivní, konzistentní a detailní opravě studentských laboratorních protokolů ve formátu PDF.
 
-Systém integruje rychlé grafické anotační plátno s vektorovými kreslícími nástroji (zvýrazňovač, pero, geometrické tvary, šipky a textové poznámky), strukturované bodovací rubriky a analytického asistenta využívajícího model **Google Gemini 2.5 Flash**.
+Systém integruje rychlé grafické anotační plátno s vektorovými kreslícími nástroji (zvýrazňovač, pero, geometrické tvary, šipky a textové poznámky), strukturované bodovací rubriky a analytického asistenta využívajícího modely **Google Gemini**.
 
 <picture>
   <source srcset="assets/images/studio_workflow.webp" type="image/webp">
-  <img src="assets/images/studio_workflow.gif" alt="Praktika Evaluation Studio v2.10.0">
+  <img src="assets/images/studio_workflow.gif" alt="Praktika Evaluation Studio v2.13.0">
 </picture>
 
 ---
@@ -23,6 +23,7 @@ Systém integruje rychlé grafické anotační plátno s vektorovými kreslící
 === "Bodování & Moodle"
     - **Čtyři hodnotící pilíře**: Výsledky (max 3 b), Diskuze (max 3 b), Formát (max 2 b) a Chyby (max 2 b).
     - **Katalog srážek**: Rychlé odečítání bodů v násobcích **0.125 b** s předvolenými i vlastními odůvodněními.
+    - **Celkové slovní hodnocení**: Souhrnný komentář o celkovém dojmu z protokolu automaticky propagovaný do Moodle i studentovi.
     - **Automatický výpočet známky**: Převod na škálu ECTS (A–F) s možností manuálního přepsání.
     - **Moodle export**: Okamžité vygenerování textového komentáře pro vložení do univerzitního LMS jedním kliknutím.
 
@@ -31,6 +32,12 @@ Systém integruje rychlé grafické anotační plátno s vektorovými kreslící
     - **Návrhy přímo v textu**: AI navrhuje srážky a vytváří v textu zvýrazněná místa se štítkem a tlačítky pro okamžité schválení (✓) či zamítnutí (✕).
     - **Multijazyčnost**: Volba cílového jazyka výstupů (čeština, slovenština, angličtina nebo auto podle protokolu).
     - **100% kontrola cvičícího**: Žádná změna se neaplikuje automaticky bez explicitního schválení vyučujícím.
+
+=== "Studentský náhled & Dark Mode"
+    - **Živé vykreslovací jádro**: Prohlížeč studenta načítá čistý protokol s dynamickou SVG vrstvou anotací identickou s rozhraním asistenta.
+    - **Interaktivní hover bubliny**: Okamžité zobrazení komentářů asistenta při najetí kurzoru myši na zvýrazněný text či ikonu `[⊖]`.
+    - **Noční režim (Dark Mode)**: Přepínač témat s příjemným kontrastním tmavým motivem šetřícím zrak při nočním studiu.
+    - **Záložní exportované PDF**: Možnost přepnout na pre-renderované PDF a stáhnout soubor přímo do zařízení.
 
 ---
 
