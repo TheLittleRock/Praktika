@@ -4,24 +4,26 @@
 
 Systém integruje rychlé grafické anotační plátno s vektorovými kreslícími nástroji (zvýrazňovač, pero, geometrické tvary, šipky a textové poznámky), strukturované bodovací rubriky a analytického asistenta využívajícího modely **Google Gemini**.
 
-<picture>
-  <source srcset="assets/images/studio_workflow.webp" type="image/webp">
-  <img src="assets/images/studio_workflow.gif" alt="Praktika Evaluation Studio v2.13.0">
-</picture>
+![Praktika Evaluation Studio](assets/images/studio_workflow.webp)
 
 ---
 
 ## 🎯 Klíčové schopnosti
 
-=== "Korekční PDF Studio"
-    - **Acrobat-kompatibilní plátno**: Plynulé vektorové vykreslování s podporou libovolného rozlišení a DPI.
-    - **Anotační nástroje**: Zvýraznění textu, přeškrtnutí, přímý vepsaný text, volné kreslení perem, ohraničující obdélníky a směrové šipky.
-    - **Výběr, přesouvání a mazání**: Manipulační rámeček u všech tvarů s rohovými body, tažením myší a mazáním klávesou `Delete` / `Backspace` či ikonou koše.
-    - **Plynulý zoom**: Touchpad pinch-to-zoom a `Ctrl + Scroll` kolečkem myši s nezávislou citlivostí v uživatelském nastavení.
-    - **Plovoucí automatické ukládání**: Nenápadná fixní indikace v rohu obrazovky zajišťuje kontinuální perzistenci bez zmenšení pracovního prostoru.
+=== "PDF Studio"
+    - **Acrobat-kompatibilní plátno**: Plynulé vektorové vykreslování anotací s plnou obousměrnou kompatibilitou se standardem Adobe Acrobat a formátem PDF.
+    - **Dostupné anotační nástroje**:
+        - **Zvýraznění textu** (`U`) s volitelnou paletou barev a připojeným textovým komentářem
+        - **Přeškrtnutí textu** (`S`) pro přímou indikaci chyb ve vzorcích a větách
+        - **Přímý vepsaný text** (`T`) s nastavitelnou velikostí a barvou písma
+        - **Volné kreslení perem** (`P`) s automatickým vyhlazováním křivek
+        - **Ohraničující obdélníky** (`R`) s nastavitelným obrysem a průsvitnou výplní
+        - **Směrové šipky** (`A`) s ostrými hroty pro přesnou navigaci na konkrétní chybu
+        - **Poznámkové bubliny** (`N`) pro bodové komentáře
+    - **Výběr, posun a mazání**: Nástroj Výběr (`V` / `H`) umožňuje označit libovolnou přidanou anotaci, posunout ji myší po plátně nebo smazat (`Delete` / `Backspace`).
 
 === "Bodování & Moodle"
-    - **Čtyři hodnotící pilíře**: Výsledky (max 3 b), Diskuze (max 3 b), Formát (max 2 b) a Chyby (max 2 b).
+    - **Čtyři hodnotící pilíře**: Výsledky (max 3 b), Diskuze (max 3 b), Formát (max 2 b) a Chyby měření (max 2 b).
     - **Katalog srážek**: Rychlé odečítání bodů v násobcích **0.125 b** s předvolenými i vlastními odůvodněními.
     - **Celkové slovní hodnocení**: Souhrnný komentář o celkovém dojmu z protokolu automaticky propagovaný do Moodle i studentovi.
     - **Automatický výpočet známky**: Převod na škálu ECTS (A–F) s možností manuálního přepsání.
@@ -34,10 +36,95 @@ Systém integruje rychlé grafické anotační plátno s vektorovými kreslící
     - **100% kontrola cvičícího**: Žádná změna se neaplikuje automaticky bez explicitního schválení vyučujícím.
 
 === "Studentský náhled & Dark Mode"
+    - **Webový náhled protokolu**: Okamžitý přístup pro studenta přes unikátní odkaz či QR kód bez nutnosti přihlášení.
     - **Živé vykreslovací jádro**: Prohlížeč studenta načítá čistý protokol s dynamickou SVG vrstvou anotací identickou s rozhraním asistenta.
-    - **Interaktivní hover bubliny**: Okamžité zobrazení komentářů asistenta při najetí kurzoru myši na zvýrazněný text či ikonu `[⊖]`.
-    - **Noční režim (Dark Mode)**: Přepínač témat s příjemným kontrastním tmavým motivem šetřícím zrak při nočním studiu.
-    - **Záložní exportované PDF**: Možnost přepnout na pre-renderované PDF a stáhnout soubor přímo do zařízení.
+    - **Interaktivní poznámky a tooltipy**: Najetí na zvýrazněný text zobrazí bublinu s komentářem; v bočním panelu jsou přehledně seřazené všechny poznámky s možností prokliku přímo na danou stranu.
+    - **Plynulý zoom & Tmavý režim**: Nezávislý zoom izolovaný na PDF dokument (Ctrl+kolečko, touchpad pinch) a přepínač nočního režimu šetřící zrak.
+    - **Plná mobilní responzivita**: Na telefonech a tabletech segmentovaný přepínač záložek mezi PDF protokolem a souhrnným hodnocením.
+
+---
+
+## 🚀 Rychlý start
+
+### 1. Přihlášení do aplikace
+
+Po spuštění aplikace (lokálně nebo v Docker kontejneru) otevřete webový prohlížeč na adrese:
+
+```
+http://localhost:8000
+```
+
+Při prvním spuštění se zobrazí přihlašovací okno. Výchozí účet hlavního správce aplikace má tyto přihlašovací údaje:
+
+| Položka | Hodnota |
+| :--- | :--- |
+| **Uživatelské jméno** | `admin` |
+| **Výchozí heslo** | `admin123` |
+| **Role** | Správce aplikace (admin) |
+
+> [!TIP]
+> Po prvním přihlášení doporučujeme změnit výchozí heslo v záložce **⚙ Nastavení -> 🔒 Změna hesla**.
+
+---
+
+### 2. Hlavní přehled (Dashboard)
+
+Po přihlášení se zobrazí hlavní řídicí panel aplikace:
+
+![Přehled řídicího panelu](assets/images/dashboard_overview.png)
+
+Na řídicím panelu máte k dispozici:
+- **Přepínač semestrů**: Umožňuje přepínat mezi aktuálním a minulými semestry (např. *ZS 2026/2027*).
+- **Informativní statistické karty**: Okamžitý přehled celkového počtu odevzdaných prací, rozpracovaných konceptů, dokončených protokolů a průměrné známky.
+- **Rychlý filtr a vyhledávání**: Filtrování podle konkrétní laboratorní úlohy, rozvrhového termínu, cvičícího nebo stavu.
+
+---
+
+### 3. Nahrání studentských protokolů
+
+1. V horní nástrojové liště klikněte na tlačítko **+ Nahrát protokoly**.
+2. Otevře se dialog pro nahrání souborů:
+
+![Okno nahrání protokolů](assets/images/upload_modal.png)
+
+3. Zvolte semestr, termín cvičení (např. *Středa 8:00*) a laboratorní úlohu.
+4. Přetáhněte jeden nebo více PDF souborů do vyznačené zóny.
+5. Systém automaticky analyzuje text v hlavičce PDF a extrahuje jméno studenta.
+6. Klikněte na **Nahrát protokol(y)**. Pokud je v nastavení povolen AI asistent s volbou automatické analýzy, protokol se ihned na pozadí připraví k vyhodnocení.
+
+---
+
+### 4. Výběr příručky podle vaší role
+
+Aplikace rozlišuje specifické potřeby asistentů (cvičících) a správců systému:
+
+<div class="grid cards" markdown>
+
+-   :material-account-edit:{ .lg .middle } __[Příručka pro asistenty](guide/assistant.md)__
+
+    ---
+
+    Kompletní průvodce opravou protokolu:
+    - Práce s kreslicími a anotačními nástroji
+    - Výběr, přesouvání a mazání geometrických tvarů
+    - Práce s návrhy AI asistenta a jejich schvalování v textu
+    - Bodovací dock, katalogy častých chyb a export pro Moodle
+
+    [:octicons-arrow-right-24: Přejít na příručku pro asistenty](guide/assistant.md)
+
+-   :material-shield-crown:{ .lg .middle } __[Příručka pro správce](guide/admin.md)__
+
+    ---
+
+    Správa a konfigurace celého systému:
+    - Správa semestrů a rozvrhových termínů
+    - Správa laboratorních úloh a AI syntéza hodnoticích rubrik
+    - Konfigurace Gemini AI modelů a jazyka výstupů
+    - Uživatelské účty a správa SQLite databáze & zálohy
+
+    [:octicons-arrow-right-24: Přejít na příručku pro správce](guide/admin.md)
+
+</div>
 
 ---
 
@@ -61,9 +148,8 @@ graph LR
 
 ---
 
-## 🚀 Jak začít
+## 📖 Další kapitoly dokumentace
 
-1. Přečtěte si **[Rychlý start](getting-started.md)** pro seznámení se základním workflow a přihlašovacími údaji.
-2. Nahlédněte do **[Příručky pro asistenty](guide/assistant.md)** pro kompletní průvodce opravou protokolu.
-3. Projděte si **[Příručku pro správce](guide/admin.md)** pro správu úloh, AI modelů a zálohování databáze.
-4. Pro nasazení na server pomocí Dockeru využijte průvodce **[Instalace přes Docker & Portainer](installation/docker.md)**.
+1. Nahlédněte do **[Příručky pro asistenty](guide/assistant.md)** pro kompletní průvodce opravou protokolu.
+2. Projděte si **[Příručku pro správce](guide/admin.md)** pro správu úloh, AI modelů a zálohování databáze.
+3. Pro nasazení na server pomocí Dockeru využijte průvodce **[Instalace přes Docker & Portainer](installation/docker.md)**.

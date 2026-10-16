@@ -350,6 +350,8 @@ def run_media_generation():
             upload_img = DOCS_ASSETS_DIR / "upload_modal.png"
             page.screenshot(path=str(upload_img))
             shutil.copy(upload_img, DOCS_IMAGES_DIR / "upload_modal.png")
+            page.evaluate("App.closeUploadModal()")
+            page.wait_for_timeout(400)
 
             # ----------------------------------------------------
             # Clip 1: Import Workflow Animation (18 FPS)
@@ -364,7 +366,18 @@ def run_media_generation():
                         page.screenshot(path=str(fdir / f"frame_{fidx:04d}.png"))
                         fidx += 1
 
+                cap1(8)
+                # Move to + Nahrát protokol button on Dashboard
+                upload_btn = page.locator("button.btn-primary:has-text('Nahrát protokol')").first
+                if upload_btn.is_visible():
+                    ubox = upload_btn.bounding_box()
+                    if ubox:
+                        move_mouse_smooth(page, ubox["x"] + ubox["width"]/2, ubox["y"] + ubox["height"]/2, steps=8, capture_fn=cap1)
+                        click_mouse(page, ubox["x"] + ubox["width"]/2, ubox["y"] + ubox["height"]/2, capture_fn=cap1)
+
+                page.evaluate("App.openUploadModal()")
                 cap1(6)
+
                 # Move to student input
                 move_mouse_smooth(page, 720, 360, steps=8, capture_fn=cap1)
                 click_mouse(page, 720, 360, capture_fn=cap1)
@@ -382,7 +395,8 @@ def run_media_generation():
                 # Move to confirm button
                 move_mouse_smooth(page, 790, 580, steps=8, capture_fn=cap1)
                 click_mouse(page, 790, 580, capture_fn=cap1)
-                cap1(8)
+                page.evaluate("App.closeUploadModal()")
+                cap1(10)
 
                 compile_frames_to_animation(fdir, DOCS_ASSETS_DIR / "clip_import.webp", DOCS_ASSETS_DIR / "clip_import.gif", fps=18, width=1000)
                 shutil.copy(DOCS_ASSETS_DIR / "clip_import.webp", DOCS_IMAGES_DIR / "clip_import.webp")
@@ -433,11 +447,19 @@ def run_media_generation():
                     if bbox:
                         move_mouse_smooth(page, bbox["x"] + bbox["width"]/2, bbox["y"] + bbox["height"]/2, steps=8, capture_fn=cap2)
                         click_mouse(page, bbox["x"] + bbox["width"]/2, bbox["y"] + bbox["height"]/2, capture_fn=cap2)
-                        cap2(14)
+                        page.evaluate("const el = document.getElementById('bulk-edit-evaluator'); if (el) el.value = '1';")
+                        cap2(8)
+
+                save_btn = page.locator("#bulk-edit-modal button[type='submit']")
+                if save_btn.is_visible():
+                    sbox = save_btn.bounding_box()
+                    if sbox:
+                        move_mouse_smooth(page, sbox["x"] + sbox["width"]/2, sbox["y"] + sbox["height"]/2, steps=6, capture_fn=cap2)
+                        click_mouse(page, sbox["x"] + sbox["width"]/2, sbox["y"] + sbox["height"]/2, capture_fn=cap2)
 
                 page.evaluate("App.closeBulkEditModal()")
                 page.evaluate("App.clearProtocolSelection()")
-                cap2(4)
+                cap2(8)
 
                 compile_frames_to_animation(fdir, DOCS_ASSETS_DIR / "clip_batch_ops.webp", DOCS_ASSETS_DIR / "clip_batch_ops.gif", fps=18, width=1000)
                 shutil.copy(DOCS_ASSETS_DIR / "clip_batch_ops.webp", DOCS_IMAGES_DIR / "clip_batch_ops.webp")
@@ -604,7 +626,27 @@ def run_media_generation():
                         page.evaluate(f"const c = document.getElementById('virtual-mouse-cursor'); if(c) {{ c.style.left='{cursor_state['x']}px'; c.style.top='{cursor_state['y']}px'; }}")
                         cap4(1)
                     page.mouse.up()
-                    cap4(8)
+                    cap4(4)
+
+                    # Open Acrobat comment box on this highlight
+                    page.evaluate("""
+                      PDFStudio.openCommentBox({
+                        page: 1,
+                        type: 'highlight',
+                        rect: [140, 275, 420, 292],
+                        color: '#ef4444',
+                        content: 'Chybějící čárka za vzorcem před ", kde"',
+                        author: 'Asistent'
+                      }, 430, 310, true);
+                    """)
+                    post_btn = page.locator("#acrobat-post-btn")
+                    if post_btn.is_visible():
+                        pbox = post_btn.bounding_box()
+                        if pbox:
+                            move_mouse_smooth(page, pbox["x"] + pbox["width"]/2, pbox["y"] + pbox["height"]/2, steps=6, capture_fn=cap4)
+                            click_mouse(page, pbox["x"] + pbox["width"]/2, pbox["y"] + pbox["height"]/2, capture_fn=cap4)
+                    page.evaluate("document.getElementById('acrobat-post-btn')?.click() || PDFStudio.closeCommentBox()")
+                    cap4(6)
 
                 # Move to Arrow tool
                 arrow_btn = page.locator("#tool-arrow")
@@ -776,6 +818,12 @@ def run_media_generation():
                         move_mouse_smooth(page, nbox["x"] + 50, nbox["y"] + 20, steps=8, capture_fn=cap7)
                         click_mouse(page, nbox["x"] + 50, nbox["y"] + 20, capture_fn=cap7)
                         cap7(10) # scrolled & pulsed
+
+                # Demonstrate smooth studio zoom in student view
+                move_mouse_smooth(page, 450, 350, steps=6, capture_fn=cap7)
+                for z in [1.08, 1.08, 0.925, 0.925]:
+                    page.evaluate(f"handleContinuousZoom({z}, 450, 350)")
+                    cap7(3)
 
                 # Move cursor to Dark Mode toggle button in header
                 theme_btn = page.locator("#theme-toggle")

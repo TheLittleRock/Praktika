@@ -4,6 +4,30 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.14.0] - 2026-10-16
+
+### 🚀 Novinky a vylepšení ve verzi 2.14.0
+
+#### 📱 Responzivní mobilní rozhraní studentského náhledu (`student_view.html`)
+- **Segmentovaný přepínač záložek pro mobily a tablety (`<= 900px`)**: Na displejích telefonů a tabletů se pod hlavičkou zobrazuje přepínač mezi záložkou `[📄 Protokol (PDF)]` a `[📊 Hodnocení & Poznámky]`.
+- **Automatická navigace na stranu**: Kliknutí na libovolnou poznámku v záložce Hodnocení automaticky přepne na záložku Protokol, odscrolluje přímo na danou stranu a zvýrazní ji pulzním rámečkem.
+- **Kompaktní mobilní záhlaví**: Tlačítka v záhlaví (Tmavý režim, Exportované PDF, Stáhnout PDF) na malých displejích automaticky skryjí dlouhé textové popisky a zobrazují pouze zřetelné ikony, čímž eliminují nežádoucí lámání řádků.
+- **Plné zachování PC verze**: Pro obrazovky `> 900px` zůstává identické ergonomické dvoupanelové uspořádání.
+
+#### 🔍 Studio-style zoom mechanika ve studentském náhledu
+- **Izolace zoomu pro PDF**: Gesta touchpad pinch a `Ctrl + Scroll` kolečkem myši zoomují výhradně PDF canvas a zabraňují nechtěnému zvětšování celého okna prohlížeče (`e.preventDefault()`).
+- **Okamžitá odezva s kotvením na kurzor**: Okamžitá transformace CSS `scale(ratio)` s následným debouncovaným ostrým vykreslením po 180 ms udržuje obsah pod kurzorem myši zcela stabilní.
+
+#### 📚 Sloučení Úvodu a Rychlého startu & Úprava klíčových schopností
+- **Sjednocení `docs/index.md`**: Původní samostatný rychlý start byl přímo integrován do hlavní stránky, včetně správných výchozích údajů (`admin` / `admin123`) a přehledného rozcestníku.
+- **Klíčové schopnosti**: Záložka přejmenována na „PDF Studio“, text zaměřen čistě na dostupné anotační nástroje a Acrobat kompatibilitu. Přidána nová záložka popisující studentský webový náhled.
+
+#### 🎬 Oprava zobrazování animací a ucelené přetočení workflow
+- **Náprava cesty v MkDocs**: Raw HTML tagy `<picture>` byly nahrazeny standardní Markdown syntaxí `![Ukázka](../assets/images/clip_....webp)`, což vyřešilo problém s relativními cestami ve vnořených adresářích `/guide/assistant/` a `/guide/admin/`.
+- **Kompletní a realistické demonstrace**: Všechny animace v 18 FPS zachycují ucelené kroky hodnocení na protokolu Štěpána Skalky (otevření dialogu importu s autodetekcí, hromadné schválení, napsání a uložení poznámky k rovnici (3), animace srážky a celkového hodnocení, rozsvícení zeleného stavu uložení).
+
+---
+
 ## [2.13.0] - 2026-10-16
 
 ### 🚀 Novinky a vylepšení ve verzi 2.13.0

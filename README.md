@@ -21,10 +21,7 @@ Nabízí interaktivní korekční studio s vektorovými kreslícími nástroji (
 ### 1. Interaktivní workflow v Korekčním PDF Studiu (Animace)
 Reálná ukázka práce v aplikaci: kreslení a výběr geometrických tvarů, manipulace a mazání, zobrazení panelu AI asistenta se schválením návrhu v textu a zadávání bodových srážek:
 
-<picture>
-  <source srcset="docs/assets/images/studio_workflow.webp" type="image/webp">
-  <img src="docs/assets/images/studio_workflow.gif" alt="Interaktivní práce v Korekčním PDF Studiu">
-</picture>
+![Interaktivní práce v Korekčním PDF Studiu](docs/assets/images/studio_workflow.webp)
 
 ---
 
@@ -52,10 +49,7 @@ Výstupní PDF s přehlednou hodnoticí hlavičkou, vektorovými anotacemi s dia
 ### 5. Interaktivní studentský náhled a Tmavý režim (`/v/{share_token}`)
 Responzivní webový náhled pro studenty s plnohodnotným živým vykreslovacím jádrem (Studio Engine), interaktivními tooltipy při najetí myší, přepínáním do tmavého režimu (Dark Mode), přehledem bodů a celkovým slovním hodnocením asistenta:
 
-<picture>
-  <source srcset="docs/assets/images/clip_student_view.webp" type="image/webp">
-  <img src="docs/assets/images/clip_student_view.gif" alt="Interaktivní studentský náhled a tmavý režim">
-</picture>
+![Interaktivní studentský náhled a tmavý režim](docs/assets/images/clip_student_view.webp)
 
 ---
 

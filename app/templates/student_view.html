@@ -710,28 +710,120 @@
       to { transform: rotate(360deg); }
     }
 
-    /* Mobile Responsive Stacking */
+    /* Mobile Tab Bar */
+    .mobile-tab-bar {
+      display: none;
+    }
+
+    /* Mobile Responsive Layout (<= 900px) */
     @media (max-width: 900px) {
       body {
-        height: auto;
-        overflow-y: auto;
+        height: 100vh;
+        overflow: hidden;
       }
+
+      /* Compact Mobile Header */
+      header {
+        padding: 8px 12px;
+      }
+
+      .brand span {
+        display: none; /* keep only icon */
+      }
+
+      .header-center {
+        max-width: 170px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .header-center span:nth-child(2) {
+        display: none; /* hide secondary student name in header */
+      }
+
+      .btn .btn-text {
+        display: none; /* show icons only on mobile */
+      }
+
+      .btn {
+        padding: 6px 10px;
+        min-width: 38px;
+        justify-content: center;
+      }
+
+      /* Segmented Tab Switcher */
+      .mobile-tab-bar {
+        display: flex;
+        background: var(--header-bg);
+        border-bottom: 1px solid var(--border);
+        padding: 6px 12px;
+        gap: 8px;
+        flex-shrink: 0;
+        z-index: 40;
+      }
+
+      .mobile-tab-btn {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        background: var(--card-subtle);
+        color: var(--text-muted);
+        border: 1px solid var(--border);
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      .mobile-tab-btn.active {
+        background: var(--primary);
+        color: #ffffff;
+        border-color: var(--primary);
+        box-shadow: var(--shadow-sm);
+      }
+
       .app-viewport {
         flex-direction: column;
-        height: auto;
-        overflow: visible;
+        height: calc(100vh - 53px - 49px);
+        overflow: hidden;
       }
-      .sidebar-pane {
-        width: 100%;
-        border-left: none;
-        border-bottom: 1px solid var(--border);
-        order: -1;
-      }
-      .sidebar-scroll {
-        max-height: 500px;
-      }
+
       .pdf-viewer-pane {
-        height: 700px;
+        display: none;
+        width: 100%;
+        height: 100%;
+        flex: 1;
+      }
+
+      .pdf-viewer-pane.mobile-active {
+        display: flex;
+      }
+
+      .sidebar-pane {
+        display: none;
+        width: 100%;
+        height: 100%;
+        flex: 1;
+        border-left: none;
+      }
+
+      .sidebar-pane.mobile-active {
+        display: flex;
+      }
+
+      .pdf-toolbar {
+        padding: 6px 10px;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .mode-indicator-badge {
+        display: none;
       }
     }
   </style>
@@ -760,28 +852,38 @@
       <!-- Dark Mode Toggle Button -->
       <button type="button" class="btn btn-secondary" id="theme-toggle" onclick="toggleTheme()" title="Přepnout světlý / tmavý režim">
         <span id="theme-icon">🌙</span>
-        <span id="theme-label">Tmavý režim</span>
+        <span class="btn-text" id="theme-label">Tmavý režim</span>
       </button>
 
       <!-- View Mode Toggle (Live Annotations vs Exported PDF) -->
       <button type="button" class="btn btn-secondary" id="mode-toggle-btn" onclick="toggleViewMode()" title="Přepnout mezi interaktivním náhledem a exportovaným PDF">
         <span id="mode-icon">📄</span>
-        <span id="mode-label">Exportované PDF</span>
+        <span class="btn-text" id="mode-label">Exportované PDF</span>
       </button>
 
       <!-- Download Button -->
       <a href="/api/public/protocol/{{ share_token }}/pdf?mode=exported" download class="btn btn-primary" title="Stáhnout kompletní PDF s opravou a přílohou">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        <span>Stáhnout PDF</span>
+        <span class="btn-text">Stáhnout PDF</span>
       </a>
     </div>
   </header>
 
-  <!-- Main Viewport (Two-Pane) -->
+  <!-- Mobile Segmented Tab Bar (Visible on screens <= 900px) -->
+  <nav class="mobile-tab-bar" id="mobile-tab-bar">
+    <button type="button" class="mobile-tab-btn active" id="tab-btn-pdf" onclick="switchMobileTab('pdf')">
+      <span>📄</span> Protokol (PDF)
+    </button>
+    <button type="button" class="mobile-tab-btn" id="tab-btn-eval" onclick="switchMobileTab('eval')">
+      <span>📊</span> Hodnocení & Poznámky
+    </button>
+  </nav>
+
+  <!-- Main Viewport (Two-Pane on Desktop, Tabbed on Mobile) -->
   <div class="app-viewport">
     
     <!-- Left Pane: Interactive PDF Canvas Viewer -->
-    <main class="pdf-viewer-pane">
+    <main class="pdf-viewer-pane mobile-active">
       <div class="pdf-toolbar">
         <div class="toolbar-group">
           <button type="button" class="tool-btn" onclick="prevPage()" title="Předchozí strana">◀</button>
@@ -1389,31 +1491,210 @@
       });
     }
 
+    // Mobile Tab Switching
+    let currentMobileTab = 'pdf'; // 'pdf' | 'eval'
+
+    function switchMobileTab(tab) {
+      currentMobileTab = tab;
+      const btnPdf = document.getElementById('tab-btn-pdf');
+      const btnEval = document.getElementById('tab-btn-eval');
+      const pdfPane = document.querySelector('.pdf-viewer-pane');
+      const sidebarPane = document.querySelector('.sidebar-pane');
+
+      if (tab === 'pdf') {
+        if (btnPdf) btnPdf.classList.add('active');
+        if (btnEval) btnEval.classList.remove('active');
+        if (pdfPane) pdfPane.classList.add('mobile-active');
+        if (sidebarPane) sidebarPane.classList.remove('mobile-active');
+        setTimeout(() => {
+          if (pdfDoc && !window._hasFitMobileOnce) {
+            window._hasFitMobileOnce = true;
+            fitWidth();
+          }
+        }, 60);
+      } else {
+        if (btnPdf) btnPdf.classList.remove('active');
+        if (btnEval) btnEval.classList.add('active');
+        if (pdfPane) pdfPane.classList.remove('mobile-active');
+        if (sidebarPane) sidebarPane.classList.add('mobile-active');
+      }
+    }
+
+    // Studio Zoom Mechanics & Gestures
+    let lastRenderedScale = 1.15;
+    let zoomDebounceTimer = null;
+    let activePinchLoc = null;
+
+    function getCurrentVisibleLocation(clientX, clientY) {
+      const container = document.getElementById('pdf-scroll-container');
+      if (!container) return null;
+      const containerRect = container.getBoundingClientRect();
+      const viewY = (clientY !== undefined && clientY !== null) ? (clientY - containerRect.top) : (containerRect.height / 2);
+      const viewX = (clientX !== undefined && clientX !== null) ? (clientX - containerRect.left) : (containerRect.width / 2);
+
+      const targetAbsY = container.scrollTop + viewY;
+      const targetAbsX = container.scrollLeft + viewX;
+
+      const pages = container.querySelectorAll('.pdf-page-wrapper');
+      let matchedPage = null;
+      let pageTop = 0;
+      let pageLeft = 0;
+      for (const p of pages) {
+        if (targetAbsY >= p.offsetTop && targetAbsY <= p.offsetTop + p.offsetHeight + 24) {
+          matchedPage = p;
+          pageTop = p.offsetTop;
+          pageLeft = p.offsetLeft;
+          break;
+        }
+      }
+      if (!matchedPage && pages.length > 0) {
+        matchedPage = pages[0];
+        pageTop = matchedPage.offsetTop;
+        pageLeft = matchedPage.offsetLeft;
+      }
+
+      const pageNum = matchedPage ? parseInt(matchedPage.dataset.pageNum, 10) : 1;
+      const renderScale = lastRenderedScale || currentScale || 1.15;
+      const pdfY = (targetAbsY - pageTop) / renderScale;
+      const pdfX = (targetAbsX - pageLeft) / renderScale;
+      return { pageNum, pdfY, pdfX, viewY, viewX };
+    }
+
+    function handleContinuousZoom(multiplier, clientX, clientY) {
+      if (!pdfDoc) return;
+      const targetScale = Math.max(0.4, Math.min(3.0, Math.round(currentScale * multiplier * 1000) / 1000));
+      if (Math.abs(targetScale - currentScale) < 0.002) return;
+
+      const container = document.getElementById('pdf-scroll-container');
+      if (!activePinchLoc) {
+        activePinchLoc = getCurrentVisibleLocation(clientX, clientY);
+      }
+
+      const oldScale = currentScale;
+      currentScale = targetScale;
+      const zoomLabel = document.getElementById('zoom-label');
+      if (zoomLabel) zoomLabel.textContent = Math.round(currentScale * 100) + '%';
+
+      const ratio = currentScale / (lastRenderedScale || 1.15);
+      const pages = container ? container.querySelectorAll('.pdf-page-wrapper') : [];
+      pages.forEach(p => {
+        p.style.transformOrigin = '50% 0';
+        p.style.transform = `scale(${ratio})`;
+        p.style.transition = 'none';
+        const unscaledH = p.offsetHeight || 0;
+        p.style.marginBottom = `${24 + unscaledH * (ratio - 1)}px`;
+      });
+
+      if (clientX && clientY && container) {
+        const rect = container.getBoundingClientRect();
+        const cursorY = clientY - rect.top;
+        const zoomFactor = targetScale / oldScale;
+        container.scrollTop = (container.scrollTop + cursorY) * zoomFactor - cursorY;
+
+        const firstPage = container.querySelector('.pdf-page-wrapper');
+        const pageW = firstPage ? (firstPage.offsetWidth * ratio) : 0;
+        if (pageW > container.clientWidth) {
+          const cursorX = clientX - rect.left;
+          container.scrollLeft = (container.scrollLeft + cursorX) * zoomFactor - cursorX;
+        } else {
+          container.scrollLeft = 0;
+        }
+      }
+
+      clearTimeout(zoomDebounceTimer);
+      const savedLoc = activePinchLoc;
+      zoomDebounceTimer = setTimeout(async () => {
+        activePinchLoc = null;
+        lastRenderedScale = currentScale;
+        await reRenderAll();
+        if (savedLoc && container) {
+          const page = container.querySelector(`.pdf-page-wrapper[data-page-num="${savedLoc.pageNum}"]`);
+          if (page) {
+            container.scrollTop = page.offsetTop + (savedLoc.pdfY * currentScale) - savedLoc.viewY;
+          }
+        }
+      }, 180);
+    }
+
+    function setupZoomGestures() {
+      const container = document.getElementById('pdf-scroll-container');
+      if (!container || container._hasZoomGestures) return;
+      container._hasZoomGestures = true;
+
+      container.addEventListener('wheel', (e) => {
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          e.stopPropagation();
+
+          const isDiscreteMouse = (e.deltaMode !== 0) ||
+                                  (Math.abs(e.deltaY) >= 100 && (Math.abs(e.deltaY) % 50 === 0) && Number.isInteger(e.deltaY) && (e.wheelDelta === undefined || e.wheelDelta % 120 === 0));
+
+          if (isDiscreteMouse) {
+            const delta = -Math.sign(e.deltaY) * 0.08;
+            handleContinuousZoom(1 + delta, e.clientX, e.clientY);
+          } else {
+            const multiplier = Math.exp(-e.deltaY * 0.005);
+            handleContinuousZoom(multiplier, e.clientX, e.clientY);
+          }
+        }
+      }, { passive: false });
+
+      // Window-level guard so Ctrl + Wheel outside container does not zoom the whole browser page
+      window.addEventListener('wheel', (e) => {
+        if (e.ctrlKey || e.metaKey) {
+          if (!container.contains(e.target)) {
+            e.preventDefault();
+          }
+        }
+      }, { passive: false });
+
+      window.addEventListener('gesturestart', (e) => {
+        e.preventDefault();
+      }, { passive: false });
+
+      window.addEventListener('gesturechange', (e) => {
+        e.preventDefault();
+        if (e.scale) {
+          handleContinuousZoom(e.scale, e.clientX, e.clientY);
+        }
+      }, { passive: false });
+    }
+
     // Zoom Controls
     async function reRenderAll() {
       if (!pdfDoc) return;
-      document.getElementById('zoom-label').textContent = Math.round(currentScale * 100) + '%';
+      const zoomLabel = document.getElementById('zoom-label');
+      if (zoomLabel) zoomLabel.textContent = Math.round(currentScale * 100) + '%';
+      lastRenderedScale = currentScale;
       for (let num = 1; num <= totalPages; num++) {
         await renderPage(num);
+        const pageEl = document.getElementById(`pdf-page-${num}`);
+        if (pageEl) {
+          pageEl.style.transform = 'none';
+          pageEl.style.marginBottom = '';
+        }
       }
     }
 
     function zoomIn() {
-      if (currentScale < 2.5) {
-        currentScale += 0.15;
+      if (currentScale < 2.8) {
+        currentScale = Math.min(3.0, currentScale + 0.15);
+        lastRenderedScale = currentScale;
         reRenderAll();
       }
     }
 
     function zoomOut() {
-      if (currentScale > 0.6) {
-        currentScale -= 0.15;
+      if (currentScale > 0.5) {
+        currentScale = Math.max(0.4, currentScale - 0.15);
+        lastRenderedScale = currentScale;
         reRenderAll();
       }
     }
 
     function resetZoom() {
       currentScale = 1.15;
+      lastRenderedScale = 1.15;
       reRenderAll();
     }
 
@@ -1422,8 +1703,10 @@
       if (!container || !pdfDoc) return;
       pdfDoc.getPage(1).then(page => {
         const unscaled = page.getViewport({ scale: 1.0 });
-        const availableW = container.clientWidth - 60;
-        currentScale = Math.max(0.6, Math.min(2.5, availableW / unscaled.width));
+        const pad = window.innerWidth <= 900 ? 20 : 60;
+        const availableW = container.clientWidth - pad;
+        currentScale = Math.max(0.4, Math.min(2.8, availableW / unscaled.width));
+        lastRenderedScale = currentScale;
         reRenderAll();
       });
     }
@@ -1458,17 +1741,22 @@
 
     // Jump to specific note annotation with smooth scroll and visual pulse
     function jumpToNote(pageNum, x, y) {
-      jumpToPage(pageNum);
-      const pageWrap = document.getElementById(`pdf-page-${pageNum}`);
-      if (!pageWrap) return;
-
-      // Also highlight the note card in sidebar
-      document.querySelectorAll('.note-card').forEach(c => c.style.outline = 'none');
-      const targetCard = event?.currentTarget;
-      if (targetCard) {
-        targetCard.style.outline = '2px solid var(--primary)';
-        setTimeout(() => targetCard.style.outline = 'none', 1800);
+      if (window.innerWidth <= 900) {
+        switchMobileTab('pdf');
       }
+      setTimeout(() => {
+        jumpToPage(pageNum);
+        const pageWrap = document.getElementById(`pdf-page-${pageNum}`);
+        if (!pageWrap) return;
+
+        // Also highlight the note card in sidebar
+        document.querySelectorAll('.note-card').forEach(c => c.style.outline = 'none');
+        const targetCard = event?.currentTarget;
+        if (targetCard) {
+          targetCard.style.outline = '2px solid var(--primary)';
+          setTimeout(() => targetCard.style.outline = 'none', 1800);
+        }
+      }, window.innerWidth <= 900 ? 50 : 0);
     }
 
     function setupScrollObserver() {
@@ -1493,7 +1781,13 @@
       });
     }
 
-    window.addEventListener('DOMContentLoaded', initPDF);
+    window.addEventListener('DOMContentLoaded', () => {
+      initPDF();
+      setupZoomGestures();
+      if (window.innerWidth <= 900) {
+        setTimeout(fitWidth, 500);
+      }
+    });
   </script>
 
 </body>

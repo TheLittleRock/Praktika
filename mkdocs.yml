@@ -65,9 +65,7 @@ markdown_extensions:
       permalink: true
 
 nav:
-  - Úvod:
-      - Přehled systému: index.md
-      - Rychlý start: getting-started.md
+  - Úvod: index.md
   - Uživatelské příručky:
       - Příručka pro asistenty (Workflow): guide/assistant.md
       - Příručka pro správce (Administrace): guide/admin.md

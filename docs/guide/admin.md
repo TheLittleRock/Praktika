@@ -1,6 +1,6 @@
 # Příručka pro správce: Administrace a konfigurace systému
 
-Tato příručka je určena pro garanty fyzikálních praktik a správce systému **Praktika Evaluation Studio v2.13.0**. Popisuje konfiguraci semestrů, laboratorních úloh, AI modelů, uživatelských účtů a správu databáze se zálohováním.
+Tato příručka je určena pro garanty fyzikálních praktik a správce systému **Praktika Evaluation Studio v2.14.0**. Popisuje konfiguraci semestrů, laboratorních úloh, AI modelů, uživatelských účtů a správu databáze se zálohováním.
 
 ---
 
@@ -29,10 +29,7 @@ Správce otevírá administraci kliknutím na ikonu **⚙ Nastavení** v záhlav
 
 V modálním okně konfigurace mají správci k dispozici přehledné záložky pro nastavení všech aspektů systému:
 
-<picture>
-  <source srcset="../assets/images/clip_admin_settings.webp" type="image/webp">
-  <img src="../assets/images/clip_admin_settings.gif" alt="Administrátorské nastavení – přehled záložek">
-</picture>
+![Administrátorské nastavení – přehled záložek](../assets/images/clip_admin_settings.webp)
 
 - **🔬 Laboratorní úlohy**: katalog úloh, AI rubriky a zadání.
 - **🤖 AI Asistent**: konfigurace Gemini API klíče, volba modelů a jazyka výstupu.

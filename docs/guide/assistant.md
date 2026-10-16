@@ -1,6 +1,6 @@
 # Příručka pro asistenty: Průvodce opravou protokolů
 
-Tento průvodce vás krok za krokem provede hodnocením a opravou studentských laboratorních protokolů v **Praktika Evaluation Studio v2.13.0**. Cílem aplikace je ušetřit vám čas při rutinních činnostech (přepisování bodů, formátování srážek pro Moodle) a umožnit vám soustředit se na věcnou a pedagogickou zpětnou vazbu pro studenta.
+Tento průvodce vás krok za krokem provede hodnocením a opravou studentských laboratorních protokolů v **Praktika Evaluation Studio v2.14.0**. Cílem aplikace je ušetřit vám čas při rutinních činnostech (přepisování bodů, formátování srážek pro Moodle) a umožnit vám soustředit se na věcnou a pedagogickou zpětnou vazbu pro studenta.
 
 ---
 
@@ -8,10 +8,7 @@ Tento průvodce vás krok za krokem provede hodnocením a opravou studentských 
 
 Nový protokol nahrajete na hlavní stránce tlačítkem **+ Nahrát protokol**:
 
-<picture>
-  <source srcset="../assets/images/clip_import.webp" type="image/webp">
-  <img src="../assets/images/clip_import.gif" alt="Ukázka nahrání protokolu a autodetekce údajů">
-</picture>
+![Ukázka nahrání protokolu a autodetekce údajů](../assets/images/clip_import.webp)
 
 - **Hromadný výběr**: Můžete přetáhnout i více PDF souborů najednou.
 - **Inteligentní autodetekce**: Aplikace automaticky přečte text první strany PDF a sama předvyplní jméno studenta, název i číslo laboratorní úlohy a rozvrhový termín.
@@ -23,10 +20,7 @@ Nový protokol nahrajete na hlavní stránce tlačítkem **+ Nahrát protokol**:
 
 V tabulkovém přehledu na hlavní stránce můžete snadno spravovat větší množství protokolů současně:
 
-<picture>
-  <source srcset="../assets/images/clip_batch_ops.webp" type="image/webp">
-  <img src="../assets/images/clip_batch_ops.gif" alt="Hromadný výběr a úprava protokolů">
-</picture>
+![Hromadný výběr a úprava protokolů](../assets/images/clip_batch_ops.webp)
 
 - **Hromadný výběr (Multi-select)**: Zaškrtnutím políček v levém sloupci tabulky vyberete libovolné protokoly. V záhlaví tabulky je k dispozici hromadné zaškrtávátko pro celou zobrazenou skupinu.
 - **Plovoucí akční panel**: Po označení protokolů se v dolní části obrazovky vysune akční panel:
@@ -54,10 +48,7 @@ Kliknutím na tlačítko **Opravit** nebo přímo na řádek studenta v tabulce 
 
 Následující animace zachycuje reálnou práci asistenta od prohlížení protokolu přes kreslení, schválení AI návrhu až po zadání bodů:
 
-<picture>
-  <source srcset="../assets/images/studio_workflow.webp" type="image/webp">
-  <img src="../assets/images/studio_workflow.gif" alt="Kompletní ukázka práce ve Studiu">
-</picture>
+![Kompletní ukázka práce ve Studiu](../assets/images/studio_workflow.webp)
 
 ---
 
@@ -65,10 +56,7 @@ Následující animace zachycuje reálnou práci asistenta od prohlížení prot
 
 Horní nástrojová lišta poskytuje standardní nástroje kompatibilní s Adobe Acrobat:
 
-<picture>
-  <source srcset="../assets/images/clip_annotations.webp" type="image/webp">
-  <img src="../assets/images/clip_annotations.gif" alt="Kreslení a úpravy anotací na plátně">
-</picture>
+![Kreslení a úpravy anotací na plátně](../assets/images/clip_annotations.webp)
 
 | Ikona | Nástroj | Klávesa | Jak nástroj používat |
 | :---: | :--- | :---: | :--- |
@@ -93,10 +81,7 @@ Horní nástrojová lišta poskytuje standardní nástroje kompatibilní s Adobe
 
 AI Asistent vám poslouží jako druhý pár očí. Přečte celý protokol a připraví návrhy věcných, formálních i syntaktických nedostatků:
 
-<picture>
-  <source srcset="../assets/images/clip_ai_assistant.webp" type="image/webp">
-  <img src="../assets/images/clip_ai_assistant.gif" alt="Práce s AI asistentem a schvalování návrhů">
-</picture>
+![Práce s AI asistentem a schvalování návrhů](../assets/images/clip_ai_assistant.webp)
 
 ### Jak pracovat s návrhy
 1. Otevřete boční panel kliknutím na tlačítko **AI Asistent** v pravém horním rohu.
@@ -111,10 +96,7 @@ AI Asistent vám poslouží jako druhý pár očí. Přečte celý protokol a p�
 
 Bodování je rozděleno do čtyř standardních kategorií odpovídajících pravidlům fyzikálního praktika:
 
-<picture>
-  <source srcset="../assets/images/clip_grading.webp" type="image/webp">
-  <img src="../assets/images/clip_grading.gif" alt="Bodovací dok a zadání celkového slovního hodnocení">
-</picture>
+![Bodovací dok a zadání celkového slovního hodnocení](../assets/images/clip_grading.webp)
 
 - **Hodnoticí kategorie**:
   - *Výsledky & Grafy* (max. 3.0 b)
@@ -137,10 +119,7 @@ Bodování je rozděleno do čtyř standardních kategorií odpovídajících pr
 > **Vždy nejprve uložte koncept před stažením PDF:**
 > Před exportem PDF vždy klikněte na tlačítko **💾 Koncept** (`Ctrl+S`) nebo přímo na zelené tlačítko **✓ Dokončit** (`Ctrl+Enter`). Tím se provede uložení všech vrstev anotací do databáze a vygeneruje se aktuální opravené PDF. Pokud byste soubor stahovali ze záložek bez uložení, soubor by neobsahoval vaše poslední provedené změny.
 
-<picture>
-  <source srcset="../assets/images/clip_export.webp" type="image/webp">
-  <img src="../assets/images/clip_export.gif" alt="Dokončení hodnocení a studentský náhled">
-</picture>
+![Dokončení hodnocení a studentský náhled](../assets/images/clip_export.webp)
 
 ### Výstupy hodnocení:
 1. **📋 Kopírovat pro Moodle**: Tlačítko v bodovacím doku zkopíruje do schránky kompletní formátovaný text s body, srážkami a celkovým slovním hodnocením pro vložení do poznámky k hodnocení v LMS Moodle.
@@ -157,10 +136,7 @@ Bodování je rozděleno do čtyř standardních kategorií odpovídajících pr
 
 Po naskenování QR kódu nebo otevření vygenerovaného zabezpečeného odkazu se studentovi otevře moderní webový náhled:
 
-<picture>
-  <source srcset="../assets/images/clip_student_view.webp" type="image/webp">
-  <img src="../assets/images/clip_student_view.gif" alt="Interaktivní studentský náhled a tmavý režim">
-</picture>
+![Interaktivní studentský náhled a tmavý režim](../assets/images/clip_student_view.webp)
 
 - **Živé vykreslovací jádro (Studio Engine)**: Student vidí přesně totéž rozhraní jako asistent během hodnocení. Prohlížeč načítá čisté zdrojové PDF a dynamicky nad ním vykresluje interaktivní SVG vrstvu anotací (ostrá pravoúhlá zvýraznění se spodní linkou, ikonky komentářů `[⊖]`, plynulé perokresby, šipky a psací stroj).
 - **Interaktivní bubliny (Hover Tooltips)**: Při najetí myší na libovolné zvýraznění nebo ikonu v textu se okamžitě zobrazí bublina s celým komentářem asistenta a jeho jménem.
