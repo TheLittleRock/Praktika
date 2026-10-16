@@ -35,7 +35,7 @@ Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/
 #### 🎨 Přepracování studentského náhledu na živé vykreslovací jádro Studia (`/v/{share_token}`)
 - **Vykreslování identické se Studiem**: Studentský prohlížeč již nenačítá pre-renderované PDF s vypálenými křivkami, ale čisté zdrojové PDF, nad nímž se dynamicky tvoří SVG/HTML vrstva anotací.
 - **Interaktivní bubliny (Hover Tooltips)**: Najetím myši na zvýrazněný text, ikonku komentáře `[⊖]`, šipku, přeškrtnutí či špendlík se zobrazí plovoucí bublina se jménem asistenta a komentářem.
-- **Plnohodnotný Tmavý režim (Dark Mode)**: V záhlaví přibylo tlačítko pro přepnutí mezi světlým a tmavým nočním režimem (`☀️` / `🌙`) s perzistencí v `localStorage`.
+- **Přepínání motivu vzhledu**: V záhlaví přibylo tlačítko pro přepnutí motivu zobrazení (`☀️` / `🌙`) s perzistencí v `localStorage`.
 - **Přepínač režimů a spolehlivý Fallback**: Možnost přepnout mezi `🎨 Interaktivní náhled` a `📄 Exportované PDF`. Při absenci zdrojového souboru systém automaticky přejde na zobrazení exportovaného PDF.
 
 #### 🎥 Plynulé 18 FPS animace se zvětšenou virtuální myší
@@ -43,7 +43,7 @@ Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/
 - **Viditelný zvětšený kurzor myši**: Do headless prohlížeče je injektován kontrastní zvětšený kurzor (32 px) se světelným pulzem (click ripple) při stisku tlačítka.
 - **Realistické fyzikální hodnocení bez náhodných čmáranic**: Všechny ukázky demonstrují skutečné pedagogické korekce protokolu Štěpána Skalky (*Kalorimetrie* – chybějící čárka ve vzorci (3), diskuze tepelných ztrát, orientační šipky na tabulku).
 - **3 nové animované ukázky v dokumentaci**:
-  - *Studentský náhled a Tmavý režim* (`clip_student_view`)
+  - *Studentský náhled* (`clip_student_view`)
   - *Hromadné operace v přehledu* (`clip_batch_ops`)
   - *Administrátorské nastavení a správa systému* (`clip_admin_settings`)
 

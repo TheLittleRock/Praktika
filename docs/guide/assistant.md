@@ -132,14 +132,14 @@ Bodování je rozděleno do čtyř standardních kategorií odpovídajících pr
 
 ---
 
-## 9. Interaktivní studentský náhled a Tmavý režim (`/v/{share_token}`)
+## 9. Interaktivní náhled pro studenta (`/v/{share_token}`)
 
 Po naskenování QR kódu nebo otevření vygenerovaného zabezpečeného odkazu se studentovi otevře moderní webový náhled:
 
-![Interaktivní studentský náhled a tmavý režim](../assets/images/clip_student_view.webp)
+![Interaktivní náhled pro studenta](../assets/images/clip_student_view.webp)
 
 - **Živé vykreslovací jádro (Studio Engine)**: Student vidí přesně totéž rozhraní jako asistent během hodnocení. Prohlížeč načítá čisté zdrojové PDF a dynamicky nad ním vykresluje interaktivní SVG vrstvu anotací (ostrá pravoúhlá zvýraznění se spodní linkou, ikonky komentářů `[⊖]`, plynulé perokresby, šipky a psací stroj).
 - **Interaktivní bubliny (Hover Tooltips)**: Při najetí myší na libovolné zvýraznění nebo ikonu v textu se okamžitě zobrazí bublina s celým komentářem asistenta a jeho jménem.
 - **Obousměrná navigace**: Kliknutí na jakoukoliv položku v seznamu poznámek v pravém sloupci plynule odscrolluje PDF na příslušné místo a vizuálně zvýrazní danou anotaci pulzním rámečkem.
-- **Plnohodnotný Tmavý režim (Dark Mode)**: Tlačítko `🌙 Tmavý režim` v záhlaví přepíná mezi světlým a nočním režimem šetřícím zrak. Zvolený režim se ukládá do paměti prohlížeče.
+- **Plynulý zoom & Responzivní zobrazení**: Touchpad pinch gesta i `Ctrl + Scroll` zoomují výhradně PDF dokument s kotvením na kurzor myši. Na mobilních zařízeních a tabletech je k dispozici segmentovaný přepínač záložek mezi PDF protokolem a souhrnným hodnocením.
 - **Přepnutí na exportované PDF**: V horní liště má student možnost kliknout na `📄 Exportované PDF` a zobrazit pre-renderovanou verzi s vepsanými poznámkami a závěrečnou přílohou (Appendix), nebo si kompletní opravené PDF přímo stáhnout do počítače tlačítkem **Stáhnout PDF**.

@@ -58,7 +58,7 @@ Praktika/
 │   ├── ai_service.py           # Gemini 2.5 integrace, prompt inženýrství, merge návrhů
 │   ├── templates/              # Jinja2 HTML šablony
 │   │   ├── index.html          # Hlavní jednostránková aplikace (SPA)
-│   │   └── student_view.html   # Studentský náhled s živým Studio renderingem a Dark Mode
+│   │   └── student_view.html   # Studentský náhled s živým Studio renderingem a responzivním rozvržením
 │   └── static/                 # Statické soubory
 │       ├── css/                # Styly aplikace (app.css)
 │       └── js/                 # Klientská logika (app.js, pdf_viewer.js, grading.js)

@@ -46,10 +46,10 @@ Výstupní PDF s přehlednou hodnoticí hlavičkou, vektorovými anotacemi s dia
 
 ---
 
-### 5. Interaktivní studentský náhled a Tmavý režim (`/v/{share_token}`)
-Responzivní webový náhled pro studenty s plnohodnotným živým vykreslovacím jádrem (Studio Engine), interaktivními tooltipy při najetí myší, přepínáním do tmavého režimu (Dark Mode), přehledem bodů a celkovým slovním hodnocením asistenta:
+### 5. Interaktivní náhled pro studenta (`/v/{share_token}`)
+Responzivní webový náhled pro studenty s plnohodnotným živým vykreslovacím jádrem (Studio Engine), interaktivními tooltipy při najetí myší, přehledem bodů, celkovým slovním hodnocením asistenta a adaptivním zobrazením pro mobilní zařízení i stolní počítače:
 
-![Interaktivní studentský náhled a tmavý režim](docs/assets/images/clip_student_view.webp)
+![Interaktivní náhled pro studenta](docs/assets/images/clip_student_view.webp)
 
 ---
 

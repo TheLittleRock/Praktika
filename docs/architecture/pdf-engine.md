@@ -27,7 +27,7 @@ graph TD
 ### Duální vykreslovací architektura pro studenty
 Od verze **v2.13.0** studentský náhled (`/v/{share_token}`) využívá identickou vrstvenou architekturu jako asistent v Korekčním Studiu:
 - Namísto načítání pre-renderovaného PDF se načítá čistý zdrojový dokument a nad ním klientský skript dynamicky generuje vrstvu SVG anotací přímo z `annotations_json`.
-- Tím student získává plně interaktivní zážitek: živé hover tooltips nad zvýrazněným textem, obousměrné provázání se seznamem poznámek v pravém sloupci a plnou podporu nočního režimu (Dark Mode).
+- Tím student získává plně interaktivní zážitek: živé hover tooltips nad zvýrazněným textem, obousměrné provázání se seznamem poznámek v pravém sloupci a plynulý zoom plátna.
 - Exportované PDF s vypálenými křivkami z PyMuPDF a závěrečnou přílohou (Appendix) slouží jako volitelný alternativní pohled a spolehlivá záloha pro stažení.
 
 ---

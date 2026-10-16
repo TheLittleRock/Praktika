@@ -35,11 +35,11 @@ Systém integruje rychlé grafické anotační plátno s vektorovými kreslící
     - **Multijazyčnost**: Volba cílového jazyka výstupů (čeština, slovenština, angličtina nebo auto podle protokolu).
     - **100% kontrola cvičícího**: Žádná změna se neaplikuje automaticky bez explicitního schválení vyučujícím.
 
-=== "Studentský náhled & Dark Mode"
+=== "Studentský náhled"
     - **Webový náhled protokolu**: Okamžitý přístup pro studenta přes unikátní odkaz či QR kód bez nutnosti přihlášení.
     - **Živé vykreslovací jádro**: Prohlížeč studenta načítá čistý protokol s dynamickou SVG vrstvou anotací identickou s rozhraním asistenta.
     - **Interaktivní poznámky a tooltipy**: Najetí na zvýrazněný text zobrazí bublinu s komentářem; v bočním panelu jsou přehledně seřazené všechny poznámky s možností prokliku přímo na danou stranu.
-    - **Plynulý zoom & Tmavý režim**: Nezávislý zoom izolovaný na PDF dokument (Ctrl+kolečko, touchpad pinch) a přepínač nočního režimu šetřící zrak.
+    - **Plynulý zoom**: Nezávislý zoom izolovaný výhradně na PDF dokument (Ctrl + Scroll, touchpad pinch gesta) bez nechtěného zvětšování celého okna prohlížeče.
     - **Plná mobilní responzivita**: Na telefonech a tabletech segmentovaný přepínač záložek mezi PDF protokolem a souhrnným hodnocením.
 
 ---
