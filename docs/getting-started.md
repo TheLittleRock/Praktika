@@ -1,72 +1,85 @@
-# Rychlý start
+# Rychlý start s Praktika Evaluation Studio
 
-Tento průvodce vás provede základním pracovním postupem od nahrání protokolu až po export opraveného souboru s bodovým hodnocením.
+Tento průvodce vás provede základními kroky od spuštění aplikace a prvního přihlášení až po kompletní workflow opravy laboratorního protokolu.
 
 ---
 
 ## 1. Přihlášení do aplikace
 
-Po spuštění aplikace otevřete webový prohlížeč na adrese `http://localhost:8000`.
+Po spuštění aplikace (lokálně nebo v Docker kontejneru) otevřete webový prohlížeč na adrese:
 
-- Výchozí účet administrátora:
-    - **Uživatel:** `admin`
-    - **Heslo:** `admin`
-- Po přihlášení doporučujeme změnit heslo v sekci **Nastavení profilu**.
-
----
-
-## 2. Nahrání studentských protokolů
-
-1. V horní navigaci klikněte na tlačítko **+ Nahrát protokoly**.
-2. Zvolte semestr, termín cvičení a měřenou úlohu.
-3. Přetáhněte jeden nebo více PDF souborů do nahrávacího okna.
-4. Aplikace automaticky extrahuje jméno studenta z hlavičky PDF souboru a vytvoří záznamy.
-5. Nahrané protokoly jsou okamžitě zařazeny do seznamu a připraveny k opravě.
-
----
-
-## 3. Práce v Korekčním PDF Studiu
-
-Kliknutím na řádek protokolu v tabulce se otevře **Korekční Studio**:
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Cvičící
-    participant Studio as PDF Studio (Canvas)
-    participant AI as AI Asistent (Gemini)
-    participant Engine as PyMuPDF Export
-
-    Cvičící->>Studio: Otevření protokolu & kreslení anotací
-    Cvičící->>AI: Spuštění hloubkové analýzy
-    AI-->>Studio: Návrhy srážek a zvýraznění v textu
-    Cvičící->>Studio: Schválení nebo úprava návrhů
-    Cvičící->>Engine: Kliknutí na "Dokončit & Exportovat"
-    Engine-->>Cvičící: Stažení finálního PDF s hlavičkou pro Moodle
+```
+http://localhost:8000
 ```
 
-### Anotování textu
-- **Zvýraznění textu (Highlighter)**: Vyberte nástroj se symbolem tužky/zvýrazňovače a tažením myši označte text.
-- **Vložení poznámky (Sticky Note)**: Klikněte na ikonu bubliny a klikněte na místo v dokumentu. Otevře se editační karta, kde můžete vepsat text komentáře, zvolit barvu a volitelně přiřadit bodovou srážku.
-- **Rámečky a šipky**: Pro označení celých tabulek nebo grafů použijte geometrické nástroje.
+Při prvním spuštění se zobrazí přihlašovací okno. Výchozí účet hlavního správce aplikace má tyto přihlašovací údaje:
+
+| Položka | Hodnota |
+| :--- | :--- |
+| **Uživatelské jméno** | `admin` |
+| **Výchozí heslo** | `admin123` |
+| **Role** | Správce aplikace (admin) |
+
+> [!TIP]
+> Po prvním přihlášení doporučujeme změnit výchozí heslo v záložce **⚙ Nastavení -> 🔒 Změna hesla**.
 
 ---
 
-## 4. Spuštění AI Asistenta
+## 2. Hlavní přehled (Dashboard)
 
-1. V pravém horním rohu klikněte na tlačítko **AI Asistent**.
-2. V rozbaleném postranním panelu klikněte na **↻ Spustit**.
-3. Během několika sekund Gemini provede analýzu:
-    - Vypíše celkové shrnutí kvality práce.
-    - Zobrazí navržené bodové srážky podle rubriky.
-    - Na plátně PDF označí konkrétní problematická místa červeným štítkem.
-4. Kliknutím na **✓ Aplikovat** u libovolného návrhu se návrh ihned přenese do oficiálního hodnocení protokolu.
+Po přihlášení se zobrazí hlavní řídicí panel aplikace:
+
+![Přehled řídicího panelu](assets/images/dashboard_overview.png)
+
+Na řídicím panelu máte k dispozici:
+- **Přepínač semestrů**: Umožňuje přepínat mezi aktuálním a minulými semestry (např. *ZS 2026/2027*).
+- **Informativní statistické karty**: Okamžitý přehled celkového počtu odevzdaných prací, rozpracovaných konceptů, dokončených protokolů a průměrné známky.
+- **Rychlý filtr a vyhledávání**: Filtrování podle konkrétní laboratorní úlohy, rozvrhového termínu, cvičícího nebo stavu.
 
 ---
 
-## 5. Dokončení a export do Moodle
+## 3. Nahrání studentských protokolů
 
-Po dokončení revize:
-1. Zkontrolujte výsledný součet bodů a navrženou známku v plovoucím doku hodnocení.
-2. Klikněte na **Kopírovat pro Moodle** – do schránky se zkopíruje formátovaný text s rozpisem bodů a komentáři pro LMS.
-3. Klikněte na **✓ Dokončit** – vygeneruje se finální PDF s vizuální hlavičkou a vektorovými anotacemi.
+1. V horní nástrojové liště klikněte na tlačítko **+ Nahrát protokoly**.
+2. Otevře se dialog pro nahrání souborů:
+
+![Okno nahrání protokolů](assets/images/upload_modal.png)
+
+3. Zvolte semestr, termín cvičení (např. *Středa 8:00*) a laboratorní úlohu.
+4. Přetáhněte jeden nebo více PDF souborů do vyznačené zóny.
+5. Systém automaticky analyzuje text v hlavičce PDF a extrahuje jméno studenta.
+6. Klikněte na **Nahrát protokol(y)**. Pokud je v nastavení povolen AI asistent s volbou automatické analýzy, protokol se ihned na pozadí připraví k vyhodnocení.
+
+---
+
+## 4. Výběr příručky podle vaší role
+
+Aplikace rozlišuje specifické potřeby asistentů (cvičících) a správců systému:
+
+<div class="grid cards" markdown>
+
+-   :material-account-edit:{ .lg .middle } __[Příručka pro asistenty](guide/assistant.md)__
+
+    ---
+
+    Kompletní průvodce opravou protokolu:
+    - Práce s kreslicími a anotačními nástroji
+    - Výběr, přesouvání a mazání geometrických tvarů
+    - Práce s návrhy AI asistenta a jejich schvalování v textu
+    - Bodovací dock, katalogy častých chyb a export pro Moodle
+
+    [:octicons-arrow-right-24: Přejít na příručku pro asistenty](guide/assistant.md)
+
+-   :material-shield-crown:{ .lg .middle } __[Příručka pro správce](guide/admin.md)__
+
+    ---
+
+    Správa a konfigurace celého systému:
+    - Správa semestrů a rozvrhových termínů
+    - Správa laboratorních úloh a AI syntéza hodnoticích rubrik
+    - Konfigurace Gemini AI modelů a jazyka výstupů
+    - Uživatelské účty a správa SQLite databáze & zálohy
+
+    [:octicons-arrow-right-24: Přejít na příručku pro správce](guide/admin.md)
+
+</div>

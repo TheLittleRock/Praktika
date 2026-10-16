@@ -188,8 +188,18 @@ async def run_background_ai_analysis(proto_id: int):
         conn.commit()
         conn.close()
 
-async def analyze_protocol(proto_id: int, custom_key: Optional[str] = None, custom_model: Optional[str] = None) -> AIAnalysisResult:
+async def analyze_protocol(proto_id: int, custom_key: Optional[str] = None, custom_model: Optional[str] = None, language: Optional[str] = None) -> AIAnalysisResult:
     api_key = (custom_key or "").strip() or get_gemini_api_key()
+
+    target_lang = (language or get_ai_setting("ai_language", "cs")).strip().lower()
+    if target_lang == "sk":
+        lang_directive = "JAZYK VÝSTUPŮ: Veškeré komentáře ('comment'), důvody srážek ('reason') i celkový souhrn ('summary') generuj striktně a výhradně ve SLOVENŠTINĚ."
+    elif target_lang == "en":
+        lang_directive = "LANGUAGE OF SUGGESTIONS: Generate all comments ('comment'), deduction reasons ('reason'), and the summary ('summary') strictly and exclusively in ENGLISH."
+    elif target_lang == "auto":
+        lang_directive = "JAZYK VÝSTUPŮ: Jazyk komentářů, srážek i souhrnu přizpůsob jazyku protokolu (čeština nebo slovenština)."
+    else:
+        lang_directive = "JAZYK VÝSTUPŮ: Veškeré komentáře ('comment'), důvody srážek ('reason') i celkový souhrn ('summary') generuj striktně a výhradně v ČEŠTINĚ."
 
     conn = get_db()
     cur = conn.cursor()
@@ -230,7 +240,6 @@ async def analyze_protocol(proto_id: int, custom_key: Optional[str] = None, cust
     if not api_key:
         raise ValueError("Není nastaven platný API klíč pro Google Gemini. Zadejte jej prosím v Nastavení -> AI Asistent.")
 
-
     instructions = ""
     try:
         instructions = (row["measurement_instructions"] or "").strip()
@@ -247,32 +256,39 @@ async def analyze_protocol(proto_id: int, custom_key: Optional[str] = None, cust
     prompt = f"""Jsi vedoucí fyzikálního praktika (garant předmětů FPRA1, FPRA2, ZFM2).
 Tvým úkolem je detailně, nekompromisně a systematicky projít odevzdaný studentský laboratorní protokol, najít VŠECHNY faktické, konceptuální, formátové, typografické a syntaktické chyby a poskytnout studentovi maximálně bohatou a precizní zpětnou vazbu.
 
+{lang_directive}
+
 DŮLEŽITÉ POKYNY K HODNOCENÍ A VYHLEDÁVÁNÍ CHYB:
-1. MAXIMÁLNÍ POČET NÁVRHŮ ANOTACÍ (EXHAUSTIVNÍ KONTROLA):
-   - Vyhledej a označ v textu CO NEJVÍCE konkrétních chyb a nedostatků (usiluj o nalezení 25 až 60+ konkrétních míst k opravě, pokud jsou v textu nedostatky).
+1. VYSOKÝ POČET NÁVRHŮ ANOTACÍ (EXHAUSTIVNÍ KONTROLA):
+   - Vyhledej a označ v textu CO NEJVÍCE konkrétních chyb a nedostatků (usiluj o nalezení 15 až 40+ konkrétních míst k opravě, pokud jsou v textu nedostatky).
    - Nepřehlížej žádné drobné chyby! Zkontroluj každou větu, vzorec, číslo, jednotku, graf a tabulku.
 2. TYPOGRAFIE VZORCŮ A SYNTAX (VELMI DŮLEŽITÉ!):
    - Každý vzorec je součástí věty a musí mít odpovídající interpunkci (čárka nebo tečka na konci vzorce).
-   - ČÁRKA PŘED ", kde": Pokud po samostatném vzorci následuje vysvětlení veličin (např. ", kde m je hmotnost..."), MUSÍ být na konci vzorce ČÁRKA a slovo "kde" začíná malým písmenem! Chybějící čárka mezi vzorcem a ", kde" nebo velké počáteční písmeno ("Kde") je závažná syntaktická a formální chyba – KAŽDÝ takový výskyt v textu označ!
+   - ČÁRKA PŘED ", kde": Pokud po samostatném vzorci následuje vysvětlení veličin (např. "... v = s / t, kde s je dráha..."), MUSÍ být na konci vzorce ČÁRKA a slovo "kde" začíná malým písmenem! Chybějící čárka mezi vzorcem a ", kde" nebo velké počáteční písmeno ("Kde") je závažná syntaktická a formální chyba – KAŽDÝ takový výskyt v textu označ!
    - MEZERA PŘED JEDNOTKOU: Mezi číslem a fyzikální jednotkou MUSÍ být mezera (např. "5 m", "10 kg", "22 °C", nikoliv "5m", "10kg", "22°C").
    - DESETINNÁ ČÁRKA: V českém a slovenském odborném textu se používá desetinná čárka (např. 3,14), nikoliv desetinná tečka (3.14).
-   - INDEXY A SYMBOLY: Dolní indexy musí být vysázeny korektně (V₁, a₂), nikoliv surové podtržítko (V_1, a_2) nebo bez indexu (V1). Násobení u mocnin 10ⁿ musí mít středovou tečku "·" (nikoliv "x", "*" nebo vynecháno).
-3. POVINNÉ SOUHRNNÉ ANOTACE PRO VŠECHNY HLAVNÍ SEKCE:
+   - INDEXY A SYMBOLY: Dolní indexy musí být vysázeny korektně (V₁, a₂), nikoliv surové podtržítko (V_1, a_2) nebo bez indexu (V1). Fyzikální veličiny se sázejí kurzívou, jednotky stojatě. Násobení u mocnin 10ⁿ musí mít středovou tečku "·" (nikoliv "x", "*" nebo vynecháno).
+3. GRAFY, TABULKY A KŘÍŽOVÉ ODKAZY:
+   - Chybové úsečky v grafech se nazývají "errorbary" a jsou povinné u všech experimentálních bodů.
+   - Všechny tabulky a grafy MUSÍ být citovány a diskutovány v souvislém textu (např. "jak je vidět na Obr. 1", "hodnoty v Tab. 2"). Tabulky i grafy musí mít popisky.
+   - Osy grafů musí obsahovat symbol veličiny a jednotku v hranatých závorkách (např. T [s]).
+   - U rovnice fitu musí být uvedeny chyby parametrů fitu a koeficient determinace (R²).
+4. POVINNÉ SOUHRNNÉ ANOTACE PRO VŠECHNY HLAVNÍ SEKCE:
    - Na nadpis KAŽDÉ hlavní sekce protokolu VŽDY umísti souhrnnou anotaci (search_text nastaven na název daného nadpisu) s komplexním rozborem:
      * Úvod / Teoretický úvod (search_text: "Teoretický úvod" nebo "Úvod"): shrň faktickou a fyzikální správnost teorie, vysvětlení principu jevu, číslování vzorců a definici všech symbolů.
      * Postup měření / Metodika (search_text: "Postup měření" nebo "Metodika"): zhodnoť styl (1. os. mn. č. přítomný čas), reprodukovatelnost postupu a počet opakování.
      * Výsledky / Vypracování (search_text: "Výsledky" nebo "Vypracování"): zhodnoť úplnost splnění všech úkolů ze zadání, tabulky, dohledatelnost mezivýsledků a grafy.
      * Diskuze (search_text: "Diskuze" nebo "Diskusia"): komplexní rozbor porovnání s tabulkou v násobcích σ, fyzikální rozbor systematických chyb aparatury místo výmluv na lidský faktor a návrh opatření.
      * Závěr (search_text: "Závěr" nebo "Záver"): zhodnoť zodpovězení všech úkolů ze zadání v minulém čase, správné zaokrouhlení a věrnost naměřeným datům.
-4. MÍRNĚJŠÍ ZNÁMKOVÁNÍ (CÍLIT TYPICKY NA ZNÁMKY B A C):
+5. MÍRNĚJŠÍ ZNÁMKOVÁNÍ (CÍLIT TYPICKY NA ZNÁMKY B A C):
    - Mnoho anotací v textu pomáhá studentovi se učit, ale nesmí zničit celkovou známku.
    - Seskupuj opakující se formální prohřešky v 'deductions' do rozumných souhrnných položek (např. jedna srážka -0.25 b za chybějící interpunkci u vzorců a mezery před jednotkami v celém protokolu).
-5. STRIKTNÍ ZAMĚŘENÍ POUZE NA REÁLNÉ CHYBY (ZÁKAZ PRÁZDNÝCH KONSTATOVÁNÍ):
+6. STRIKTNÍ ZAMĚŘENÍ POUZE NA REÁLNÉ CHYBY (PŘÍSNÝ ZÁKAZ PRÁZDNÝCH KONSTATOVÁNÍ):
    - Označuj VÝHRADNĚ skutečné chyby, nedostatky, neakademický styl, špatné zaokrouhlení nebo chybějící části.
    - PŘÍSNÝ ZÁKAZ PRÁZDNÝCH KONSTATOVÁNÍ A POCHVAL typu 'úkoly jsou opsány správně', 'cíl je v pořádku', 'vzorec sedí'. Anotace slouží jako místa k nápravě!
-6. ANOTACE VÝHRADNĚ JAKO ZVÝRAZNĚNÍ (HIGHLIGHT):
+7. ANOTACE VÝHRADNĚ JAKO ZVÝRAZNĚNÍ (HIGHLIGHT):
    - Všechny položky v 'annotations' MUSÍ mít "type": "highlight".
-7. TERMINOLOGIE:
+8. TERMINOLOGIE:
    - Chybové úsečky v grafech striktně označuj pojmem "errorbary".
 
 ZADÁNÍ A HODNOTÍCÍ METODIKA ÚLOHY:

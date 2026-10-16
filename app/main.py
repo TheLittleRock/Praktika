@@ -35,13 +35,14 @@ from app.models import (
 from app.storage import save_source_file, save_corrected_file, save_bodovani_file, slugify, format_slot_folder, format_semester_folder
 from app.pdf_service import extract_pdf_annotations, burn_annotations_to_pdf, format_points
 from app.ai_service import analyze_protocol, get_gemini_api_key, save_gemini_api_key, get_ai_setting, save_ai_setting, run_background_ai_analysis, generate_task_rubric, merge_ai_results
+from app.version import VERSION
 
 
 # Initialize Database & run daily backup check
 init_db()
 perform_daily_auto_backup()
 
-app = FastAPI(title="Praktika Evaluation Studio", version="2.2.0")
+app = FastAPI(title="Praktika Evaluation Studio", version=VERSION)
 
 app.add_middleware(
     CORSMiddleware,
@@ -1585,11 +1586,12 @@ async def autodetect_protocol_metadata(file: UploadFile = File(...), user: dict 
 async def ai_analyze_protocol_endpoint(
     proto_id: int, 
     mode: str = "merge",
+    language: Optional[str] = None,
     user: dict = Depends(get_current_user)
 ):
     try:
         custom_key = user.get("custom_gemini_api_key")
-        result = await analyze_protocol(proto_id, custom_key=custom_key)
+        result = await analyze_protocol(proto_id, custom_key=custom_key, language=language)
         
         # Persist to database so proposals are never lost on reload
         conn = get_db()
@@ -1666,10 +1668,10 @@ def ai_proposal_action(
         if action == "approve_annotation":
             found_idx = -1
             found_item = None
+            tid = str(target_id or "")
             for idx, a in enumerate(ai_proposals["annotations"]):
-                p_id = str(a.get("proposal_id") or f"annot_{proto_id}_{idx+1}")
-                tid = str(target_id)
-                if p_id == tid or f"ai_prop_{idx}" == tid or f"annot_{idx}" == tid or f"annot_{proto_id}_{idx+1}" == tid or tid.endswith(f"_{idx+1}"):
+                p_id = str(a.get("proposal_id") or "")
+                if (p_id and p_id == tid) or f"annot_{proto_id}_{idx+1}" == tid or f"ai_prop_{idx}" == tid or f"annot_{idx}" == tid:
                     found_idx = idx
                     found_item = a
                     break
@@ -1678,7 +1680,7 @@ def ai_proposal_action(
                 ai_proposals["annotations"].pop(found_idx)
                 raw_rect = found_item.get("rect")
                 raw_point = found_item.get("point")
-                created_annotation = {
+                created_annotation = req.annotation_data or {
                     "id": f"annot_{proto_id}_{int(time.time()*1000)}",
                     "page": int(found_item.get("page", 1)),
                     "type": "highlight",
@@ -1693,7 +1695,9 @@ def ai_proposal_action(
                 cur.execute("SELECT annotations_json FROM annotations WHERE protocol_id = ?", (proto_id,))
                 annot_row = cur.fetchone()
                 existing_annots = json.loads(annot_row[0]) if annot_row and annot_row[0] else []
-                existing_annots.append(created_annotation)
+                # Check duplicate by ID
+                if not any(ea.get("id") == created_annotation.get("id") for ea in existing_annots):
+                    existing_annots.append(created_annotation)
 
                 cur.execute("""
                 INSERT INTO annotations (protocol_id, annotations_json, updated_at)
@@ -1705,10 +1709,10 @@ def ai_proposal_action(
 
         elif action == "reject_annotation":
             found_idx = -1
+            tid = str(target_id or "")
             for idx, a in enumerate(ai_proposals["annotations"]):
-                p_id = str(a.get("proposal_id") or f"annot_{proto_id}_{idx+1}")
-                tid = str(target_id)
-                if p_id == tid or f"ai_prop_{idx}" == tid or f"annot_{idx}" == tid or f"annot_{proto_id}_{idx+1}" == tid or tid.endswith(f"_{idx+1}"):
+                p_id = str(a.get("proposal_id") or "")
+                if (p_id and p_id == tid) or f"annot_{proto_id}_{idx+1}" == tid or f"ai_prop_{idx}" == tid or f"annot_{idx}" == tid:
                     found_idx = idx
                     break
             if found_idx != -1:
@@ -1717,9 +1721,10 @@ def ai_proposal_action(
         elif action == "approve_deduction":
             found_idx = -1
             found_d = None
+            tid = str(target_id or "")
             for idx, d in enumerate(ai_proposals["deductions"]):
-                p_id = d.get("proposal_id") or f"ded_{proto_id}_{idx+1}"
-                if p_id == target_id or f"ded_{idx}" == target_id:
+                p_id = str(d.get("proposal_id") or "")
+                if (p_id and p_id == tid) or f"ded_{proto_id}_{idx+1}" == tid or f"ded_{idx}" == tid:
                     found_idx = idx
                     found_d = d
                     break
@@ -1869,6 +1874,7 @@ def get_ai_settings(user: dict = Depends(get_current_user)):
     masked_key = f"{active_key[:6]}...{active_key[-4:]}" if len(active_key) > 10 else ("***" if active_key else "")
     model_name = get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.5-flash-lite")
     auto_analyze = get_ai_setting("auto_analyze_on_upload", "true").lower() in ("true", "1", "yes")
+    ai_language = get_ai_setting("ai_language", "cs")
     return {
         "has_key": bool(active_key),
         "masked_key": masked_key,
@@ -1876,6 +1882,7 @@ def get_ai_settings(user: dict = Depends(get_current_user)):
         "personal_gemini_api_key": personal_key,
         "model_name": model_name,
         "auto_analyze_on_upload": auto_analyze,
+        "ai_language": ai_language,
         "ai_enabled": True,
         "is_admin": user["role"] == "admin"
     }
@@ -1902,6 +1909,11 @@ def set_ai_settings(req: AISettingsRequest, user: dict = Depends(get_current_use
             save_ai_setting("ai_model", m_name)
         if req.auto_analyze_on_upload is not None:
             save_ai_setting("auto_analyze_on_upload", "true" if req.auto_analyze_on_upload else "false")
+        if req.ai_language is not None:
+            save_ai_setting("ai_language", req.ai_language.strip().lower())
+    else:
+        if req.ai_language is not None:
+            save_ai_setting("ai_language", req.ai_language.strip().lower())
     conn.close()
 
     global_key = get_gemini_api_key()
@@ -1916,6 +1928,7 @@ def set_ai_settings(req: AISettingsRequest, user: dict = Depends(get_current_use
         "personal_gemini_api_key": personal_key,
         "model_name": get_ai_setting("gemini_model", "gemini-3.5-flash-lite"),
         "auto_analyze_on_upload": get_ai_setting("auto_analyze_on_upload", "true").lower() in ("true", "1", "yes"),
+        "ai_language": get_ai_setting("ai_language", "cs"),
         "ai_enabled": req.ai_enabled if req.ai_enabled is not None else True,
         "is_admin": user["role"] == "admin"
     }
@@ -2331,13 +2344,18 @@ async def test_gemini_connection(user: dict = Depends(get_current_user)):
         }
 
 # ==========================================
-# FRONTEND SPA ENTRY POINT
+# FRONTEND SPA ENTRY POINT & VERSION
 # ==========================================
+
+@app.get("/api/version")
+def get_version():
+    return {"version": VERSION}
 
 @app.get("/{full_path:path}", response_class=HTMLResponse)
 def serve_spa(request: Request, full_path: str):
     template_path = BASE_DIR / "app" / "templates" / "index.html"
     if template_path.exists():
         with open(template_path, "r", encoding="utf-8") as f:
-            return f.read()
+            content = f.read()
+            return content.replace("{{ version }}", VERSION).replace("{{version}}", VERSION)
     return "<h1>Aplikace se načítá...</h1>"

@@ -236,19 +236,18 @@ const PDFStudio = {
         e.stopPropagation();
 
         // Distinguish discrete physical mouse wheel vs continuous trackpad pinch
-        // Mouse wheel events typically have deltaMode === 1 (lines), or large integer multiples (e.g. 100, 120)
+        // Physical notch mouse wheels typically have deltaMode === 1 (lines), or integer multiples of 120 (standard notch)
         const isDiscreteMouse = (e.deltaMode !== 0) ||
-                                (Math.abs(e.deltaY) >= 80 && Math.abs(e.deltaY) % 10 === 0) ||
-                                (e.wheelDelta !== undefined && Math.abs(e.wheelDelta) % 120 === 0);
+                                (Math.abs(e.deltaY) >= 100 && (Math.abs(e.deltaY) % 50 === 0) && Number.isInteger(e.deltaY) && (e.wheelDelta === undefined || e.wheelDelta % 120 === 0));
 
         if (isDiscreteMouse) {
           // Physical mouse wheel: user-configured step (default 0.08, ~8%)
-          const wheelStep = parseFloat(localStorage.getItem('praktika_zoom_wheel_step') || '0.08');
+          const wheelStep = parseFloat(localStorage.getItem('praktika_zoom_ctrl_wheel_step') || localStorage.getItem('praktika_zoom_wheel_step') || '0.08');
           const delta = -Math.sign(e.deltaY) * wheelStep;
           this.handlePinchZoom(delta, e.clientX, e.clientY);
         } else {
           // Trackpad pinch gesture: silky-smooth continuous exponential scaling
-          const touchpadSens = parseFloat(localStorage.getItem('praktika_zoom_touchpad_sens') || '0.008');
+          const touchpadSens = parseFloat(localStorage.getItem('praktika_zoom_touchpad_sens') || '0.005');
           const multiplier = Math.exp(-e.deltaY * touchpadSens);
           this.handleContinuousZoom(multiplier, e.clientX, e.clientY);
         }
@@ -635,18 +634,20 @@ const PDFStudio = {
       const btnReject = pill.querySelector('.btn-reject');
       if (btnApply) {
         btnApply.addEventListener('mousedown', (ev) => ev.stopPropagation());
+        btnApply.addEventListener('mouseup', (ev) => ev.stopPropagation());
         btnApply.addEventListener('click', (ev) => {
           ev.preventDefault();
           ev.stopPropagation();
-          PDFStudio.approveAIProposal(pId);
+          PDFStudio.approveAIProposal(prop);
         });
       }
       if (btnReject) {
         btnReject.addEventListener('mousedown', (ev) => ev.stopPropagation());
+        btnReject.addEventListener('mouseup', (ev) => ev.stopPropagation());
         btnReject.addEventListener('click', (ev) => {
           ev.preventDefault();
           ev.stopPropagation();
-          PDFStudio.rejectAIProposal(pId);
+          PDFStudio.rejectAIProposal(prop);
         });
       }
       aiBox.appendChild(pill);
@@ -670,14 +671,47 @@ const PDFStudio = {
   // Approve AI proposal and turn into standard teacher highlight annotation via atomic backend action
   approveAIProposal(target) {
     let pId = null;
+    let prop = null;
     if (typeof target === 'string') {
       pId = target;
+      prop = this.aiProposals.find(p => p.proposal_id === pId || p.proposal_id === target);
     } else if (target && target.proposal_id) {
       pId = target.proposal_id;
+      prop = target;
     } else if (typeof target === 'number' && this.aiProposals[target]) {
-      pId = this.aiProposals[target].proposal_id;
+      prop = this.aiProposals[target];
+      pId = prop.proposal_id;
     }
-    if (!pId) return;
+    if (!pId && !prop) return;
+    if (!pId && prop) pId = prop.proposal_id;
+
+    // Instant local application to canvas
+    const idx = prop ? this.aiProposals.indexOf(prop) : this.aiProposals.findIndex(p => p.proposal_id === pId);
+    let approvedItem = prop;
+    if (idx !== -1) {
+      approvedItem = this.aiProposals.splice(idx, 1)[0];
+    }
+    if (approvedItem) {
+      const pageNum = parseInt(approvedItem.page, 10) || 1;
+      const rawR = approvedItem.rect || (approvedItem.point ? [approvedItem.point[0] - 10, approvedItem.point[1] - 8, approvedItem.point[0] + 120, approvedItem.point[1] + 14] : [80, 80, 240, 100]);
+      const normR = this.normalizeRect(rawR);
+      const newAnnot = {
+        id: `annot_${this.protocolId || 0}_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        page: pageNum,
+        type: 'highlight',
+        rect: normR,
+        rects: [normR],
+        point: approvedItem.point || [normR[0], normR[1]],
+        content: approvedItem.comment || '',
+        author: this.getAuthorName(),
+        color: '#ef4444',
+        created_at: new Date().toISOString()
+      };
+      this.addAnnotation(newAnnot);
+      this.redrawPageAnnotations(pageNum);
+      const canvasEl = document.querySelector(`.ai-canvas-proposal[data-proposal-id="${pId}"]`);
+      if (canvasEl) canvasEl.remove();
+    }
 
     if (window.App && window.App.executeAIProposalAction) {
       window.App.executeAIProposalAction('approve_annotation', pId);
@@ -687,14 +721,29 @@ const PDFStudio = {
   // Reject AI proposal via atomic backend action
   rejectAIProposal(target) {
     let pId = null;
+    let prop = null;
     if (typeof target === 'string') {
       pId = target;
+      prop = this.aiProposals.find(p => p.proposal_id === pId || p.proposal_id === target);
     } else if (target && target.proposal_id) {
       pId = target.proposal_id;
+      prop = target;
     } else if (typeof target === 'number' && this.aiProposals[target]) {
-      pId = this.aiProposals[target].proposal_id;
+      prop = this.aiProposals[target];
+      pId = prop.proposal_id;
     }
-    if (!pId) return;
+    if (!pId && !prop) return;
+    if (!pId && prop) pId = prop.proposal_id;
+
+    const idx = prop ? this.aiProposals.indexOf(prop) : this.aiProposals.findIndex(p => p.proposal_id === pId);
+    let rejectedItem = prop;
+    if (idx !== -1) {
+      rejectedItem = this.aiProposals.splice(idx, 1)[0];
+    }
+    const pageNum = rejectedItem ? (parseInt(rejectedItem.page, 10) || 1) : 1;
+    this.redrawPageAnnotations(pageNum);
+    const canvasEl = document.querySelector(`.ai-canvas-proposal[data-proposal-id="${pId}"]`);
+    if (canvasEl) canvasEl.remove();
 
     if (window.App && window.App.executeAIProposalAction) {
       window.App.executeAIProposalAction('reject_annotation', pId);
@@ -852,7 +901,14 @@ const PDFStudio = {
     };
 
     const onStart = (e) => {
-      if (['pan', 'highlight', 'strikeout'].includes(this.activeTool)) return;
+      if (this.activeTool === 'pan') {
+        if (this.activeSelectedAnnot && !e.target.closest('.acrobat-active-selection-box, .pdf-drawn-shape, .acrobat-comment-icon, .pdf-direct-text-item, .acrobat-highlight-overlay')) {
+          this.activeSelectedAnnot = null;
+          this.redrawPageAnnotations(pageNum);
+        }
+        return;
+      }
+      if (['highlight', 'strikeout'].includes(this.activeTool)) return;
       if (e.target.closest('.acrobat-comment-card') || e.target.closest('.inline-typewriter-input')) return;
 
       const pt = getCoords(e);
@@ -961,7 +1017,7 @@ const PDFStudio = {
           page: pageNum,
           type: 'ink',
           strokes: [currentStroke],
-          color: this.highlightColor || this.penColor || '#ef4444',
+          color: this.penColor || '#ef4444',
           width: this.penWidth || 2
         });
       } else if (this.activeTool === 'rect') {
@@ -973,7 +1029,8 @@ const PDFStudio = {
           this.addAnnotation({
             page: pageNum,
             type: 'rect',
-            rect: [minX, minY, maxX, maxY]
+            rect: [minX, minY, maxX, maxY],
+            color: this.penColor || '#ef4444'
           });
         }
       } else if (this.activeTool === 'arrow') {
@@ -983,7 +1040,7 @@ const PDFStudio = {
             type: 'arrow',
             p1: [startPoint.x, startPoint.y],
             p2: [pt.x, pt.y],
-            color: this.highlightColor || this.penColor || '#ef4444'
+            color: this.penColor || '#ef4444'
           });
         }
       }
@@ -1264,7 +1321,12 @@ const PDFStudio = {
       annot.author = author;
 
       if (isNew) {
-        this.addAnnotation(annot);
+        if (!this.annotations.includes(annot)) {
+          this.addAnnotation(annot);
+        } else {
+          this.redrawPageAnnotations(annot.page);
+          this.syncAnnotationsWithBackend();
+        }
       } else {
         this.redrawPageAnnotations(annot.page);
         this.syncAnnotationsWithBackend();
@@ -1302,6 +1364,14 @@ const PDFStudio = {
     if (this.floatingBoxEl) {
       this.floatingBoxEl.style.display = 'none';
     }
+    // Clean up empty newly created note if cancelled without content
+    if (this._isCreatingNewNote && this.activeEditingCommentAnnot && !this.activeEditingCommentAnnot.content) {
+      const idx = this.annotations.indexOf(this.activeEditingCommentAnnot);
+      if (idx !== -1) {
+        this.annotations.splice(idx, 1);
+      }
+    }
+    this._isCreatingNewNote = false;
     this.activeSelectedAnnot = null;
     this.activeEditingCommentAnnot = null;
     if (this.container) {
@@ -1320,8 +1390,101 @@ const PDFStudio = {
     this.closeCommentBox();
   },
 
+  deleteSelectedAnnotation() {
+    if (!this.activeSelectedAnnot) return;
+    const idx = this.annotations.indexOf(this.activeSelectedAnnot);
+    if (idx !== -1) {
+      const page = this.activeSelectedAnnot.page;
+      this.annotations.splice(idx, 1);
+      this.activeSelectedAnnot = null;
+      this.redrawPageAnnotations(page);
+      this.syncAnnotationsWithBackend();
+      if (window.App && window.App.showToast) {
+        window.App.showToast("Anotace byla smazána.");
+      }
+    }
+    this.closeCommentBox();
+  },
+
+  bindShapeInteractions(el, a, pageNumInt) {
+    el.addEventListener('mousedown', (e) => {
+      if (this.activeTool !== 'pan') return;
+      e.stopPropagation();
+      e.preventDefault();
+      this.selectAnnotation(a, pageNumInt, e);
+    });
+  },
+
+  selectAnnotation(a, pageNumInt, downEvent) {
+    this.activeSelectedAnnot = a;
+    this.redrawPageAnnotations(pageNumInt);
+
+    if (!downEvent) return;
+
+    const startX = downEvent.clientX;
+    const startY = downEvent.clientY;
+    let hasMoved = false;
+
+    // Snapshot original coordinates
+    const origRect = a.rect ? [...a.rect] : null;
+    const origRects = a.rects ? a.rects.map(r => [...r]) : null;
+    const origP1 = a.p1 ? [...a.p1] : null;
+    const origP2 = a.p2 ? [...a.p2] : null;
+    const origPoint = a.point ? [...a.point] : null;
+    const origStrokes = a.strokes ? a.strokes.map(st => st.map(pt => [...pt])) : null;
+
+    const onWindowMove = (ev) => {
+      const dx = (ev.clientX - startX) / this.scale;
+      const dy = (ev.clientY - startY) / this.scale;
+
+      if (!hasMoved && Math.hypot(ev.clientX - startX, ev.clientY - startY) > 3) {
+        hasMoved = true;
+      }
+
+      if (hasMoved) {
+        if (origRect) {
+          a.rect = [origRect[0] + dx, origRect[1] + dy, origRect[2] + dx, origRect[3] + dy];
+        }
+        if (origRects) {
+          a.rects = origRects.map(r => [r[0] + dx, r[1] + dy, r[2] + dx, r[3] + dy]);
+        }
+        if (origP1 && origP2) {
+          a.p1 = [origP1[0] + dx, origP1[1] + dy];
+          a.p2 = [origP2[0] + dx, origP2[1] + dy];
+        }
+        if (origPoint) {
+          a.point = [origPoint[0] + dx, origPoint[1] + dy];
+        }
+        if (origStrokes) {
+          a.strokes = origStrokes.map(st => st.map(pt => [pt[0] + dx, pt[1] + dy]));
+        }
+        this.redrawPageAnnotations(pageNumInt);
+      }
+    };
+
+    const onWindowUp = () => {
+      window.removeEventListener('mousemove', onWindowMove);
+      window.removeEventListener('mouseup', onWindowUp);
+      if (hasMoved) {
+        this.syncAnnotationsWithBackend();
+      }
+    };
+
+    window.addEventListener('mousemove', onWindowMove);
+    window.addEventListener('mouseup', onWindowUp);
+  },
+
   addAnnotation(annot) {
-    this.annotations.push(annot);
+    if (!annot) return;
+    if (!this.annotations.includes(annot)) {
+      if (annot.id && this.annotations.some(existing => existing.id === annot.id)) {
+        return;
+      }
+      if (!annot.id) {
+        annot.id = `annot_${this.protocolId || 0}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+      }
+      this.annotations.push(annot);
+    }
     this.activeSelectedAnnot = null;
     this.redrawPageAnnotations(annot.page);
     this.syncAnnotationsWithBackend();
@@ -1330,6 +1493,7 @@ const PDFStudio = {
   undo() {
     if (this.annotations.length === 0) return;
     const removed = this.annotations.pop();
+    this.activeSelectedAnnot = null;
     this.redrawPageAnnotations(removed.page);
     this.syncAnnotationsWithBackend();
   },
@@ -1353,14 +1517,15 @@ const PDFStudio = {
       // 1. Direct text on page (Acrobat typewriter)
       if (a.type === 'text_direct' && a.point) {
         const textItem = document.createElement('div');
-        textItem.className = 'pdf-direct-text-item';
+        textItem.className = 'pdf-direct-text-item pdf-drawn-shape';
         textItem.style.position = 'absolute';
         textItem.style.left = `${a.point[0] * this.scale}px`;
         textItem.style.top = `${(a.point[1] - 12) * this.scale}px`;
-        textItem.style.color = a.color || this.highlightColor || '#ef4444';
+        textItem.style.color = a.color || '#ef4444';
         textItem.style.fontFamily = 'Helvetica, Arial, sans-serif';
         textItem.style.fontSize = `${(a.fontsize || 14) * this.scale}px`;
         textItem.textContent = a.content;
+        this.bindShapeInteractions(textItem, a, pageNumInt);
         textItem.addEventListener('dblclick', async () => {
           const edit = await window.AppModal.prompt({
             title: "Upravit text poznámky",
@@ -1382,16 +1547,20 @@ const PDFStudio = {
 
       // 2. Ink / Freehand drawing
       else if (a.type === 'ink' && a.strokes) {
-        const strokeColor = this.formatColor(a.color) || this.penColor || '#ef4444';
+        const strokeColor = this.formatColor(a.color) || '#ef4444';
         a.strokes.forEach(stroke => {
           if (!stroke || stroke.length === 0) return;
           const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
           path.setAttribute('d', this.buildSmoothSvgPath(stroke, this.scale));
           path.setAttribute('stroke', strokeColor);
-          path.setAttribute('stroke-width', (a.width || 2) * this.scale);
+          path.setAttribute('stroke-width', Math.max(4, (a.width || 2) * this.scale));
           path.setAttribute('fill', 'none');
           path.setAttribute('stroke-linecap', 'round');
           path.setAttribute('stroke-linejoin', 'round');
+          path.setAttribute('class', 'pdf-drawn-shape pdf-shape-ink');
+          path.style.pointerEvents = 'stroke';
+          path.style.cursor = 'pointer';
+          this.bindShapeInteractions(path, a, pageNumInt);
           svg.appendChild(path);
         });
       }
@@ -1425,8 +1594,13 @@ const PDFStudio = {
           });
           hDiv.addEventListener('mouseleave', () => this.hideTooltip());
           hDiv.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.openCommentBox(a, e.clientX, e.clientY, false);
+            if (this.activeTool === 'pan') {
+              e.stopPropagation();
+              this.selectAnnotation(a, pageNumInt, e);
+            } else {
+              e.stopPropagation();
+              this.openCommentBox(a, e.clientX, e.clientY, false);
+            }
           });
           pageWrap.appendChild(hDiv);
         });
@@ -1436,7 +1610,7 @@ const PDFStudio = {
         if (mainRect && (mainRect[2] > mainRect[0])) {
           const [rx0, ry0] = mainRect;
           const icon = document.createElement('div');
-          icon.className = 'acrobat-comment-icon';
+          icon.className = 'acrobat-comment-icon pdf-drawn-shape';
           icon.style.left = `${(rx0 * this.scale) - 9}px`;
           icon.style.top = `${(ry0 * this.scale) - 9}px`;
           icon.title = a.content ? `${a.author || 'Asistent'}: ${a.content}` : 'Acrobat komentář';
@@ -1448,19 +1622,8 @@ const PDFStudio = {
             e.stopPropagation();
             this.openCommentBox(a, e.clientX, e.clientY, false);
           });
+          this.bindShapeInteractions(icon, a, pageNumInt);
           pageWrap.appendChild(icon);
-        }
-
-        // Active blue Acrobat bounding outline when selected
-        if (isActive && mainRect) {
-          const [x0, y0, x1, y1] = mainRect;
-          const activeBox = document.createElement('div');
-          activeBox.className = 'acrobat-active-selection-box';
-          activeBox.style.left = `${(x0 * this.scale) - 2}px`;
-          activeBox.style.top = `${(y0 * this.scale) - 2}px`;
-          activeBox.style.width = `${((x1 - x0) * this.scale) + 4}px`;
-          activeBox.style.height = `${((y1 - y0) * this.scale) + 4}px`;
-          pageWrap.appendChild(activeBox);
         }
       }
 
@@ -1473,9 +1636,11 @@ const PDFStudio = {
         line.setAttribute('y1', midY);
         line.setAttribute('x2', x1 * this.scale);
         line.setAttribute('y2', midY);
-        line.setAttribute('stroke', '#ef4444');
+        line.setAttribute('stroke', a.color || '#ef4444');
         line.setAttribute('stroke-width', Math.max(2, 2.5 * this.scale));
         line.setAttribute('stroke-linecap', 'round');
+        line.setAttribute('class', 'pdf-drawn-shape pdf-shape-strikeout');
+        line.style.pointerEvents = 'stroke';
         line.style.cursor = 'pointer';
 
         line.addEventListener('mouseenter', (e) => {
@@ -1483,13 +1648,19 @@ const PDFStudio = {
         });
         line.addEventListener('mouseleave', () => this.hideTooltip());
         line.addEventListener('click', (e) => {
-          e.stopPropagation();
-          this.openCommentBox(a, e.clientX, e.clientY, false);
+          if (this.activeTool === 'pan') {
+            e.stopPropagation();
+            this.selectAnnotation(a, pageNumInt, e);
+          } else {
+            e.stopPropagation();
+            this.openCommentBox(a, e.clientX, e.clientY, false);
+          }
         });
+        this.bindShapeInteractions(line, a, pageNumInt);
         svg.appendChild(line);
 
         const icon = document.createElement('div');
-        icon.className = 'acrobat-comment-icon';
+        icon.className = 'acrobat-comment-icon pdf-drawn-shape';
         icon.style.left = `${(x0 * this.scale) - 9}px`;
         icon.style.top = `${midY - 9}px`;
         icon.title = a.content || 'Přeškrtnutí textu';
@@ -1501,29 +1672,37 @@ const PDFStudio = {
           e.stopPropagation();
           this.openCommentBox(a, e.clientX, e.clientY, false);
         });
+        this.bindShapeInteractions(icon, a, pageNumInt);
         pageWrap.appendChild(icon);
       }
 
       // 5. Rect (Bounding box)
       else if (a.type === 'rect' && a.rect) {
         const [x0, y0, x1, y1] = this.normalizeRect(a.rect);
-        const rectColor = a.color || this.penColor || '#ef4444';
+        const rectColor = a.color || '#ef4444';
         const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
         rect.setAttribute('x', x0 * this.scale);
         rect.setAttribute('y', y0 * this.scale);
-        rect.setAttribute('width', (x1 - x0) * this.scale);
-        rect.setAttribute('height', (y1 - y0) * this.scale);
-        rect.setAttribute('fill', this.getFillColorForStroke(rectColor, 0.12));
+        rect.setAttribute('width', Math.max(4, (x1 - x0) * this.scale));
+        rect.setAttribute('height', Math.max(4, (y1 - y0) * this.scale));
+        rect.setAttribute('fill', this.getFillColorForStroke(rectColor, 0.15));
         rect.setAttribute('stroke', rectColor);
         rect.setAttribute('stroke-width', 2);
+        rect.setAttribute('class', 'pdf-drawn-shape pdf-shape-rect');
+        rect.style.pointerEvents = 'auto';
+        rect.style.cursor = 'pointer';
+        this.bindShapeInteractions(rect, a, pageNumInt);
         svg.appendChild(rect);
       }
 
       // 6. Arrow with real arrowhead polygon
       else if (a.type === 'arrow' && a.p1 && a.p2) {
         const arrowGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        arrowGroup.setAttribute('class', 'pdf-drawn-shape pdf-shape-arrow');
+        arrowGroup.style.pointerEvents = 'auto';
+        arrowGroup.style.cursor = 'pointer';
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        const arrowColor = a.color || this.highlightColor || '#ef4444';
+        const arrowColor = a.color || '#ef4444';
         const startX = a.p1[0] * this.scale;
         const startY = a.p1[1] * this.scale;
         const endX = a.p2[0] * this.scale;
@@ -1548,13 +1727,14 @@ const PDFStudio = {
 
         arrowGroup.appendChild(line);
         arrowGroup.appendChild(head);
+        this.bindShapeInteractions(arrowGroup, a, pageNumInt);
         svg.appendChild(arrowGroup);
       }
 
       // 7. Sticky Note Pin (Acrobat [⊖] circular pin)
       else if (a.type === 'note' && a.point) {
         const pin = document.createElement('div');
-        pin.className = 'acrobat-comment-icon';
+        pin.className = 'acrobat-comment-icon pdf-drawn-shape';
         pin.style.left = `${(a.point[0] * this.scale) - 9}px`;
         pin.style.top = `${(a.point[1] * this.scale) - 9}px`;
         pin.title = a.content || 'Komentář';
@@ -1563,10 +1743,84 @@ const PDFStudio = {
         });
         pin.addEventListener('mouseleave', () => this.hideTooltip());
         pin.addEventListener('click', (e) => {
-          e.stopPropagation();
-          this.openCommentBox(a, e.clientX, e.clientY, false);
+          if (this.activeTool === 'pan') {
+            e.stopPropagation();
+            this.selectAnnotation(a, pageNumInt, e);
+          } else {
+            e.stopPropagation();
+            this.openCommentBox(a, e.clientX, e.clientY, false);
+          }
         });
+        this.bindShapeInteractions(pin, a, pageNumInt);
         pageWrap.appendChild(pin);
+      }
+
+      // Universal Active Acrobat Selection Box for selected annotation
+      if (isActive) {
+        let bBox = null;
+        if (a.rect) {
+          bBox = this.normalizeRect(a.rect);
+        } else if (a.p1 && a.p2) {
+          bBox = [
+            Math.min(a.p1[0], a.p2[0]) - 6,
+            Math.min(a.p1[1], a.p2[1]) - 6,
+            Math.max(a.p1[0], a.p2[0]) + 6,
+            Math.max(a.p1[1], a.p2[1]) + 6
+          ];
+        } else if (a.point) {
+          bBox = [a.point[0] - 14, a.point[1] - 14, a.point[0] + 14, a.point[1] + 14];
+        } else if (a.strokes && a.strokes.length > 0) {
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          a.strokes.forEach(st => st.forEach(([x, y]) => {
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+          }));
+          if (minX !== Infinity) {
+            bBox = [minX - 4, minY - 4, maxX + 4, maxY + 4];
+          }
+        } else if (a.rects && a.rects.length > 0) {
+          bBox = this.normalizeRect(a.rects[0]);
+        }
+
+        if (bBox && bBox[2] > bBox[0] && bBox[3] > bBox[1]) {
+          const [bx0, by0, bx1, by1] = bBox;
+          const activeBox = document.createElement('div');
+          activeBox.className = 'acrobat-active-selection-box';
+          activeBox.style.left = `${(bx0 * this.scale) - 3}px`;
+          activeBox.style.top = `${(by0 * this.scale) - 3}px`;
+          activeBox.style.width = `${((bx1 - bx0) * this.scale) + 6}px`;
+          activeBox.style.height = `${((by1 - by0) * this.scale) + 6}px`;
+
+          activeBox.innerHTML = `
+            <div class="acrobat-selection-handle handle-nw"></div>
+            <div class="acrobat-selection-handle handle-ne"></div>
+            <div class="acrobat-selection-handle handle-sw"></div>
+            <div class="acrobat-selection-handle handle-se"></div>
+            <button type="button" class="acrobat-selection-trash-btn" title="Smazat anotaci (Delete / Backspace)">🗑</button>
+          `;
+
+          const trashBtn = activeBox.querySelector('.acrobat-selection-trash-btn');
+          if (trashBtn) {
+            trashBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+            trashBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              this.deleteSelectedAnnotation();
+            });
+          }
+
+          // Allow dragging the bounding box directly in pan tool
+          activeBox.addEventListener('mousedown', (e) => {
+            if (e.target.closest('button')) return;
+            e.stopPropagation();
+            e.preventDefault();
+            this.selectAnnotation(a, pageNumInt, e);
+          });
+
+          pageWrap.appendChild(activeBox);
+        }
       }
     });
 

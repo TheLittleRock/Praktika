@@ -3466,10 +3466,12 @@ const App = {
         const modelSelect = document.getElementById('ai-model-select');
         const customInput = document.getElementById('ai-custom-model-input');
         const autoAnalyzeToggle = document.getElementById('ai-auto-analyze-toggle');
+        const langSelect = document.getElementById('ai-language-select');
 
         if (toggle) toggle.checked = !!data.ai_enabled;
         if (keyInput) keyInput.value = data.gemini_api_key || '';
         if (autoAnalyzeToggle) autoAnalyzeToggle.checked = (data.auto_analyze_on_upload !== false);
+        if (langSelect && data.ai_language) langSelect.value = data.ai_language;
 
         if (modelSelect) {
           const m = data.model_name || 'gemini-3.5-flash-lite';
@@ -3518,6 +3520,8 @@ const App = {
     const modelSelect = document.getElementById('ai-model-select').value;
     const customModel = document.getElementById('ai-custom-model-input').value.trim();
     const autoAnalyze = document.getElementById('ai-auto-analyze-toggle').checked;
+    const langSelect = document.getElementById('ai-language-select');
+    const aiLanguage = langSelect ? langSelect.value : 'cs';
     const modelName = (modelSelect === 'custom' && customModel) ? customModel : modelSelect;
 
     try {
@@ -3528,7 +3532,8 @@ const App = {
           gemini_api_key: apiKey,
           ai_enabled: enabled,
           model_name: modelName,
-          auto_analyze_on_upload: autoAnalyze
+          auto_analyze_on_upload: autoAnalyze,
+          ai_language: aiLanguage
         })
       });
       if (resp.ok) {
@@ -3631,6 +3636,15 @@ const App = {
 
         // Single-key shortcuts and Undo (only active when not typing in form controls)
         if (!isInput) {
+          // Delete / Backspace: Delete currently selected annotation on canvas
+          if (e.key === 'Delete' || e.key === 'Backspace') {
+            if (window.PDFStudio && window.PDFStudio.activeSelectedAnnot) {
+              e.preventDefault();
+              window.PDFStudio.deleteSelectedAnnotation();
+              return;
+            }
+          }
+
           // Ctrl+Z: Undo annotation
           if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
             e.preventDefault();

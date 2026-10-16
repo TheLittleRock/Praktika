@@ -68,10 +68,11 @@ nav:
   - Úvod:
       - Přehled systému: index.md
       - Rychlý start: getting-started.md
-  - Uživatelská příručka:
-      - Uživatelské rozhraní & Filtry: guide/ui-overview.md
+  - Uživatelské příručky:
+      - Příručka pro asistenty (Workflow): guide/assistant.md
+      - Příručka pro správce (Administrace): guide/admin.md
+      - Přehled rozhraní & Filtry: guide/ui-overview.md
       - Korekční PDF Studio: guide/pdf-studio.md
-      - Bodování & Export pro Moodle: guide/grading-system.md
       - AI Asistent (Gemini): guide/ai-assistant.md
       - Správa databáze & Diagnostika: guide/database-admin.md
   - Architektura systému:

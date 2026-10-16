@@ -2,7 +2,7 @@
 
 **Korekční PDF Studio** je srdcem celé aplikace. Umožňuje interaktivní revizi a kreslení poznámek přímo do odevzdaného dokumentu.
 
-![Exportované PDF s anotacemi a hlavičkou](../images/pdf_annotated_sample.png)
+![Korekční PDF Studio](../assets/images/studio_overview.png)
 
 ---
 
@@ -12,14 +12,24 @@ V horní části Studia se nachází lišta s nástroji:
 
 | Ikona / Nástroj | Klávesa | Popis |
 |---|---|---|
-| **Ruka (Pan / Posun)** | `H` | Umožňuje tažením posouvat stránku a přirozeně označovat nativní text v dokumentu. |
-| **Zvýrazňovač (Highlight)** | `S` | Vytváří polo-průhledné zvýraznění přes vybrané řádky textu s volitelnou barvou. |
+| **Ruka / Výběr (Pan / Select)** | `H` | Posun plátna a výběr nakreslených objektů (zobrazení manipulačního rámečku s táhly a košem). |
+| **Zvýrazňovač (Highlight)** | `S` | Vytváří ostré zvýraznění s podtržením přes vybrané řádky textu s volitelnou barvou. |
 | **Přeškrtnutí (Strikeout)** | `X` | Červená přeškrtávací linka pro chybné vzorce nebo zavádějící text. |
 | **Poznámka (Sticky Note)** | `N` | Vloží na libovolné místo v dokumentu vektorovou Acrobat-kompatibilní bublinu s komentářem. |
 | **Volné pero (Pen)** | `P` | Hladké kreslení od ruky pro podtrhávání nebo ruční poznámky. |
-| **Obdélník (Rect)** | `R` | Ohraničující rámeček s pevnou linkou a jemnou polo-průhlednou výplní (12 % opacita). |
+| **Obdélník (Rect)** | `R` | Ohraničující rámeček s pevnou linkou a jemnou polo-průhlednou výplní (18 % opacita). |
 | **Šipka (Arrow)** | `A` | Směrová šipka s ostrým plným hrotem ukazující na konkrétní chybu. |
 | **Vepsaný text (Typewriter)** | `T` | Přímé vepsání textového řádku do PDF. |
+
+---
+
+## 📐 Výběr, posouvání a mazání nakreslených objektů
+
+Od verze 2.10.0 je k dispozici plná manipulace se všemi nakreslenými tvary:
+- **Aktivace výběru**: V režimu **Ruka / Výběr** (`H`) klikněte na libovolný tvar (obdélník, šipka, perokresba, text).
+- **Manipulační rámeček**: Kolem objektu se objeví aktivní Acrobat rámeček se 4 rohovými body a červenou ikonou koše.
+- **Přesouvání**: Uchopením a tažením myší lze objekt libovolně přemístit na nové místo.
+- **Smazání**: Stiskněte klávesu **`Delete`** nebo **`Backspace`**, případně klikněte na **ikonu koše**.
 
 ---
 

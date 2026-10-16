@@ -189,6 +189,7 @@ class AISettingsRequest(BaseModel):
     model_name: Optional[str] = "gemini-3.5-flash"
     ai_enabled: Optional[bool] = True
     auto_analyze_on_upload: Optional[bool] = True
+    ai_language: Optional[str] = "cs"
     guidelines: Optional[str] = None
 
 class AIDeductionSuggestion(BaseModel):

@@ -8,32 +8,45 @@ import pymupdf
 FONT_DEJAVU = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 FONT_DEJAVU_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
+def _clean_unicode_str(s: Optional[str]) -> str:
+    """Prepends UTF-16BE BOM to force Chrome/Brave and PDF readers to render Czech and Slovak diacritics correctly."""
+    if not s:
+        return ""
+    text = str(s).strip()
+    if not text:
+        return ""
+    if not text.startswith("\ufeff"):
+        return "\ufeff" + text
+    return text
+
 def _draw_acrobat_speech_bubble(page, px: float, py: float, color_rgb: tuple):
     """Draws an Adobe Acrobat style speech bubble vector icon."""
-    bubble_w = 17.0
-    bubble_h = 13.0
+    bubble_w = 18.0
+    bubble_h = 14.0
     bx0, by0 = px, py - bubble_h
     bx1, by1 = px + bubble_w, py
     
     shape = page.new_shape()
     rect = pymupdf.Rect(bx0, by0, bx1, by1)
     shape.draw_rect(rect, radius=0.15)
-    shape.finish(color=color_rgb, fill=color_rgb, width=0.5)
+    shape.finish(color=color_rgb, fill=color_rgb, width=0.6)
     
     # Bottom pointer
     pointer = [
         pymupdf.Point(bx0 + 2.5, by1),
-        pymupdf.Point(bx0, by1 + 4.0),
-        pymupdf.Point(bx0 + 6.5, by1),
+        pymupdf.Point(bx0, by1 + 4.5),
+        pymupdf.Point(bx0 + 7.0, by1),
         pymupdf.Point(bx0 + 2.5, by1)
     ]
     shape.draw_polyline(pointer)
-    shape.finish(color=color_rgb, fill=color_rgb, width=0.5)
+    shape.finish(color=color_rgb, fill=color_rgb, width=0.6)
     
     # Internal white note lines
     shape.draw_line(pymupdf.Point(bx0 + 3.5, by0 + 4.5), pymupdf.Point(bx1 - 3.5, by0 + 4.5))
     shape.finish(color=(1.0, 1.0, 1.0), width=1.1)
-    shape.draw_line(pymupdf.Point(bx0 + 3.5, by0 + 8.5), pymupdf.Point(bx1 - 5.5, by0 + 8.5))
+    shape.draw_line(pymupdf.Point(bx0 + 3.5, by0 + 7.5), pymupdf.Point(bx1 - 3.5, by0 + 7.5))
+    shape.finish(color=(1.0, 1.0, 1.0), width=1.1)
+    shape.draw_line(pymupdf.Point(bx0 + 3.5, by0 + 10.5), pymupdf.Point(bx1 - 6.5, by0 + 10.5))
     shape.finish(color=(1.0, 1.0, 1.0), width=1.1)
     shape.commit()
 
@@ -247,7 +260,7 @@ def burn_annotations_to_pdf(
                 except Exception as e:
                     print("Error adding ink annot:", e)
 
-        # 3. Text Highlight (soft vector highlight + native highlight annot)
+        # 3. Text Highlight (sharp vector highlight + baseline underline + native highlight annot)
         elif item_type == "highlight":
             rects_data = item.get("rects", [])
             rect_coords = item.get("rect", [])
@@ -263,9 +276,10 @@ def burn_annotations_to_pdf(
                     if fr and fr.width > 1 and fr.height > 1:
                         target_rects.append(fr)
 
-                # Draw beautiful in-app style soft highlight boxes
+                # Draw beautiful in-app style highlight boxes with baseline underline
                 for fr in target_rects:
-                    page.draw_rect(fr, color=color_rgb, fill=color_rgb, fill_opacity=0.32, width=0.75, radius=0.08)
+                    page.draw_rect(fr, color=color_rgb, fill=color_rgb, fill_opacity=0.30, width=0.5)
+                    page.draw_line(pymupdf.Point(fr.x0, fr.y1), pymupdf.Point(fr.x1, fr.y1), color=color_rgb, width=1.5)
 
                 # Register standard PDF highlight annotation for reader sidebars/comments
                 if target_rects:
@@ -274,7 +288,7 @@ def burn_annotations_to_pdf(
                     if hl:
                         hl.set_colors(stroke=color_rgb)
                         if content or author:
-                            hl.set_info(content=content, title=author)
+                            hl.set_info(content=_clean_unicode_str(content), title=_clean_unicode_str(author))
                         hl.update()
             except Exception as e:
                 print("Error adding highlight:", e)
@@ -305,7 +319,7 @@ def burn_annotations_to_pdf(
                     if so:
                         so.set_colors(stroke=color_rgb)
                         if content or author:
-                            so.set_info(content=content, title=author)
+                            so.set_info(content=_clean_unicode_str(content), title=_clean_unicode_str(author))
                         so.update()
             except Exception as e:
                 print("Error adding strikeout:", e)
@@ -317,9 +331,9 @@ def burn_annotations_to_pdf(
                 try:
                     px, py = float(point[0]), float(point[1])
                     _draw_acrobat_speech_bubble(page, px, py, color_rgb)
-                    note = page.add_text_annot(pymupdf.Point(px, py), content, icon="Comment")
+                    note = page.add_text_annot(pymupdf.Point(px, py), _clean_unicode_str(content), icon="Comment")
                     note.set_colors(stroke=color_rgb)
-                    note.set_info(title=author, content=content)
+                    note.set_info(title=_clean_unicode_str(author), content=_clean_unicode_str(content))
                     note.update()
                 except Exception as e:
                     print("Error adding note annot:", e)
@@ -330,11 +344,11 @@ def burn_annotations_to_pdf(
             if len(rect_coords) == 4:
                 try:
                     r = pymupdf.Rect(*rect_coords)
-                    page.draw_rect(r, color=color_rgb, fill=color_rgb, fill_opacity=0.15, width=1.8, radius=0.04)
+                    page.draw_rect(r, color=color_rgb, fill=color_rgb, fill_opacity=0.18, width=2.0)
                     ra = page.add_rect_annot(r)
                     ra.set_colors(stroke=color_rgb)
                     if content or author:
-                        ra.set_info(content=content, title=author)
+                        ra.set_info(content=_clean_unicode_str(content), title=_clean_unicode_str(author))
                     ra.update()
                 except Exception as e:
                     print("Error adding rect:", e)
@@ -393,31 +407,25 @@ def burn_annotations_to_pdf(
 
         raw_deds = evaluation.get("deductions") or []
         deductions = [item for item in raw_deds if isinstance(item, dict) and item.get("reason")]
-        display_deds = deductions[:8]
 
         p_rect = page0.rect
         banner_w = min(p_rect.width - 36, 520)
         banner_x = (p_rect.width - banner_w) / 2
-        banner_y = 16
-
-        base_h = 56
-        ded_h = 0
-        if deductions:
-            ded_h = 22 + (len(display_deds) * 12) + (12 if len(deductions) > 8 else 0)
-        card_h = base_h + ded_h
+        banner_y = 14
+        card_h = 56
 
         card_rect = pymupdf.Rect(banner_x, banner_y, banner_x + banner_w, banner_y + card_h)
         page0.draw_rect(card_rect, color=(0.18, 0.32, 0.85), fill=(0.98, 0.985, 1.0), width=1.2, radius=0.03)
 
         accent_rect = pymupdf.Rect(banner_x, banner_y, banner_x + 5, banner_y + card_h)
-        page0.draw_rect(accent_rect, color=(0.18, 0.32, 0.85), fill=(0.18, 0.32, 0.85), radius=0.1)
+        page0.draw_rect(accent_rect, color=(0.18, 0.32, 0.85), fill=(0.18, 0.32, 0.85), radius=0.08)
 
         grade_color = (0.08, 0.60, 0.32) if grade in ['A', 'B'] else ((0.85, 0.45, 0.08) if grade in ['C', 'D'] else (0.85, 0.12, 0.12))
         total_text = f"Celkem: {format_points(pts)} / 10 b  |  Známka: {grade}"
         page0.insert_text(
             pymupdf.Point(banner_x + 16, banner_y + 18),
             total_text,
-            fontsize=11.0,
+            fontsize=11.5,
             color=grade_color,
             fontname=font_bold_id
         )
@@ -435,59 +443,42 @@ def burn_annotations_to_pdf(
         page0.insert_text(
             pymupdf.Point(banner_x + 16, banner_y + 48),
             footer_line,
-            fontsize=7.8,
+            fontsize=8.0,
             color=(0.42, 0.46, 0.54),
             fontname=font_id
         )
 
+        # Moodle note comment in top-right of banner
+        moodle_lines = [
+            f"HODNOCENÍ PROTOKOLU (MOODLE):",
+            f"Celkem: {format_points(pts)} / 10 b (Známka: {grade})",
+            f"Dílčí body: Výsledky: {format_points(v)}/3 | Diskuze: {format_points(d)}/3 | Formát: {format_points(f)}/2 | Chyby: {format_points(c)}/2",
+            "",
+            "Bodové srážky:"
+        ]
         if deductions:
-            div_y = banner_y + 55
-            page0.draw_line(
-                pymupdf.Point(banner_x + 12, div_y),
-                pymupdf.Point(banner_x + banner_w - 12, div_y),
-                color=(0.82, 0.86, 0.94),
-                width=0.8
-            )
-            page0.insert_text(
-                pymupdf.Point(banner_x + 16, div_y + 13),
-                "Detailní bodové srážky (Moodle komentář):",
-                fontsize=8.5,
-                color=(0.15, 0.20, 0.35),
-                fontname=font_bold_id
-            )
-
-            cat_map = {
-                "vysledky": "Výsledky",
-                "diskuze": "Diskuze",
-                "format": "Formát",
-                "chyby": "Chyby"
-            }
-            curr_y = div_y + 26
-            for d_item in display_deds:
+            cat_map = {"vysledky": "Výsledky", "diskuze": "Diskuze", "format": "Formát", "chyby": "Chyby"}
+            for d_item in deductions:
                 c_name = cat_map.get(d_item.get("category", ""), str(d_item.get("category", "")).capitalize())
                 p_val = format_points(d_item.get("pts", 0.25))
                 reason = (d_item.get("reason") or "").strip()
-                if len(reason) > 75:
-                    reason = reason[:72] + "..."
-                d_line = f"• [{c_name}] -{p_val} b: {reason}"
-                page0.insert_text(
-                    pymupdf.Point(banner_x + 18, curr_y),
-                    d_line,
-                    fontsize=7.6,
-                    color=(0.75, 0.15, 0.15),
-                    fontname=font_id
-                )
-                curr_y += 12
+                moodle_lines.append(f"• [{c_name}] -{p_val} b: {reason}")
+        else:
+            moodle_lines.append("• Bez bodových srážek (plný počet bodů).")
 
-            if len(deductions) > 8:
-                more_line = f"... a dalších {len(deductions) - 8} srážek (podrobně v anotacích PDF)"
-                page0.insert_text(
-                    pymupdf.Point(banner_x + 18, curr_y),
-                    more_line,
-                    fontsize=7.2,
-                    color=(0.50, 0.52, 0.58),
-                    fontname=font_id
-                )
+        if evaluator_name:
+            moodle_lines.append("")
+            moodle_lines.append(f"Hodnotil: {evaluator_name}")
+        moodle_lines.append(f"Datum exportu: {date_str}")
+        moodle_comment_text = "\n".join(moodle_lines)
+
+        moodle_note_x = banner_x + banner_w - 28
+        moodle_note_y = banner_y + 20
+        _draw_acrobat_speech_bubble(page0, moodle_note_x, moodle_note_y, (0.18, 0.32, 0.85))
+        m_note = page0.add_text_annot(pymupdf.Point(moodle_note_x, moodle_note_y), _clean_unicode_str(moodle_comment_text), icon="Comment")
+        m_note.set_colors(stroke=(0.18, 0.32, 0.85))
+        m_note.set_info(title=_clean_unicode_str("Moodle komentář"), content=_clean_unicode_str(moodle_comment_text))
+        m_note.update()
 
     output_bytes = doc.tobytes(deflate=True, garbage=3)
     doc.close()

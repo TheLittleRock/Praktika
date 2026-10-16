@@ -23,7 +23,7 @@
       </svg>
       <div class="brand-info">
         <span class="brand-title">Praktika Studio</span>
-        <span class="badge" id="app-version-badge">v2.3.0</span>
+        <span class="badge" id="app-version-badge">v{{ version }}</span>
       </div>
     </div>
 
@@ -809,14 +809,27 @@
                 <input type="text" id="ai-custom-model-input" class="form-control" placeholder="např. gemini-3.8-flash" style="display:none; margin-top:6px; font-family:'JetBrains Mono',monospace;">
               </div>
 
-              <div class="form-group" style="display:flex; flex-direction:column; justify-content:center;">
-                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.83rem; font-weight:600; margin-top:14px;">
-                  <input type="checkbox" id="ai-auto-analyze-toggle" checked>
-                  <span>Analyzovat automaticky ihned při nahrání protokolu</span>
-                </label>
+              <div class="form-group">
+                <label class="form-label">Jazyk výstupů AI asistenta:</label>
+                <select id="ai-language-select" class="form-control">
+                  <option value="cs" selected>🇨🇿 Čeština (výchozí)</option>
+                  <option value="sk">🇸🇰 Slovenčina</option>
+                  <option value="en">🇬🇧 English</option>
+                  <option value="auto">🌐 Automaticky podle protokolu (CZ / SK)</option>
+                </select>
                 <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">
-                  Protokol se na pozadí zanalyzuje a návrhy budou připraveny hned při otevření.
+                  Všechny komentáře, srážky i souhrn budou formulovány ve vybraném jazyce.
                 </div>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top:2px;">
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.83rem; font-weight:600;">
+                <input type="checkbox" id="ai-auto-analyze-toggle" checked>
+                <span>Analyzovat automaticky ihned při nahrání protokolu</span>
+              </label>
+              <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">
+                Protokol se na pozadí zanalyzuje a návrhy budou připraveny hned při otevření.
               </div>
             </div>
 
@@ -992,7 +1005,7 @@
               <h3 style="font-size:1.15rem; font-weight:800; color:var(--text-main); margin-bottom:2px;">Praktika Evaluation Studio</h3>
               <div style="font-size:0.83rem; color:var(--text-muted);">Acrobat-style systém pro efektivní opravu laboratorních protokolů z fyzikálních praktik</div>
             </div>
-            <span class="badge" style="font-size:0.85rem; padding:4px 10px; background:var(--primary); color:#fff;">Verze 2.3.0</span>
+            <span class="badge" style="font-size:0.85rem; padding:4px 10px; background:var(--primary); color:#fff;">Verze {{ version }}</span>
           </div>
           <p style="font-size:0.83rem; color:var(--text-muted); margin-bottom:0;">
             Podpora pro FPRA1 (Zimní semestr), FPRA2 a ZFM2 (Letní semestr). Offline vektorové vykreslování v plném rozlišení obrazovky (HiDPI / Retina), systém srážek po 0.125 b a integrace AI asistenta.

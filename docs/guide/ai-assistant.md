@@ -2,16 +2,21 @@
 
 AI Asistent v aplikaci Praktika slouží jako inteligentní pomocník vyučujícího, který urychluje kontrolu rutinních chyb, formátování a teoretických nedostatků.
 
-![AI Asistent Workflow](../images/ai_workflow_animation.svg)
+![Boční panel AI Asistenta](../assets/images/studio_ai_drawer.png)
 
 ---
 
-## 🧠 Použitý jazykový model
+## 🧠 Použitý jazykový model a konfigurace
 
-Aplikace využívá **Google Gemini 2.5 Flash** (s automatickou fallback strategií na `gemini-1.5-flash` nebo `gemini-1.5-pro` v případě nedostupnosti či překročení limitů).
+Aplikace podporuje nejnovější modely **Google Gemini** (např. `gemini-3.5-flash-lite`, `gemini-flash-lite-latest`, `gemini-3.8-flash` a vlastní modely):
 
 - Model disponuje velkým kontextovým oknem schopným pojmout celý studentský protokol včetně vzorců a tabulek.
-- Systémový prompt je striktně kalibrován na **české univerzitní standardy fyzikálních praktik** (metrologie ČSN EN ISO, pravidla sazby matematických textů, značení nejistot měření).
+- Systémový prompt je striktně kalibrován na **české i slovenské univerzitní standardy fyzikálních praktik** (metrologie ČSN EN ISO, pravidla sazby matematických textů, značení nejistot měření).
+- **Volba jazyka výstupů**: V nastavení AI asistenta lze zvolit cílový jazyk generovaných komentářů a srážek:
+  - `🇨🇿 Čeština` (výchozí)
+  - `🇸🇰 Slovenčina`
+  - `🇬🇧 English`
+  - `🌐 Automaticky podle jazyka protokolu`
 
 ---
 

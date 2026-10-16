@@ -16,26 +16,36 @@ Nabízí interaktivní korekční studio s vektorovými kreslícími nástroji (
 
 ---
 
-## 📸 Ukázka rozhraní
+## 🎬 Ukázka rozhraní a práce v aplikaci
 
-### 1. Korekční PDF Studio s integrovaným AI Asistentem
-Interaktivní revize protokolů s podporou kreslení, poznámkových lístků a postranním panelem asistenta:
+### 1. Interaktivní workflow v Korekčním PDF Studiu (Animace)
+Reálná ukázka práce v aplikaci: kreslení a výběr geometrických tvarů, manipulace a mazání, zobrazení panelu AI asistenta se schválením návrhu v textu a zadávání bodových srážek:
 
-![Korekční PDF Studio](docs/images/studio_showcase.svg)
-
----
-
-### 2. Exportované PDF s Moodle hlavičkou a vektorovými anotacemi
-Vizuální výstup s pevnou typografií (DejaVu Sans), sytými rámečky, šipkami a Acrobat poznámkovými bublinami:
-
-![Exportované PDF](docs/images/pdf_annotated_sample.png)
+<picture>
+  <source srcset="docs/assets/images/studio_workflow.webp" type="image/webp">
+  <img src="docs/assets/images/studio_workflow.gif" alt="Interaktivní práce v Korekčním PDF Studiu">
+</picture>
 
 ---
 
-### 3. Analytická pipeline Google Gemini
-Architektura zpracování dokumentu od extrakce po aplikaci srážek:
+### 2. Řídicí panel (Dashboard) & Správa protokolů
+Okamžitý přehled stavu odevzdaných prací, filtrování podle semestrů a termínů, statistiky a hromadný export:
 
-![AI Analytická pipeline](docs/images/ai_workflow_animation.svg)
+![Řídicí panel](docs/assets/images/dashboard_overview.png)
+
+---
+
+### 3. AI Asistent (Google Gemini) s podporou jazyků
+Boční panel s hloubkovou analýzou, fyzikálními připomínkami (*interpunkce vzorců ", kde"*, *errorbary*, *citace grafů v textu*) a rychlým schvalováním:
+
+![AI Asistent](docs/assets/images/studio_ai_drawer.png)
+
+---
+
+### 4. Exportované opravené PDF s Moodle komentářem
+Výstupní PDF s přehlednou hodnoticí hlavičkou, vektorovými anotacemi s diakritikou a samolepicí Acrobat poznámkou pro Moodle:
+
+![Exportované PDF](docs/assets/images/pdf_export_sample.png)
 
 ---
 
@@ -74,7 +84,8 @@ Spusťte kontejner:
 docker compose up -d
 ```
 
-Aplikace bude dostupná na adrese `http://localhost:8000`.
+Aplikace bude dostupná na adrese `http://localhost:8000`.  
+Výchozí přihlašovací údaje správce: **Uživatel:** `admin`, **Heslo:** `admin123`.
 
 > [!TIP]
 > Pro testování nejnovější vývojové verze nastavte `image: ghcr.io/thelittlerock/praktika:dev`.
