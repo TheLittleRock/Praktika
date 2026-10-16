@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  praktika-studio:
+    build: .
+    container_name: praktika_studio
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PRAKTIKA_DATA_DIR=/app/data
+      - PRAKTIKA_SECRET_KEY=change-this-in-production-to-a-secure-random-key
+

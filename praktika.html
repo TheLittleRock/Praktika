@@ -1,0 +1,1759 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hodnocení fyzikálních praktik</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card-bg: #ffffff;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --primary-light: #eff6ff;
+      --accent-red: #e11d48;
+      --accent-red-light: #ffe4e6;
+      --accent-green: #16a34a;
+      --accent-green-light: #dcfce7;
+      --accent-amber: #d97706;
+      --accent-amber-light: #fef3c7;
+      --radius: 12px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 12px -2px rgba(0,0,0,0.08), 0 2px 6px -1px rgba(0,0,0,0.04);
+      --shadow-lg: 0 10px 25px -3px rgba(0,0,0,0.1), 0 4px 10px -2px rgba(0,0,0,0.05);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--text-main);
+      padding: 24px 20px 48px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1380px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 24px;
+      background: var(--card-bg);
+      padding: 18px 24px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+    }
+
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-title h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: -0.02em;
+    }
+
+    .header-title .tag {
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: var(--primary-light);
+      color: var(--primary);
+      padding: 3px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .student-input {
+      font-family: inherit;
+      font-size: 0.92rem;
+      padding: 8px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      outline: none;
+      min-width: 240px;
+      transition: all 0.2s;
+    }
+
+    .student-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+    }
+
+    .btn {
+      font-family: inherit;
+      font-size: 0.88rem;
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      background: #fff;
+      color: var(--text-main);
+      border-color: var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+
+    .btn-danger {
+      background: #fff;
+      color: var(--accent-red);
+      border-color: var(--accent-red-light);
+    }
+
+    .btn-danger:hover {
+      background: var(--accent-red-light);
+    }
+
+    .btn-sm {
+      padding: 4px 10px;
+      font-size: 0.8rem;
+      border-radius: 6px;
+    }
+
+    /* PDF Drop Area */
+    .pdf-drop-zone {
+      background: var(--card-bg);
+      border: 2px dashed #cbd5e1;
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .pdf-drop-zone:hover, .pdf-drop-zone.dragover {
+      border-color: var(--primary);
+      background: #f0f7ff;
+    }
+
+    .drop-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .drop-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: #fef2f2;
+      color: #dc2626;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+
+    .drop-text h3 {
+      font-size: 0.98rem;
+      font-weight: 600;
+      color: #1e293b;
+      margin-bottom: 2px;
+    }
+
+    .drop-text p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    .pdf-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      background: #e2e8f0;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #334155;
+    }
+
+    .pdf-status-pill.loaded {
+      background: var(--accent-green-light);
+      color: var(--accent-green);
+    }
+
+    /* Layout Grid */
+    .app-grid {
+      display: grid;
+      grid-template-columns: 1.25fr 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    @media (max-width: 1080px) {
+      .app-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Left Column: Categories */
+    .categories-column {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .category-card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+      padding: 18px 20px;
+      transition: box-shadow 0.2s;
+    }
+
+    .category-card:hover {
+      box-shadow: var(--shadow-md);
+    }
+
+    .category-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .category-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .category-name {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .category-score-badge {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #0f172a;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Progress Bar */
+    .progress-bar-bg {
+      background: #e2e8f0;
+      border-radius: 8px;
+      height: 18px;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 8px 0 0 8px;
+      position: absolute;
+      left: 0;
+      top: 0;
+      transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1), background 0.35s;
+    }
+
+    .progress-label {
+      position: absolute;
+      right: 10px;
+      top: 0;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #1e293b;
+      text-shadow: 0 1px 2px rgba(255,255,255,0.9);
+      pointer-events: none;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Deduction List */
+    .deductions-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .deduction-item {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      background: #f8fafc;
+      border: 1px solid #edf2f7;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+
+    .deduction-item-content {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      flex: 1;
+    }
+
+    .deduction-pts {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      color: var(--accent-red);
+      background: #fee2e2;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.84rem;
+      white-space: nowrap;
+    }
+
+    .deduction-desc {
+      color: #334155;
+      word-break: break-word;
+      line-height: 1.4;
+    }
+
+    .deduction-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn-icon {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: #94a3b8;
+      padding: 4px;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+
+    .btn-icon:hover {
+      color: var(--accent-red);
+      background: #fee2e2;
+    }
+
+    /* Add Deduction Form */
+    .add-deduction-box {
+      border-top: 1px dashed var(--border);
+      padding-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .step-buttons-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .step-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-right: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .step-btn {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: #334155;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .step-btn:hover {
+      border-color: var(--accent-red);
+      color: var(--accent-red);
+      background: #fff1f2;
+    }
+
+    .step-btn.active {
+      background: var(--accent-red);
+      border-color: var(--accent-red);
+      color: #fff;
+    }
+
+    .custom-pts-input {
+      width: 65px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      padding: 3px 6px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      outline: none;
+      text-align: center;
+    }
+
+    .custom-pts-input:focus {
+      border-color: var(--primary);
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .reason-input {
+      flex: 1;
+      font-family: inherit;
+      font-size: 0.88rem;
+      padding: 7px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      outline: none;
+      transition: border 0.2s;
+    }
+
+    .reason-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(37,99,235,0.1);
+    }
+
+    .preset-select {
+      font-family: inherit;
+      font-size: 0.82rem;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text-muted);
+      cursor: pointer;
+      max-width: 200px;
+      outline: none;
+    }
+
+    /* Slider Toggle */
+    .manual-override-toggle {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-decoration: underline;
+      cursor: pointer;
+      margin-top: 6px;
+      display: inline-block;
+      user-select: none;
+    }
+
+    .manual-slider-row {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      margin-top: 8px;
+      padding: 8px 12px;
+      background: #f8fafc;
+      border-radius: 6px;
+    }
+
+    .manual-slider-row.show {
+      display: flex;
+    }
+
+    .manual-slider-row input[type="range"] {
+      flex: 1;
+      accent-color: var(--primary);
+    }
+
+    /* Right Column */
+    .right-column {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      position: sticky;
+      top: 20px;
+    }
+
+    /* Total Score Card */
+    .total-card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--border);
+      padding: 22px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .total-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .total-points-display {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .total-points-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .total-points-number {
+      font-size: 2.2rem;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+      color: #0f172a;
+      line-height: 1.1;
+    }
+
+    .total-points-number span {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #94a3b8;
+    }
+
+    .grade-badge-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+
+    .grade-badge-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 2px;
+    }
+
+    .grade-badge {
+      width: 54px;
+      height: 54px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      transition: all 0.3s;
+    }
+
+    .grade-A { background: #dcfce7; color: #15803d; border: 2px solid #86efac; }
+    .grade-B { background: #e0f2fe; color: #0369a1; border: 2px solid #7dd3fc; }
+    .grade-C { background: #fef3c7; color: #b45309; border: 2px solid #fde68a; }
+    .grade-D { background: #ffedd5; color: #c2410c; border: 2px solid #fed7aa; }
+    .grade-E { background: #fee2e2; color: #b91c1c; border: 2px solid #fca5a5; }
+    .grade-F { background: #450a0a; color: #fecaca; border: 2px solid #991b1b; }
+
+    .grade-scale-bar {
+      display: flex;
+      border-radius: 6px;
+      overflow: hidden;
+      height: 8px;
+      gap: 2px;
+    }
+
+    .grade-scale-step {
+      flex: 1;
+      height: 100%;
+      opacity: 0.35;
+      transition: opacity 0.2s;
+    }
+
+    .grade-scale-step.active {
+      opacity: 1;
+      transform: scaleY(1.3);
+    }
+
+    .grade-scale-step.s-F { background: #e11d48; }
+    .grade-scale-step.s-E { background: #f97316; }
+    .grade-scale-step.s-D { background: #f59e0b; }
+    .grade-scale-step.s-C { background: #eab308; }
+    .grade-scale-step.s-B { background: #0284c7; }
+    .grade-scale-step.s-A { background: #16a34a; }
+
+    .scale-legend {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+      margin-top: -6px;
+    }
+
+    /* Output Sections */
+    .output-card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+      padding: 18px 20px;
+    }
+
+    .output-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .output-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .output-title {
+      font-size: 0.96rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .output-badge {
+      font-size: 0.72rem;
+      font-weight: 600;
+      background: #f1f5f9;
+      color: #475569;
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+
+    .output-box {
+      background: #0f172a;
+      color: #f8fafc;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.88rem;
+      padding: 14px 16px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      line-height: 1.55;
+      cursor: pointer;
+      user-select: all;
+      position: relative;
+      border: 1px solid #1e293b;
+      min-height: 52px;
+      transition: border-color 0.2s;
+    }
+
+    .output-box:hover {
+      border-color: #38bdf8;
+    }
+
+    .copy-hint {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* PDF Extracted Notes Panel */
+    .pdf-notes-panel {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+      padding: 18px 20px;
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      max-height: 540px;
+    }
+
+    .pdf-notes-panel.active {
+      display: flex;
+    }
+
+    .pdf-notes-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .pdf-notes-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+      padding-right: 4px;
+      max-height: 440px;
+    }
+
+    .pdf-note-card {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: all 0.15s;
+    }
+
+    .pdf-note-card.processed {
+      opacity: 0.45;
+      background: #f1f5f9;
+    }
+
+    .pdf-note-text {
+      font-size: 0.87rem;
+      color: #1e293b;
+      line-height: 1.45;
+    }
+
+    .pdf-note-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding-top: 6px;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .pdf-note-suggested {
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: var(--primary);
+      background: var(--primary-light);
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+
+    .pdf-note-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #0f172a;
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      box-shadow: var(--shadow-lg);
+      transform: translateY(80px);
+      opacity: 0;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="header-title">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
+        </svg>
+        <h1>Hodnocení fyzikálních praktik</h1>
+        <span class="tag">Krok 0.125 b</span>
+      </div>
+      <div class="header-actions">
+        <input type="text" id="student-name-input" class="student-input" placeholder="Jméno studenta / úloha (volitelné)...">
+        <button class="btn btn-secondary" onclick="loadSampleData()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          Ukázka
+        </button>
+        <button class="btn btn-danger" onclick="resetAll()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+          Reset
+        </button>
+      </div>
+    </header>
+
+    <!-- PDF Drop Zone -->
+    <div class="pdf-drop-zone" id="pdf-drop-zone" onclick="document.getElementById('pdf-file-input').click()">
+      <input type="file" id="pdf-file-input" class="file-input" accept=".pdf">
+      <div class="drop-info">
+        <div class="drop-icon">PDF</div>
+        <div class="drop-text">
+          <h3>Nahrát opravený protokol s poznámkami a zvýrazněními</h3>
+          <p>Přetáhněte sem opravené PDF protokolu (např. <em>FPRA1_Boril_uloha1_opravene.pdf</em>) nebo klikněte pro výběr souboru</p>
+        </div>
+      </div>
+      <div id="pdf-status" class="pdf-status-pill">Žádné PDF nenačteno</div>
+    </div>
+
+    <!-- Main App Grid -->
+    <div class="app-grid">
+      <!-- Left Column: Categories -->
+      <div class="categories-column" id="categories-container">
+        <!-- Rendered via JS -->
+      </div>
+
+      <!-- Right Column: Outputs and PDF Notes -->
+      <div class="right-column">
+        <!-- Total Score Card -->
+        <div class="total-card">
+          <div class="total-card-header">
+            <div class="total-points-display">
+              <span class="total-points-title">Celkové hodnocení</span>
+              <div class="total-points-number" id="total-points-text">10.00 <span>/ 10</span></div>
+            </div>
+            <div class="grade-badge-wrap">
+              <span class="grade-badge-title">Známka</span>
+              <div class="grade-badge grade-A" id="grade-badge-text">A</div>
+            </div>
+          </div>
+
+          <div class="grade-scale-bar">
+            <div class="grade-scale-step s-F" title="F (&lt; 2 b)"></div>
+            <div class="grade-scale-step s-E" title="E (2 – 3.99 b)"></div>
+            <div class="grade-scale-step s-D" title="D (4 – 5.99 b)"></div>
+            <div class="grade-scale-step s-C" title="C (6 – 7.99 b)"></div>
+            <div class="grade-scale-step s-B" title="B (8 – 8.99 b)"></div>
+            <div class="grade-scale-step s-A" title="A (&gt;= 9 b)"></div>
+          </div>
+          <div class="scale-legend">
+            <span>F (&lt;2)</span>
+            <span>E (2)</span>
+            <span>D (4)</span>
+            <span>C (6)</span>
+            <span>B (8)</span>
+            <span>A (&ge;9)</span>
+          </div>
+        </div>
+
+        <!-- Output 1: Compact One-line -->
+        <div class="output-card">
+          <div class="output-header">
+            <div class="output-title-wrap">
+              <span class="output-title">Výstup 1: Souhrnný řádek</span>
+              <span class="output-badge">IS / praktika.html</span>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="copyOutput1()">Kopírovat</button>
+          </div>
+          <div class="output-box" id="output-1" onclick="copyOutput1()" title="Klikněte pro zkopírování">
+            Výsledky: 3 / 3, Diskuze: 3 / 3, Formát: 2 / 2, Chyby: 2 / 2, Celkem bodů: 10.00 / 10, Známka: A
+          </div>
+          <div class="copy-hint">
+            <span>Kliknutím na text nebo tlačítko zkopírujete</span>
+            <span>Jednořádkový formát</span>
+          </div>
+        </div>
+
+        <!-- Output 2: Detailed Deductions (bodovani.txt) -->
+        <div class="output-card">
+          <div class="output-header">
+            <div class="output-title-wrap">
+              <span class="output-title">Výstup 2: Podrobný rozpis stržených bodů</span>
+              <span class="output-badge">bodovani.txt</span>
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <button class="btn btn-secondary btn-sm" onclick="downloadBodovaniTxt()">Stáhnout .txt</button>
+              <button class="btn btn-primary btn-sm" onclick="copyOutput2()">Kopírovat</button>
+            </div>
+          </div>
+          <div class="output-box" id="output-2" onclick="copyOutput2()" title="Klikněte pro zkopírování" style="font-size: 0.84rem;">
+            <!-- Rendered by JS -->
+          </div>
+          <div class="copy-hint">
+            <span>Obsahuje jednotlivá stržení bodů s odůvodněním</span>
+            <span>Přesný formát bodovani.txt</span>
+          </div>
+        </div>
+
+        <!-- Extracted PDF Notes Panel -->
+        <div class="pdf-notes-panel" id="pdf-notes-panel">
+          <div class="pdf-notes-header">
+            <div class="output-title-wrap">
+              <span class="output-title" id="pdf-notes-count-title">Poznámky z PDF</span>
+              <span class="output-badge" id="pdf-notes-counter">0</span>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="clearExtractedNotes()">Skrýt</button>
+          </div>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-top:-6px;">
+            Kliknutím na tlačítko u poznámky ji rovnou zařadíte jako stržení bodů do dané kategorie.
+          </p>
+          <div class="pdf-notes-list" id="pdf-notes-list">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+    <span id="toast-msg">Zkopírováno do schránky!</span>
+  </div>
+
+  <script>
+    // Categories definition
+    const CATEGORIES_CONFIG = [
+      {
+        id: 'vysledky',
+        name: 'Výsledky',
+        max: 3,
+        description: 'Všechny úkoly splněny, srozumitelný postup a mezivýsledky (0–3 b)',
+        presets: [
+          { text: 'Chybí postup výpočtu nebo mezivýsledky', pts: 0.25 },
+          { text: 'Nesplněn jeden ze zadaných pracovních úkolů', pts: 0.5 },
+          { text: 'Nevysvětlený fit / podivné hodnoty parametrů fitu', pts: 0.25 },
+          { text: 'Výsledné hodnoty neodpovídají naměřeným datům', pts: 0.25 }
+        ]
+      },
+      {
+        id: 'diskuze',
+        name: 'Diskuze',
+        max: 3,
+        description: 'Komentář výsledků, srovnání s očekáváním/teorií, systematické vlivy (0–3 b)',
+        presets: [
+          { text: 'Diskuze je pouze shrnutím výsledků bez hlubšího komentáře', pts: 0.25 },
+          { text: 'Chybí porovnání s očekáváním / tabulkovou hodnotou', pts: 0.25 },
+          { text: 'Nekomentována neshoda výsledku s teorií', pts: 0.25 },
+          { text: 'Chybí diskuze systematických a statistických vlivů', pts: 0.25 }
+        ]
+      },
+      {
+        id: 'format',
+        name: 'Formát',
+        max: 2,
+        description: 'Vzhled protokolu, popisky grafů a tabulek, jednotky, literatura (0–2 b)',
+        presets: [
+          { text: 'teoretická část opomíjí části úlohy. Např. teoretický popis způsobu cejchování dekády.', pts: 0.25 },
+          { text: 'Graf / tabulka není referencována v textu', pts: 0.25 },
+          { text: 'Chybí jednotka u naměřené/vypočtené veličiny', pts: 0.125 },
+          { text: 'Neakademický styl vyjadřování v protokolu', pts: 0.125 },
+          { text: 'Chybí / nečitelné popisky os v grafu', pts: 0.25 },
+          { text: 'Chybí citace použité literatury / špatný formát referencí', pts: 0.25 }
+        ]
+      },
+      {
+        id: 'chyby',
+        name: 'Chyby',
+        max: 2,
+        description: 'Určení nejistot, šíření chyb, správné zaokrouhlení, errorbary (0–2 b)',
+        presets: [
+          { text: 'Chybné zaokrouhlení (chyba na více platných číslic než 1-2)', pts: 0.125 },
+          { text: 'Chybí určení statistické nebo systematické chyby', pts: 0.25 },
+          { text: 'V grafu chybí chybové úsečky (errorbary)', pts: 0.25 },
+          { text: 'Chyba fitu chybně interpretována jako chyba měření', pts: 0.125 }
+        ]
+      }
+    ];
+
+    // State
+    const state = {
+      studentName: '',
+      categories: {
+        vysledky: { deductions: [], manualOverride: null },
+        diskuze: { deductions: [], manualOverride: null },
+        format: { deductions: [], manualOverride: null },
+        chyby: { deductions: [], manualOverride: null }
+      },
+      pdfNotes: []
+    };
+
+    // Interpolated Color matching praktika.html
+    function getInterpolatedColor(p, max) {
+      let percentage = Math.max(0, Math.min(p / max, 1));
+      let color1, color2, t;
+      if (max === 3) {
+        if (percentage <= 1/3) {
+          color1 = color2 = [229,57,53]; // #e53935
+          t = 0;
+        } else if (percentage <= 2/3) {
+          color1 = [229,57,53];
+          color2 = [255,112,67]; // #ff7043
+          t = (percentage - 1/3) / (1/3);
+        } else {
+          color1 = [255,112,67];
+          color2 = [67,160,71]; // #43a047
+          t = (percentage - 2/3) / (1/3);
+        }
+      } else if (max === 2) {
+        if (percentage <= 0.5) {
+          color1 = [229,57,53];
+          color2 = [255,112,67];
+          t = percentage / 0.5;
+        } else {
+          color1 = [255,112,67];
+          color2 = [67,160,71];
+          t = (percentage - 0.5) / 0.5;
+        }
+      } else {
+        color1 = [229,57,53];
+        color2 = [67,160,71];
+        t = percentage;
+      }
+      let r = Math.round(color1[0] + (color2[0] - color1[0]) * t);
+      let g = Math.round(color1[1] + (color2[1] - color1[1]) * t);
+      let b = Math.round(color1[2] + (color2[2] - color1[2]) * t);
+      return `rgb(${r},${g},${b})`;
+    }
+
+    function getMark(points) {
+      if (state.manualGradeOverride) return state.manualGradeOverride;
+      if (points >= 9.00 - 1e-6) return "A";
+      if (points >= 8.00 - 1e-6) return "B";
+      if (points >= 6.00 - 1e-6) return "C";
+      if (points >= 4.00 - 1e-6) return "D";
+      if (points >= 2.00 - 1e-6) return "E";
+      return "F";
+    }
+
+    function formatNumber(num) {
+      const r = Math.round(num * 1000) / 1000;
+      return r.toString();
+    }
+
+    function getCategoryScore(catId) {
+      const config = CATEGORIES_CONFIG.find(c => c.id === catId);
+      const catState = state.categories[catId];
+      if (catState.manualOverride !== null) {
+        return Math.max(0, Math.min(catState.manualOverride, config.max));
+      }
+      const sumDeductions = catState.deductions.reduce((sum, d) => sum + d.pts, 0);
+      const score = Math.max(0, config.max - sumDeductions);
+      return Math.round(score * 1000) / 1000;
+    }
+
+    function getTotalPoints() {
+      let total = 0;
+      for (const config of CATEGORIES_CONFIG) {
+        total += getCategoryScore(config.id);
+      }
+      return Math.round(total * 1000) / 1000;
+    }
+
+    // Render Categories
+    function renderCategories() {
+      const container = document.getElementById('categories-container');
+      container.innerHTML = '';
+
+      CATEGORIES_CONFIG.forEach(config => {
+        const catState = state.categories[config.id];
+        const score = getCategoryScore(config.id);
+        const color = getInterpolatedColor(score, config.max);
+        const percent = (score / config.max) * 100;
+
+        const card = document.createElement('div');
+        card.className = 'category-card';
+        card.id = `card-${config.id}`;
+
+        card.innerHTML = `
+          <div class="category-header">
+            <div class="category-title-wrap">
+              <span class="category-name">${config.name}</span>
+              <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">(${config.description})</span>
+            </div>
+            <div class="category-score-badge">
+              <span id="score-val-${config.id}">${formatNumber(score)}</span> / ${config.max}
+            </div>
+          </div>
+
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="bar-fill-${config.id}" style="width: ${percent}%; background: ${color};"></div>
+            <span class="progress-label" id="bar-label-${config.id}">${formatNumber(score)} / ${config.max}</span>
+          </div>
+
+          <!-- Deductions list -->
+          <div class="deductions-list" id="deductions-list-${config.id}">
+            ${catState.deductions.map((d, index) => `
+              <div class="deduction-item">
+                <div class="deduction-item-content">
+                  <span class="deduction-pts" onclick="editDeductionPts('${config.id}', ${index})" title="Klikněte pro úpravu bodů" style="cursor:pointer;">-${formatNumber(d.pts)}b ✎</span>
+                  <span class="deduction-desc" onclick="editDeductionReason('${config.id}', ${index})" title="Klikněte pro úpravu textu" style="cursor:pointer;">${escapeHtml(d.reason)}</span>
+                </div>
+                <div class="deduction-actions">
+                  <button class="btn-icon" onclick="removeDeduction('${config.id}', ${index})" title="Odstranit stržení">✕</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <!-- Add Deduction Box -->
+          <div class="add-deduction-box">
+            <div class="step-buttons-row">
+              <span class="step-label">Odečíst:</span>
+              <button type="button" class="step-btn" onclick="quickSetPts('${config.id}', 0.125)">-0.125</button>
+              <button type="button" class="step-btn active" onclick="quickSetPts('${config.id}', 0.25)">-0.25</button>
+              <button type="button" class="step-btn" onclick="quickSetPts('${config.id}', 0.375)">-0.375</button>
+              <button type="button" class="step-btn" onclick="quickSetPts('${config.id}', 0.5)">-0.5</button>
+              <button type="button" class="step-btn" onclick="quickSetPts('${config.id}', 0.75)">-0.75</button>
+              <button type="button" class="step-btn" onclick="quickSetPts('${config.id}', 1.0)">-1.0</button>
+              <input type="number" id="custom-pts-${config.id}" class="custom-pts-input" min="0.000" max="${config.max}" step="0.125" value="0.25" title="Vlastní hodnota v násobcích 0.125">
+              <span style="font-size:0.8rem; color:#64748b;">b</span>
+
+              <select class="preset-select" onchange="applyPreset('${config.id}', this)">
+                <option value="">-- Časté chyby --</option>
+                ${config.presets.map(p => `<option value="${p.pts}|${escapeHtml(p.text)}">-${p.pts}b: ${p.text.length > 40 ? p.text.substring(0, 40) + '...' : p.text}</option>`).join('')}
+              </select>
+            </div>
+
+            <div class="input-row">
+              <input type="text" id="reason-input-${config.id}" class="reason-input" placeholder="Důvod stržení bodů (např. chybí popis os grafu)..." onkeydown="if(event.key==='Enter') addDeduction('${config.id}')">
+              <button class="btn btn-primary btn-sm" onclick="addDeduction('${config.id}')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                Odečíst
+              </button>
+            </div>
+
+            <div>
+              <span class="manual-override-toggle" onclick="toggleManualSlider('${config.id}')">
+                ${catState.manualOverride !== null ? '⚠ Ruční přepis aktivní (klikněte pro zrušení)' : '⚙ Ruční nastavení posuvníkem'}
+              </span>
+              <div class="manual-slider-row ${catState.manualOverride !== null ? 'show' : ''}" id="manual-slider-row-${config.id}">
+                <input type="range" min="0" max="${config.max}" step="0.125" value="${score}" id="slider-${config.id}" oninput="onManualSlider('${config.id}', this.value)">
+                <input type="number" min="0" max="${config.max}" step="0.125" value="${score}" id="num-${config.id}" class="custom-pts-input" onchange="onManualSlider('${config.id}', this.value)">
+                <button class="btn btn-secondary btn-sm" onclick="clearManualOverride('${config.id}')">Zpět k rozpisu</button>
+              </div>
+            </div>
+          </div>
+        `;
+
+        container.appendChild(card);
+      });
+
+      updateOutputs();
+      saveToLocalStorage();
+    }
+
+    function editDeductionPts(catId, index) {
+      const current = state.categories[catId].deductions[index].pts;
+      const res = prompt("Zadejte nový počet stržených bodů (násobky 0.125):", current);
+      if (res !== null) {
+        const val = parseFloat(res);
+        if (!isNaN(val) && val > 0) {
+          state.categories[catId].deductions[index].pts = Math.round(val * 1000) / 1000;
+          renderCategories();
+        }
+      }
+    }
+
+    function editDeductionReason(catId, index) {
+      const current = state.categories[catId].deductions[index].reason;
+      const res = prompt("Upravte text odůvodnění:", current);
+      if (res !== null && res.trim()) {
+        state.categories[catId].deductions[index].reason = res.trim();
+        renderCategories();
+      }
+    }
+
+    function toggleGradeOverride() {
+      const total = getTotalPoints();
+      const currentAuto = (total >= 9 ? 'A' : total >= 8 ? 'B' : total >= 6 ? 'C' : total >= 4 ? 'D' : total >= 2 ? 'E' : 'F');
+      const pick = prompt(`Nastavte známku (A, B, C, D, E, F) nebo nechte prázdné pro automatickou (${currentAuto}):`, state.manualGradeOverride || currentAuto);
+      if (pick !== null) {
+        const clean = pick.trim().toUpperCase();
+        if (['A', 'B', 'C', 'D', 'E', 'F'].includes(clean)) {
+          state.manualGradeOverride = clean;
+        } else {
+          state.manualGradeOverride = null;
+        }
+        updateOutputs();
+        saveToLocalStorage();
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    function quickSetPts(catId, pts) {
+      const input = document.getElementById(`custom-pts-${catId}`);
+      if (input) input.value = pts;
+      const card = document.getElementById(`card-${catId}`);
+      card.querySelectorAll('.step-btn').forEach(btn => {
+        if (parseFloat(btn.textContent.replace('-', '')) === pts) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+    }
+
+    function applyPreset(catId, select) {
+      if (!select.value) return;
+      const [ptsStr, text] = select.value.split('|');
+      const pts = parseFloat(ptsStr);
+      quickSetPts(catId, pts);
+      const reasonInput = document.getElementById(`reason-input-${catId}`);
+      if (reasonInput) reasonInput.value = text;
+      select.value = '';
+    }
+
+    function addDeduction(catId) {
+      const reasonInput = document.getElementById(`reason-input-${catId}`);
+      const ptsInput = document.getElementById(`custom-pts-${catId}`);
+      const reason = reasonInput.value.trim();
+      const pts = parseFloat(ptsInput.value);
+
+      if (!pts || isNaN(pts) || pts <= 0) {
+        alert("Zadejte platný počet bodů k odečtení (větší než 0).");
+        return;
+      }
+      if (!reason) {
+        alert("Zadejte důvod stržení bodů.");
+        return;
+      }
+
+      state.categories[catId].deductions.push({
+        pts: Math.round(pts * 1000) / 1000,
+        reason: reason
+      });
+      state.categories[catId].manualOverride = null; // reset override
+      reasonInput.value = '';
+
+      renderCategories();
+      showToast(`Odečteno -${pts}b z kategorie ${getCategoryName(catId)}`);
+    }
+
+    function removeDeduction(catId, index) {
+      state.categories[catId].deductions.splice(index, 1);
+      state.categories[catId].manualOverride = null;
+      renderCategories();
+    }
+
+    function toggleManualSlider(catId) {
+      const row = document.getElementById(`manual-slider-row-${catId}`);
+      if (row.classList.contains('show') && state.categories[catId].manualOverride === null) {
+        row.classList.remove('show');
+      } else {
+        row.classList.add('show');
+        if (state.categories[catId].manualOverride === null) {
+          state.categories[catId].manualOverride = getCategoryScore(catId);
+          renderCategories();
+        }
+      }
+    }
+
+    function onManualSlider(catId, val) {
+      const num = parseFloat(val);
+      state.categories[catId].manualOverride = num;
+      renderCategories();
+    }
+
+    function clearManualOverride(catId) {
+      state.categories[catId].manualOverride = null;
+      renderCategories();
+    }
+
+    function getCategoryName(catId) {
+      const conf = CATEGORIES_CONFIG.find(c => c.id === catId);
+      return conf ? conf.name : catId;
+    }
+
+    // Outputs generation
+    function updateOutputs() {
+      const total = getTotalPoints();
+      const mark = getMark(total);
+
+      // Total Points Display
+      document.getElementById('total-points-text').innerHTML = `${total.toFixed(2)} <span>/ 10</span>`;
+
+      // Grade badge
+      const gradeBadge = document.getElementById('grade-badge-text');
+      gradeBadge.textContent = mark;
+      gradeBadge.className = `grade-badge grade-${mark}`;
+
+      // Update scale steps
+      document.querySelectorAll('.grade-scale-step').forEach(step => step.classList.remove('active'));
+      const activeStep = document.querySelector(`.grade-scale-step.s-${mark}`);
+      if (activeStep) activeStep.classList.add('active');
+
+      // Output 1: Compact One-line
+      // e.g. "Výsledky: 2.5 / 3, Diskuze: 2.5 / 3, Formát: 1.5 / 2, Chyby: 2 / 2, Celkem bodů: 8.50 / 10, Známka: B"
+      const out1Parts = CATEGORIES_CONFIG.map(c => `${c.name}: ${formatNumber(getCategoryScore(c.id))} / ${c.max}`);
+      const output1Text = `${out1Parts.join(', ')}, Celkem bodů: ${total.toFixed(2)} / 10, Známka: ${mark}`;
+      document.getElementById('output-1').textContent = output1Text;
+
+      // Output 2: Detailed Deductions (bodovani.txt format)
+      /*
+      Výsledky: 3 / 3
+
+      Diskuze: 3 / 3
+
+      Formát: 1.75 / 2 
+      -0.25b teoretická část opomíjí části úlohy. Např. teoretický popis způsobu cejchování dekády.
+
+      Chyby: 2 / 2 
+
+      Celkem bodů: 9.75 / 10, Známka: B
+      */
+      const out2Blocks = [];
+      CATEGORIES_CONFIG.forEach(c => {
+        const catScore = getCategoryScore(c.id);
+        const catDeductions = state.categories[c.id].deductions;
+        let block = `${c.name}: ${formatNumber(catScore)} / ${c.max}`;
+        if (catDeductions.length > 0) {
+          block += " \n" + catDeductions.map(d => `-${formatNumber(d.pts)}b ${d.reason}`).join("\n");
+        }
+        out2Blocks.push(block);
+      });
+
+      const output2Text = out2Blocks.join("\n\n") + `\n\nCelkem bodů: ${total.toFixed(2)} / 10, Známka: ${mark}`;
+      document.getElementById('output-2').textContent = output2Text;
+    }
+
+    function copyOutput1() {
+      const text = document.getElementById('output-1').textContent.trim();
+      navigator.clipboard.writeText(text).then(() => {
+        showToast("Výstup 1 (jednořádkový) zkopírován do schránky!");
+      });
+    }
+
+    function copyOutput2() {
+      const text = document.getElementById('output-2').textContent.trim();
+      navigator.clipboard.writeText(text).then(() => {
+        showToast("Výstup 2 (podrobný rozpis) zkopírován do schránky!");
+      });
+    }
+
+    function downloadBodovaniTxt() {
+      const text = document.getElementById('output-2').textContent.trim();
+      const studentName = document.getElementById('student-name-input').value.trim();
+      const filename = studentName ? `bodovani_${studentName.replace(/\s+/g, '_')}.txt` : 'bodovani.txt';
+
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`Soubor ${filename} byl stažen!`);
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-msg').textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 2500);
+    }
+
+    function resetAll() {
+      if (!confirm("Opravdu chcete vyresetovat celé hodnocení nového protokolu?")) return;
+      state.studentName = '';
+      document.getElementById('student-name-input').value = '';
+      CATEGORIES_CONFIG.forEach(c => {
+        state.categories[c.id] = { deductions: [], manualOverride: null };
+      });
+      state.pdfNotes = [];
+      document.getElementById('pdf-notes-panel').classList.remove('active');
+      const statusPill = document.getElementById('pdf-status');
+      statusPill.textContent = 'Žádné PDF nenačteno';
+      statusPill.classList.remove('loaded');
+      renderCategories();
+      showToast("Hodnocení bylo resetováno.");
+    }
+
+    function loadSampleData() {
+      document.getElementById('student-name-input').value = 'Bořil - Úloha 1';
+      state.categories = {
+        vysledky: { deductions: [], manualOverride: null },
+        diskuze: { deductions: [], manualOverride: null },
+        format: {
+          deductions: [
+            { pts: 0.25, reason: 'teoretická část opomíjí části úlohy. Např. teoretický popis způsobu cejchování dekády.' }
+          ],
+          manualOverride: null
+        },
+        chyby: { deductions: [], manualOverride: null }
+      };
+      renderCategories();
+      showToast("Ukázková data (dle bodovani.txt) načtena!");
+    }
+
+    // ==========================================
+    // PDF Parsing Logic (Native Browser In-Memory)
+    // ==========================================
+    const dropZone = document.getElementById('pdf-drop-zone');
+    const fileInput = document.getElementById('pdf-file-input');
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        processPdfFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) {
+        processPdfFile(e.target.files[0]);
+      }
+    });
+
+    function decodePdfString(rawStr) {
+      if (rawStr.startsWith('(') && rawStr.endsWith(')')) {
+        let s = rawStr.slice(1, -1);
+        s = s.replace(/\\r/g, "\r").replace(/\\n/g, "\n").replace(/\\t/g, "\t")
+             .replace(/\\\(/g, "(").replace(/\\\)/g, ")").replace(/\\\\/g, "\\");
+        if (s.charCodeAt(0) === 0xFE && s.charCodeAt(1) === 0xFF) {
+          let u16 = "";
+          for (let i = 2; i < s.length; i += 2) {
+            if (i + 1 < s.length) {
+              u16 += String.fromCharCode((s.charCodeAt(i) << 8) | s.charCodeAt(i + 1));
+            }
+          }
+          return u16;
+        }
+        // Try UTF-8 conversion if bytes are valid
+        try {
+          const bytes = new Uint8Array(s.length);
+          for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i);
+          const dec = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+          if (!dec.includes('\ufffd')) return dec;
+        } catch(e) {}
+        return s;
+      } else if (rawStr.startsWith('<') && rawStr.endsWith('>')) {
+        const hex = rawStr.slice(1, -1).replace(/\s+/g, '');
+        const bytes = new Uint8Array(hex.length / 2);
+        for (let i = 0; i < hex.length; i += 2) {
+          bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+        }
+        if (bytes[0] === 0xFE && bytes[1] === 0xFF) {
+          let u16 = "";
+          for (let i = 2; i < bytes.length; i += 2) {
+            if (i + 1 < bytes.length) {
+              u16 += String.fromCharCode((bytes[i] << 8) | bytes[i + 1]);
+            }
+          }
+          return u16;
+        }
+        return new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+      }
+      return rawStr;
+    }
+
+    async function processPdfFile(file) {
+      const statusPill = document.getElementById('pdf-status');
+      statusPill.textContent = 'Zpracovávám PDF...';
+
+      // Auto-set student name from filename if empty
+      const nameInput = document.getElementById('student-name-input');
+      if (!nameInput.value.trim()) {
+        const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/_opravene/i, "").replace(/_/g, " ");
+        nameInput.value = cleanName;
+      }
+
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const data = new Uint8Array(arrayBuffer);
+
+        // Convert to binary string
+        let raw = "";
+        const chunkSize = 65536;
+        for (let i = 0; i < data.length; i += chunkSize) {
+          raw += String.fromCharCode.apply(null, data.subarray(i, i + chunkSize));
+        }
+
+        const objRegex = /(\d+)\s+(\d+)\s+obj\s*([\s\S]*?)stream[\r\n]+([\s\S]*?)endstream/g;
+        let match;
+        const decompressed = [];
+
+        while ((match = objRegex.exec(raw)) !== null) {
+          const header = match[3];
+          const streamStartInMatch = match[0].indexOf("stream");
+          let streamStart = match.index + streamStartInMatch + 6;
+          if (data[streamStart] === 13 && data[streamStart+1] === 10) streamStart += 2;
+          else if (data[streamStart] === 10 || data[streamStart] === 13) streamStart += 1;
+
+          let len = -1;
+          const lenMatch = /\/Length\s+(\d+)/.exec(header);
+          if (lenMatch) {
+            len = parseInt(lenMatch[1], 10);
+          }
+
+          if (header.includes("/FlateDecode") || header.includes("/Fl")) {
+            const slice = len > 0 ? data.subarray(streamStart, streamStart + len) : null;
+            if (slice && slice.length > 0) {
+              try {
+                const ds = new DecompressionStream("deflate");
+                const resp = new Response(new Blob([slice]).stream().pipeThrough(ds));
+                const dec = await resp.arrayBuffer();
+                const decArr = new Uint8Array(dec);
+                let decStr = "";
+                for (let i = 0; i < decArr.length; i += chunkSize) {
+                  decStr += String.fromCharCode.apply(null, decArr.subarray(i, i + chunkSize));
+                }
+                decompressed.push(decStr);
+              } catch(e) {
+                // Not standard deflate or font stream, skip
+              }
+            }
+          }
+        }
+
+        const allTexts = [raw, ...decompressed];
+        const contentsRegex = /\/Contents\s*(\((?:[^()\\]|\\.)*\)|<[0-9a-fA-F\s]+>)/g;
+        const found = new Set();
+        const extractedNotes = [];
+
+        for (const t of allTexts) {
+          let cm;
+          while ((cm = contentsRegex.exec(t)) !== null) {
+            const decoded = decodePdfString(cm[1]).trim();
+            // Filter out empty notes or the final evaluation string itself
+            if (decoded && !found.has(decoded) && !decoded.includes("Celkem bodů:") && !decoded.includes("Známka:")) {
+              found.add(decoded);
+              extractedNotes.push(decoded);
+            }
+          }
+        }
+
+        state.pdfNotes = extractedNotes;
+        statusPill.textContent = `Nalezeno ${extractedNotes.length} poznámek v ${file.name}`;
+        statusPill.classList.add('loaded');
+
+        renderPdfNotes(extractedNotes);
+        showToast(`Úspěšně extrahováno ${extractedNotes.length} poznámek z PDF!`);
+      } catch (err) {
+        console.error("Chyba při čtení PDF:", err);
+        statusPill.textContent = 'Chyba čtení PDF';
+        alert("Nepodařilo se extrahovat poznámky z PDF: " + err.message);
+      }
+    }
+
+    // Smart categorization of PDF note
+    function suggestCategory(text) {
+      const lower = text.toLowerCase();
+      if (/graf|tabulk|styl|úprav|písmo|popisk|formát|odkaz|referenc|latex|překlep|závěr|literatur|citac|jednotk|nadpis|stran/.test(lower)) {
+        return 'format';
+      }
+      if (/chyb|sigma|nejistot|odchylk|zaokrouhl|errorbar|přesnost|statistick|systematick/.test(lower)) {
+        return 'chyby';
+      }
+      if (/diskuz|očekáván|srovnán|shod|vysvětlen|proč|koment/.test(lower)) {
+        return 'diskuze';
+      }
+      return 'vysledky';
+    }
+
+    function renderPdfNotes(notes) {
+      const panel = document.getElementById('pdf-notes-panel');
+      const list = document.getElementById('pdf-notes-list');
+      const counter = document.getElementById('pdf-notes-counter');
+
+      if (!notes || notes.length === 0) {
+        panel.classList.remove('active');
+        return;
+      }
+
+      panel.classList.add('active');
+      counter.textContent = notes.length;
+
+      list.innerHTML = notes.map((note, idx) => {
+        const cat = suggestCategory(note);
+        const catName = getCategoryName(cat);
+        return `
+          <div class="pdf-note-card" id="note-card-${idx}">
+            <div class="pdf-note-text">“${escapeHtml(note)}”</div>
+            <div class="pdf-note-meta">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span class="pdf-note-suggested">Doporučeno: ${catName}</span>
+                <span style="font-size:0.75rem; color:#64748b;">Body:</span>
+                <select id="note-pts-${idx}" class="custom-pts-input" style="width:75px; height:24px; font-size:0.75rem; padding:1px 4px;">
+                  <option value="0.125">-0.125 b</option>
+                  <option value="0.25" selected>-0.250 b</option>
+                  <option value="0.375">-0.375 b</option>
+                  <option value="0.5">-0.500 b</option>
+                  <option value="0.75">-0.750 b</option>
+                  <option value="1.0">-1.000 b</option>
+                </select>
+              </div>
+              <div class="pdf-note-actions">
+                <button class="btn btn-secondary btn-sm" onclick="addFromPdfNote(${idx}, 'format')">+ Formát</button>
+                <button class="btn btn-secondary btn-sm" onclick="addFromPdfNote(${idx}, 'diskuze')">+ Diskuze</button>
+                <button class="btn btn-secondary btn-sm" onclick="addFromPdfNote(${idx}, 'chyby')">+ Chyby</button>
+                <button class="btn btn-secondary btn-sm" onclick="addFromPdfNote(${idx}, 'vysledky')">+ Výsledky</button>
+                <button class="btn btn-sm" style="color:#64748b;" onclick="dismissNote(${idx})">Pouze poznámka (0b)</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function addFromPdfNote(noteIdx, catId) {
+      const note = state.pdfNotes[noteIdx];
+      if (!note) return;
+
+      const ptsSelect = document.getElementById(`note-pts-${noteIdx}`);
+      const pts = ptsSelect ? parseFloat(ptsSelect.value) : 0.25;
+
+      state.categories[catId].deductions.push({
+        pts: Math.round(pts * 1000) / 1000,
+        reason: note
+      });
+      state.categories[catId].manualOverride = null;
+
+      const card = document.getElementById(`note-card-${noteIdx}`);
+      if (card) {
+        card.classList.add('processed');
+        card.querySelector('.pdf-note-actions').innerHTML = `<span style="color:#16a34a; font-weight:600; font-size:0.82rem;">✓ Přidáno (-${pts}b do ${getCategoryName(catId)})</span>`;
+      }
+
+      renderCategories();
+      showToast(`Poznámka přidána do ${getCategoryName(catId)} (-${pts}b)`);
+    }
+
+    function dismissNote(noteIdx) {
+      const card = document.getElementById(`note-card-${noteIdx}`);
+      if (card) {
+        card.classList.add('processed');
+        card.querySelector('.pdf-note-actions').innerHTML = `<span style="color:#94a3b8; font-size:0.8rem;">Ignorováno / 0b</span>`;
+      }
+    }
+
+    function clearExtractedNotes() {
+      document.getElementById('pdf-notes-panel').classList.remove('active');
+    }
+
+    // Local Storage Auto-save
+    function saveToLocalStorage() {
+      try {
+        const payload = {
+          studentName: document.getElementById('student-name-input').value,
+          categories: state.categories,
+          manualGradeOverride: state.manualGradeOverride
+        };
+        localStorage.setItem('praktika_eval_state', JSON.stringify(payload));
+      } catch(e) {}
+    }
+
+    function loadFromLocalStorage() {
+      try {
+        const saved = localStorage.getItem('praktika_eval_state');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.categories) {
+            state.categories = parsed.categories;
+            state.manualGradeOverride = parsed.manualGradeOverride || null;
+            if (parsed.studentName) {
+              document.getElementById('student-name-input').value = parsed.studentName;
+            }
+            return true;
+          }
+        }
+      } catch(e) {}
+      return false;
+    }
+
+    // Student input listener
+    document.getElementById('student-name-input').addEventListener('input', () => {
+      saveToLocalStorage();
+    });
+
+    // Make grade badge clickable to override if desired
+    document.getElementById('grade-badge-text').style.cursor = 'pointer';
+    document.getElementById('grade-badge-text').title = 'Klikněte pro ruční úpravu známky (např. při pozdním odevzdání)';
+    document.getElementById('grade-badge-text').addEventListener('click', toggleGradeOverride);
+
+    // Initialize: try loading saved state or render default
+    loadFromLocalStorage();
+    renderCategories();
+  </script>
+</body>
+</html>

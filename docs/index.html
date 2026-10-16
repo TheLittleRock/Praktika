@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Praktika – Dokumentace a uživatelská příručka</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔬</text></svg>">
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --primary-light: #eff6ff;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --sidebar-w: 280px;
+      --header-h: 64px;
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.6;
+    }
+    header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--header-h);
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      z-index: 100;
+    }
+    .header-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--primary);
+      text-decoration: none;
+    }
+    .header-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.9rem;
+      margin-left: 20px;
+      transition: color 0.15s;
+    }
+    .header-links a:hover { color: var(--primary); }
+    .container {
+      display: flex;
+      margin-top: var(--header-h);
+      min-height: calc(100vh - var(--header-h));
+    }
+    nav.sidebar {
+      width: var(--sidebar-w);
+      background: var(--card-bg);
+      border-right: 1px solid var(--border);
+      position: fixed;
+      top: var(--header-h);
+      bottom: 0;
+      overflow-y: auto;
+      padding: 24px 16px;
+    }
+    nav.sidebar ul { list-style: none; }
+    nav.sidebar li { margin-bottom: 6px; }
+    nav.sidebar a {
+      display: block;
+      padding: 8px 12px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.88rem;
+      border-radius: var(--radius);
+      transition: all 0.15s;
+    }
+    nav.sidebar a:hover, nav.sidebar a.active {
+      color: var(--primary);
+      background: var(--primary-light);
+      font-weight: 600;
+    }
+    nav.sidebar .section-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #94a3b8;
+      margin: 20px 0 8px 12px;
+    }
+    main.content {
+      margin-left: var(--sidebar-w);
+      flex: 1;
+      padding: 40px 60px;
+      max-width: 980px;
+    }
+    h1 { font-size: 2.2rem; font-weight: 800; margin-bottom: 16px; color: #0f172a; }
+    h2 { font-size: 1.5rem; font-weight: 700; margin: 40px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); color: #0f172a; }
+    h3 { font-size: 1.15rem; font-weight: 600; margin: 24px 0 10px; color: #1e293b; }
+    p, ul, ol { margin-bottom: 16px; font-size: 0.95rem; color: #334155; }
+    ul, ol { padding-left: 24px; }
+    li { margin-bottom: 6px; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.85em;
+      background: #f1f5f9;
+      color: #0f172a;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid #e2e8f0;
+    }
+    pre {
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 16px 20px;
+      border-radius: var(--radius);
+      overflow-x: auto;
+      margin: 16px 0 24px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge-primary { background: var(--primary-light); color: var(--primary); }
+    .badge-success { background: #dcfce7; color: #166534; }
+    .badge-danger { background: #fee2e2; color: #991b1b; }
+    .screenshot-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin: 20px 0 28px;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+    }
+    .screenshot-card img {
+      width: 100%;
+      height: auto;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      display: block;
+    }
+    .screenshot-caption {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      text-align: center;
+      margin-top: 10px;
+    }
+    .callout {
+      border-left: 4px solid var(--primary);
+      background: var(--primary-light);
+      padding: 14px 18px;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      margin: 20px 0;
+    }
+    .callout-title { font-weight: 700; color: var(--primary); margin-bottom: 4px; font-size: 0.9rem; }
+    .callout p { margin-bottom: 0; font-size: 0.88rem; color: #1e3a8a; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      font-size: 0.88rem;
+    }
+    th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { background: #f8fafc; font-weight: 600; color: #475569; }
+    tr:last-child td { border-bottom: none; }
+    @media (max-width: 860px) {
+      nav.sidebar { display: none; }
+      main.content { margin-left: 0; padding: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a href="#" class="header-logo">
+      <span>🔬</span> Praktika
+    </a>
+    <div class="header-links">
+      <a href="https://github.com/TheLittleRock/Praktika" target="_blank">GitHub Repozitář</a>
+      <a href="#quickstart">Rychlý start</a>
+      <a href="#manual">Uživatelská příručka</a>
+      <a href="#ai-assistant">AI Asistent</a>
+      <a href="#database">Správa DB</a>
+    </div>
+  </header>
+
+  <div class="container">
+    <nav class="sidebar">
+      <div class="section-title">Začínáme</div>
+      <ul>
+        <li><a href="#about" class="active">O projektu</a></li>
+        <li><a href="#quickstart">Instalace a spuštění</a></li>
+        <li><a href="#architecture">Architektura</a></li>
+      </ul>
+
+      <div class="section-title">Uživatelský průvodce</div>
+      <ul>
+        <li><a href="#dashboard">Dashboard a protokoly</a></li>
+        <li><a href="#upload">Nahrávání protokolů</a></li>
+        <li><a href="#studio">PDF Annotation Studio</a></li>
+        <li><a href="#grading">Bodování a srážky</a></li>
+        <li><a href="#ai-assistant">AI Asistent (Gemini)</a></li>
+        <li><a href="#bulk-actions">Hromadné akce</a></li>
+        <li><a href="#exports">Exporty a výstupy</a></li>
+      </ul>
+
+      <div class="section-title">Správa a metodika</div>
+      <ul>
+        <li><a href="#database">Správa databáze & zálohy</a></li>
+        <li><a href="#methodology">Metodika a pravidla hodnocení</a></li>
+        <li><a href="#api">REST API přehled</a></li>
+      </ul>
+    </nav>
+
+    <main class="content">
+      <section id="about">
+        <h1>Praktika – Dokumentace a uživatelská příručka</h1>
+        <p>
+          <strong>Praktika</strong> je moderní, komplexní webový systém navržený pro vyučující, garanty a asistenty univerzitních fyzikálních praktik. Systém digitalizuje celý proces hodnocení laboratorních protokolů od hromadného nahrání přes precizní vizuální anotace v interaktivním PDF studiu až po finální export s bodovým razítkem.
+        </p>
+
+        <div class="callout">
+          <div class="callout-title">Klíčová výhoda</div>
+          <p>Spojuje intuitivní práci s PDF (jako v Adobe Acrobat), okamžitou asistenci pokročilých modelů Google Gemini s hloubkovou kontrolou fyzikální metodiky a bezpečné hromadné operace se správou databáze.</p>
+        </div>
+      </section>
+
+      <section id="quickstart">
+        <h2>Rychlý start</h2>
+        <p>Ke spuštění aplikace stačí standardní instalace Pythonu 3.10+ a několika málo knihoven:</p>
+
+        <pre><code># 1. Klonování repozitáře
+git clone https://github.com/TheLittleRock/Praktika.git
+cd Praktika
+
+# 2. Vytvoření virtuálního prostředí
+python3 -m venv venv
+source venv/bin/activate
+
+# 3. Instalace závislostí
+pip install -r requirements.txt
+
+# 4. Spuštění serveru
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload</code></pre>
+
+        <p>Aplikace se otevře v prohlížeči na <code>http://localhost:8000</code>.</p>
+
+        <h3>Výchozí uživatelské účty</h3>
+        <table>
+          <thead>
+            <tr><th>Role</th><th>Login</th><th>Heslo</th><th>Oprávnění</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>Administrátor</strong></td><td><code>admin</code></td><td><code>admin123</code></td><td>Plný přístup, správa uživatelů, úloh, termínů, databáze a záloh</td></tr>
+            <tr><td><strong>Asistent</strong></td><td><code>asistent</code></td><td><code>asistent123</code></td><td>Hodnocení protokolů, oprava přiřazených i volných protokolů</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="studio">
+        <h2>Interaktivní PDF Annotation Studio</h2>
+        <p>
+          Studio je srdcem aplikace. Umožňuje rychlé procházení stran protokolu, vkládání korekcí a okamžitou synchronizaci s hodnocením.
+        </p>
+
+        <div class="screenshot-card">
+          <img src="images/studio_main.png" alt="PDF Studio náhled">
+          <div class="screenshot-caption">Obr. 1: Plátno PDF Studia s lištou nástrojů, plovoucími panely a indikátorem uložení</div>
+        </div>
+
+        <h3>Dostupné nástroje</h3>
+        <ul>
+          <li><strong>Ruka (Hand):</strong> Pohyb po plátně a posun stránek.</li>
+          <li><strong>Zvýrazňovač (Highlight):</strong> Výběr textu s okamžitým žlutým zvýrazněním a otevřením komentářového boxu.</li>
+          <li><strong>Pero (Ink):</strong> Kreslení od ruky na plátno. Křivky jsou ukládány vektorově a plynule vyhlazovány.</li>
+          <li><strong>Obdélník (Rect) & Šipka (Arrow):</strong> Opatřeny poloprůhlednou výplní a šipkami s uzavřeným hrotem.</li>
+          <li><strong>Psací stroj (Typewriter):</strong> Kliknutí kamkoliv do textu a přímé vepsání poznámky zvolenou barvou.</li>
+          <li><strong>Acrobat Komentářový lístek:</strong> Připnutí kruhového lístku <code>[⊖]</code> přímo na zkoumané místo s možností okamžitého odečtu bodů.</li>
+        </ul>
+
+        <h3>Plynulý zoom & centrování</h3>
+        <p>
+          Aplikace rozlišuje mezi gestem na touchpadu a kolečkem myši s klávesou <code>Ctrl</code>. Zoom je vyhlazený, citlivost obou metod je nezávisle nastavitelná v Nastavení a střed zobrazeného dokumentu zůstává během zoomování stabilní.
+        </p>
+      </section>
+
+      <section id="ai-assistant">
+        <h2>Inteligentní AI Asistent (Google Gemini)</h2>
+        <p>
+          Asistent využívá modely <code>gemini-3.5-flash-lite</code>, <code>gemini-3.5-flash</code> nebo <code>gemini-3.8-flash</code> k detailní analýze odevzdaného PDF protokolu.
+        </p>
+
+        <div class="screenshot-card">
+          <img src="images/ai_drawer.png" alt="AI Asistent náhled">
+          <div class="screenshot-caption">Obr. 2: Boční panel AI asistenta s návrhy anotací a bodových srážek</div>
+        </div>
+
+        <h3>Co AI asistent kontroluje:</h3>
+        <ol>
+          <li><strong>Exhaustivní vyhledávání chyb:</strong> Vyhledává 25 až 60+ konkrétních nedostatků v celém protokolu.</li>
+          <li><strong>Interpunkce vzorců a syntax:</strong> Kontrola, zda jsou vzorce součástí vět a zda za vzorcem následuje čárka a malým písmenem <code>", kde"</code>.</li>
+          <li><strong>Typografie jednotek:</strong> Povinná mezera mezi číslem a jednotkou (např. <code>20 °C</code>, nikoliv <code>20°C</code>).</li>
+          <li><strong>Errorbary a grafy:</strong> Kontrola chybových úseček u všech naměřených bodů a popisů os.</li>
+          <li><strong>Souhrnné zhodnocení sekcí:</strong> Generuje souhrnné anotace na nadpisy sekcí <em>Úvod</em>, <em>Postup měření</em>, <em>Výsledky</em>, <em>Diskuze</em> a <em>Závěr</em>.</li>
+        </ol>
+
+        <div class="callout">
+          <div class="callout-title">Synchronizace a schvalování jedním klikem</div>
+          <p>Kliknutím na <strong>✓ Aplikovat</strong> přímo u plovoucího štítku na plátně nebo v bočním šuplíku se návrh okamžitě propíše do PDF jako trvalá anotace a odstraní se z návrhů v databázi. Stav přežije zavření a znovuotevření protokolu.</p>
+        </div>
+      </section>
+
+      <section id="grading">
+        <h2>Bodovací systém</h2>
+        <p>
+          Hodnocení je rozděleno do čtyř oficiálních kategorií s celkovým součtem 10.0 bodů:
+        </p>
+        <ul>
+          <li><strong>Výsledky a vypracování (max 3.0 b):</strong> Splnění všech úkolů ze zadání, mezivýpočty, přesnost fitů.</li>
+          <li><strong>Fyzikální diskuze (max 3.0 b):</strong> Kvantitativní srovnání s tabulkou v násobcích σ, analýza systematických chyb.</li>
+          <li><strong>Formát a styl (max 2.0 b):</strong> Pevná osnova, akademický jazyk (3. osoba / pasivum), citace tabulek a grafů.</li>
+          <li><strong>Chyby a nejistoty (max 2.0 b):</strong> Zaokrouhlování chyb na 1–2 platné cifry, errorbary, odchylky.</li>
+        </ul>
+
+        <p>Převod na známku se provádí automaticky (A: ≥ 9.0, B: ≥ 8.0, C: ≥ 6.0, D: ≥ 4.0, E: ≥ 2.0, F: &lt; 2.0) s možností manuálního přepsání.</p>
+      </section>
+
+      <section id="bulk-actions">
+        <h2>Hromadné akce s protokoly</h2>
+        <p>
+          V přehledu protokolů lze zaškrtnout jeden, několik nebo všechny protokoly (pomocí checkboxu v záhlaví). Následně se zobrazí plovoucí lišta pro hromadné operace:
+        </p>
+        <ul>
+          <li><strong>✎ Hromadná úprava:</strong> Změna semestru, termínu praktika, laboratorní úlohy nebo přiřazení asistenta pro desítky protokolů najednou.</li>
+          <li><strong>🗑️ Hromadné smazání:</strong> Bezpečné odstranění vybraných protokolů včetně jejich hodnocení, anotací a diskových souborů.</li>
+        </ul>
+
+        <div class="screenshot-card">
+          <img src="images/dashboard_table.png" alt="Přehled protokolů a hromadné akce">
+          <div class="screenshot-caption">Obr. 3: Dashboard se zaškrtávacími políčky a hromadnými akcemi</div>
+        </div>
+      </section>
+
+      <section id="database">
+        <h2>Správa databáze & Diagnostika</h2>
+        <p>
+          Administrátoři mají v Nastavení k dispozici specializovanou sekci pro správu a diagnostiku SQLite databáze.
+        </p>
+
+        <div class="screenshot-card">
+          <img src="images/settings_database.png" alt="Správa databáze">
+          <div class="screenshot-caption">Obr. 4: Karta správy databáze se statistikami, okamžitou zálohou a historií</div>
+        </div>
+
+        <h3>Klíčové funkce:</h3>
+        <ul>
+          <li><strong>Statistiky:</strong> Velikost souboru databáze na disku, počet protokolů, hodnocení a uživatelů.</li>
+          <li><strong>Zálohování jedním klikem:</strong> Okamžité vytvoření snapshotu databáze s časovým razítkem.</li>
+          <li><strong>Obnova databáze:</strong> Rychlé vrácení databáze do stavu libovolné předchozí zálohy.</li>
+          <li><strong>Automatická rotace:</strong> Systém provádí automatickou denní zálohu při startu a udržuje rotaci posledních 7 dnů.</li>
+          <li><strong>Diagnostika a integrita:</strong> Spuštění <code>PRAGMA integrity_check</code> a zobrazení verze SQLite přímo v UI.</li>
+        </ul>
+      </section>
+
+      <section id="exports">
+        <h2>Exporty a finální výstupy</h2>
+        <p>
+          Při uložení a schválení protokolu se generuje finální opravené PDF.
+        </p>
+
+        <div class="screenshot-card">
+          <img src="images/pdf_export_stamp.png" alt="Exportované PDF s razítkem">
+          <div class="screenshot-caption">Obr. 5: Hlavičkové razítko opraveného PDF s rozpadem srážek a plnou diakritikou</div>
+        </div>
+
+        <p>
+          Export využívá TrueType písma <strong>DejaVuSans</strong> a <strong>DejaVuSans-Bold</strong>, což garantuje perfektní vykreslení všech českých a slovenských znaků (např. <em>Štěpán Skalka</em>, <em>Měření tíhového zrychlení</em>).
+        </p>
+      </section>
+
+      <section id="methodology">
+        <h2>Metodika a pravidla hodnocení</h2>
+        <p>Systém striktně vymáhá oficiální pravidla garantů fyzikálního praktika:</p>
+        <ul>
+          <li><strong>Zákaz prázdných výmluv:</strong> Fráze jako <em>"lidský faktor"</em> nebo <em>"zastaralý přístroj"</em> nejsou uznávány jako vysvětlení systematické chyby.</li>
+          <li><strong>Sazba vzorců:</strong> Vzorce jsou součástí věty a musí mít čárku/tečku. Za vzorcem s čárkou pokračuje text malým písmenem: <code>", kde..."</code>.</li>
+          <li><strong>Errorbary:</strong> Všechny chybové úsečky v grafech jsou povinné a nazývají se výhradně <em>errorbary</em>.</li>
+          <li><strong>Zaokrouhlování:</strong> Nejistota smí mít maximálně 1–2 platné číslice a hodnota musí končit na stejném řádovém místě.</li>
+        </ul>
+      </section>
+
+      <section id="api">
+        <h2>REST API přehled</h2>
+        <p>FastAPI backend poskytuje bohaté REST rozhraní:</p>
+        <table>
+          <thead>
+            <tr><th>Metoda</th><th>Endpoint</th><th>Popis</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>POST</code></td><td><code>/api/auth/login</code></td><td>Přihlášení a vydání JWT tokenu</td></tr>
+            <tr><td><code>GET</code></td><td><code>/api/protocols</code></td><td>Seznam protokolů s filtrováním dle semestru, stavu a asistenta</td></tr>
+            <tr><td><code>POST</code></td><td><code>/api/protocols/upload</code></td><td>Nahrání jednoho nebo více PDF protokolů</td></tr>
+            <tr><td><code>POST</code></td><td><code>/api/protocols/bulk-update</code></td><td>Hromadná změna metadat vybraných protokolů</td></tr>
+            <tr><td><code>POST</code></td><td><code>/api/protocols/bulk-delete</code></td><td>Hromadné smazání vybraných protokolů</td></tr>
+            <tr><td><code>POST</code></td><td><code>/api/protocols/{id}/ai-proposals/action</code></td><td>Schválení či zamítnutí konkrétního návrhu AI</td></tr>
+            <tr><td><code>POST</code></td><td><code>/api/database/backup</code></td><td>Vytvoření zálohy SQLite databáze</td></tr>
+            <tr><td><code>POST</code></td><td><code>/api/database/restore</code></td><td>Obnova SQLite databáze ze záložního souboru</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+    </main>
+  </div>
+
+</body>
+</html>

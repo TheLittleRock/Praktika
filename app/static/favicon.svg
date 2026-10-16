@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#818cf8" />
+    </linearGradient>
+  </defs>
+  <!-- Rounded Base Background -->
+  <rect width="64" height="64" rx="16" fill="url(#bgGrad)" />
+  
+  <!-- Physics Rutherford Bohr Orbit 1 -->
+  <ellipse cx="32" cy="32" rx="22" ry="8" stroke="url(#accentGrad)" stroke-width="2.5" stroke-linecap="round" transform="rotate(30 32 32)" />
+  
+  <!-- Physics Rutherford Bohr Orbit 2 -->
+  <ellipse cx="32" cy="32" rx="22" ry="8" stroke="url(#accentGrad)" stroke-width="2.5" stroke-linecap="round" transform="rotate(-30 32 32)" />
+  
+  <!-- Central Nucleus -->
+  <circle cx="32" cy="32" r="5" fill="#ffffff" />
+  
+  <!-- Orbiting Electrons / Data Points -->
+  <circle cx="49" cy="22" r="3" fill="#38bdf8" />
+  <circle cx="15" cy="42" r="3" fill="#38bdf8" />
+  <circle cx="49" cy="42" r="2.5" fill="#ffffff" />
+  <circle cx="15" cy="22" r="2.5" fill="#ffffff" />
+</svg>
+

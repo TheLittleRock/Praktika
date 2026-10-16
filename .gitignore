@@ -1,0 +1,66 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# User data and SQLite runtime databases
+*.db
+*.sqlite
+*.sqlite3
+data/*.sqlite3*
+data/*.db
+data/protocols/
+data/backups/
+backups/
+uploads/*
+!uploads/.gitkeep
+exports/*
+!exports/.gitkeep
+
+# Student PDFs and temporary files in root
+*.pdf
+!docs/images/*.pdf
+bodovani.txt
+praktika_old_backup.html
+
+# Operating system and IDE files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment variables
+.env
+.env.local
