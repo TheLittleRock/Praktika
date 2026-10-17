@@ -1908,19 +1908,23 @@ tr:hover td {
 .ai-chat-input-bar {
   display: flex;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 10px 12px 14px 12px;
   border-top: 1px solid var(--border);
   background: var(--card-bg);
   align-items: flex-end;
+  flex-shrink: 0;
 }
 .ai-chat-input-bar textarea {
+  flex: 1;
   resize: vertical;
-  font-size: 0.86rem;
+  font-size: 0.9rem;
   line-height: 1.45;
-  border-radius: 6px;
-  padding: 8px 12px;
-  min-height: 56px;
-  max-height: 220px;
+  border-radius: 8px;
+  padding: 10px 12px;
+  min-height: 105px;
+  height: 105px;
+  max-height: 380px;
+  box-sizing: border-box;
 }
 .ai-chat-typing-indicator {
   display: inline-flex;

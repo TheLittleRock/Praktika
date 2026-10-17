@@ -3538,7 +3538,12 @@ const App = {
       if (container) container.scrollTop = container.scrollHeight;
 
       const input = document.getElementById('ai-chat-input');
-      if (input) setTimeout(() => input.focus(), 80);
+      if (input) {
+        setTimeout(() => {
+          this.setupAIChatInputAutoGrow();
+          input.focus();
+        }, 80);
+      }
     } else {
       if (proposalsBtn) proposalsBtn.classList.add('active');
       if (chatBtn) chatBtn.classList.remove('active');
@@ -3655,7 +3660,7 @@ const App = {
       const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
       return `
         <div class="ai-chat-msg ${isUser ? 'user' : 'assistant'}">
-          <div class="ai-chat-bubble">${this.renderFormattedText(msg.content)}</div>
+          <div class="ai-chat-bubble">${this.renderFormattedText(msg.text || msg.content || '')}</div>
           ${timeStr ? `<div class="ai-chat-time">${timeStr}</div>` : ''}
         </div>
       `;
@@ -3666,13 +3671,16 @@ const App = {
 
   setupAIChatInputAutoGrow() {
     const input = document.getElementById('ai-chat-input');
-    if (input && !input.dataset.autogrowInit) {
+    if (!input) return;
+    const adjust = () => {
+      input.style.height = 'auto';
+      input.style.height = Math.min(380, Math.max(105, input.scrollHeight)) + 'px';
+    };
+    if (!input.dataset.autogrowInit) {
       input.dataset.autogrowInit = 'true';
-      input.addEventListener('input', () => {
-        input.style.height = 'auto';
-        input.style.height = Math.min(220, Math.max(56, input.scrollHeight)) + 'px';
-      });
+      input.addEventListener('input', adjust);
     }
+    adjust();
   },
 
   showAIChatGuideModal() {
@@ -3692,7 +3700,7 @@ const App = {
     if (input) {
       input.value = text;
       input.style.height = 'auto';
-      input.style.height = Math.min(220, Math.max(56, input.scrollHeight)) + 'px';
+      input.style.height = Math.min(380, Math.max(105, input.scrollHeight)) + 'px';
       input.focus();
     }
   },
@@ -3706,7 +3714,7 @@ const App = {
     if (!text) return;
 
     input.value = '';
-    input.style.height = '';
+    input.style.height = '105px';
     input.disabled = true;
     sendBtn.disabled = true;
 

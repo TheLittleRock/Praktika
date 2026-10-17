@@ -107,11 +107,11 @@ def save_gemini_api_key(key: str):
     save_ai_setting("gemini_api_key", key)
 
 def get_candidate_models(preferred: Optional[str] = None) -> List[str]:
-    pref = (preferred or get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.5-flash-lite")).strip()
+    pref = (preferred or get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.5-flash")).strip()
     candidates = []
     if pref:
         candidates.append(pref)
-    for m in ["gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3.5-flash", "gemini-3.8-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"]:
+    for m in ["gemini-3.5-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest"]:
         if m not in candidates:
             candidates.append(m)
     return candidates
@@ -787,7 +787,12 @@ KONTEXT PROTOKOLU:
 - Student: {row['student_name']}
 {instructions_block}
 
-TEXT ODEVZDANÉHO PROTOKOLU:
+DŮLEŽITÉ – MULTIMODÁLNÍ VSTUP DOKUMENTU (CELÝ VYSÁZENÝ PDF PROTOKOL):
+Jako přímou součást vstupu máš přiložen KOMPLETNÍ ORIGINÁLNÍ VYSÁZENÝ PDF SOUBOR PROTOKOLU (dokument v datech inline_data).
+Vidíš tedy přesně všechny stránky, jejich grafické uspořádání, rovnice, tabulky i grafy (včetně os, popisků, jednotek v hranatých závorkách, errorbarů a křivek fitu).
+Pokud se vyučující ptá na grafy, obrázky, schémata, vizuální zpracování protokolu nebo celkový vzhled, detailně a vizuálně je z přiloženého PDF popiš a zhodnoť!
+
+TEXT ODEVZDANÉHO PROTOKOLU (EXTRAHOVANÝ TEXT):
 {combined_text[:35000]}
 
 DOSAVADNÍ HISTORIE CHATU:
@@ -798,8 +803,8 @@ AKTUÁLNÍ ZPRÁVA VYUČUJÍCÍHO:
 
 POKYNY PRO ODPOVĚĎ:
 1. DVĚ MOŽNOSTI CHOVÁNÍ:
-   A) OTÁZKA / DOTAZ: Pokud vyučující pokládá obecný, faktický, fyzikální nebo metodický dotaz (např. "Jak zní vzorec pro Poissonovu konstantu?", "Jaké jsou tabulkové hodnoty mědi?"), odpověz srozumitelně, přesně a odborně v textu 'reply'. Pole 'annotations' ponech prázdné: [].
-   B) KOREKČNÍ ÚKOL / POŽADAVEK NA OZNAČENÍ CHYB: Pokud vyučující zadává úkol zkontrolovat konkrétní část protokolu nebo označit chyby v textu (např. "Zkontroluj diskuzi a přidej komentáře k nedostatkům", "Označ chyby ve vzorcích teorie"):
+   A) OTÁZKA / DOTAZ: Pokud vyučující pokládá obecný, faktický, fyzikální, metodický nebo vizuální dotaz (např. dotaz na Maxwellovy rovnice, dotaz na grafy v protokolu, hodnoty konstant), odpověz srozumitelně, detailně, přesně a odborně v textu 'reply'. Pokud se dotaz týká grafů nebo tabulek v protokolu, detailně je zhodnoť přímo z přiloženého PDF (zda mají správně popsané osy včetně jednotek, errorbary, rovnici fitu a popisky). Pole 'annotations' ponech prázdné: [].
+   B) KOREKČNÍ ÚKOL / POŽADAVEK NA OZNAČENÍ CHYB: Pokud vyučující zadává úkol zkontrolovat konkrétní část protokolu nebo označit chyby v textu či grafech:
       - V textu 'reply' shrň výsledek své kontroly a co jsi našel.
       - V poli 'annotations' vrať konkrétní seznam návrhů anotací k označení v textu protokolu!
 2. PRAVIDLA PRO ANOTACE V 'annotations':
@@ -808,9 +813,9 @@ POKYNY PRO ODPOVĚĎ:
    - 'search_text': PŘESNÝ krátký úsek textu (2 až 6 slov) z dané strany protokolu, který má být zvýrazněn.
    - 'comment': věcná, konstruktivní a přesná poznámka pro studenta k nalezené chybě.
    - ZÁKAZ indexových/mezerových halucinací ve vzorcích: surový text z PDF maže formátování indexů (např. m2c2 místo m₂c₂). NIKDY nekritizuj dolní indexy ani chybějící mezery u exponentů. Soustřeď se na fyzikální platnost, jednotky, chybná tvrzení a nesrozumitelné formulace.
-3. MULTIMODÁLNÍ VIZUÁLNÍ KONTEXT:
-   - Jako součást vstupu máš přiložen celý vysázený PDF soubor protokolu.
-   - Pokud se vyučující ptá na grafy, tabulky, schémata či vizuální zpracování protokolu, vycházej přímo z vizuální podoby stránek v PDF.
+3. FORMÁTOVÁNÍ ODPOVĚDI:
+   - V 'reply' používej strukturovaný Markdown (odrážky, tučné písmo).
+   - Pro matematické výrazy, symboly a rovnice VŽDY používej standardní LaTeX KaTeX syntax ($...$ pro inline matematiku a $$...$$ pro centrované blokové rovnice).
 
 ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
 {{

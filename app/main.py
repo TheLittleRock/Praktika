@@ -1906,10 +1906,12 @@ async def ai_chat_endpoint(
 ):
     try:
         custom_key = user.get("custom_gemini_api_key")
+        custom_model = user.get("custom_gemini_model")
         resp = await chat_with_ai(
             proto_id,
             user_message=req.message,
             custom_key=custom_key,
+            custom_model=custom_model,
             language=req.language
         )
         return resp

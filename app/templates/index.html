@@ -415,9 +415,9 @@
                 <button type="button" class="ai-chat-chip" onclick="App.sendQuickChatPrompt('Jaký je teoretický vzorec pro kalorimetrickou rovnici?')">❓ Dotaz na teorii</button>
               </div>
               <div class="ai-chat-input-bar">
-                <textarea id="ai-chat-input" class="form-control" rows="2" placeholder="Zadejte dotaz nebo úkol pro AI... (Enter = odeslat, Shift+Enter = nový řádek)" onkeydown="App.handleAIChatKeydown(event)"></textarea>
-                <button type="button" class="btn btn-primary" id="ai-chat-send-btn" onclick="App.sendAIChatMessage()" title="Odeslat zprávu">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                <textarea id="ai-chat-input" class="form-control" rows="4" style="min-height: 105px; height: 105px;" placeholder="Zeptejte se na teorii nebo zadejte úkol pro AI... (Enter = odeslat, Shift+Enter = nový řádek)" onkeydown="App.handleAIChatKeydown(event)"></textarea>
+                <button type="button" class="btn btn-primary" id="ai-chat-send-btn" onclick="App.sendAIChatMessage()" title="Odeslat zprávu" style="height: 42px; width: 44px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                 </button>
               </div>
             </div>
