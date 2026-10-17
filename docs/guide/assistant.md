@@ -69,26 +69,35 @@ Horní nástrojová lišta poskytuje standardní nástroje kompatibilní s Adobe
 | ↗ | **Šipka** | `A` | Směrová šipka mířící na konkrétní číselnou či formální chybu. |
 | **T** | **Přímý text** | `T` | Vepsání textového hodnocení přímo do plochy PDF (psací stroj). |
 
-### Výběr a manipulace s objekty
-- Chcete-li libovolný nakreslený tvar (obdélník, šipku, kresbu perem) posunout, přepněte na nástroj **Ruka / Výběr** (`H`) a na tvar klikněte.
-- Kolem tvaru se zobrazí manipulační rámeček. Tvar lze chytit myší a přetáhnout na jiné místo.
-- Pro smazání stiskněte klávesu **`Delete`** / **`Backspace`**, nebo klikněte na červenou ikonu koše v rohu rámečku.
-- Volba barvy v liště ovlivňuje pouze nově kreslené prvky; již nakreslené anotace se zpětně nepřebarvují.
+### Výběr, úpravy a ergonomie nástrojů
+- **Výběr a přesun objektů**: Nástrojem **Ruka / Výběr** (`H`) klikněte na libovolný tvar (obdélník, šipku, poznámku). Lze jej snadno přetáhnout na nové místo nebo smazat klávesou **`Delete`** / **`Backspace`**. Zvýraznění textu zůstávají bezpečně ukotvena k textu a kliknutím na ně nástrojem Výběr okamžitě otevřete jejich komentář k úpravě.
+- **Kroky zpět a vpřed (Undo / Redo)**: Klávesové zkratky **`Ctrl+Z`** a **`Ctrl+Y`** (nebo `Ctrl+Shift+Z`) a tlačítka `Zpět` / `Vpřed` v liště spolehlivě vracejí nejen přidání a smazání, ale i posun objektů po stránce či editaci textu poznámky.
+- **Rychlé ukládání komentářů**: Stisk klávesy **`Enter`** v kartě komentáře jej okamžitě uloží a zavře. Pro zalomení na nový řádek použijte **`Shift+Enter`**.
+- **Editace poznámek bez duplikace**: Kliknutí na existující poznámku `[⊖]` (jak v nástroji Výběr, tak přímo v nástroji Poznámka) otevře stávající poznámku k úpravě a přesunu, namísto nechtěného vytvoření duplikátu. Volba srážky bodů je u poznámek ve výchozím stavu nezaškrtnutá.
+- **Rychlý převod označeného textu**: Označíte-li blok textu myší v režimu Výběr a následně kliknete na Zvýrazňovač (`U`) či Přeškrtnutí (`S`), označený úsek se ihned převede na danou anotaci.
+- **Plně klikací odkazy v PDF**: Veškeré externí webové adresy (URL) i interní křížové odkazy (rovnice, citace literatury, kapitoly) jsou přímo v prohlížeči Studia klikací.
 
 ---
 
-## 6. Práce s AI Asistentem (Google Gemini)
+## 6. Práce s AI Asistentem a AI Chatem (Google Gemini)
 
-AI Asistent vám poslouží jako druhý pár očí. Přečte celý protokol a připraví návrhy věcných, formálních i syntaktických nedostatků:
+AI Asistent vám poslouží jako chytrý pedagogický partner. Panel AI asistenta disponuje dvěma záložkami:
 
 ![Práce s AI asistentem a schvalování návrhů](../assets/images/clip_ai_assistant.webp)
 
-### Jak pracovat s návrhy
-1. Otevřete boční panel kliknutím na tlačítko **AI Asistent** v pravém horním rohu.
-2. V přehledu vidíte stručné shrnutí kvality protokolu a seznam nalezených nedostatků.
-3. Kliknutím na libovolnou položku v panelu se PDF okamžitě posune přímo na dané místo.
+### Záložka 📋 Návrhy chyb
+1. Otevřete boční panel kliknutím na tlačítko **AI Asistent** v nástrojové liště.
+2. V přehledu vidíte stručné shrnutí kvality protokolu, navržené bodové srážky a seznam nalezených nedostatků v textu protokolu.
+3. Kliknutím na libovolnou položku v panelu se PDF okamžitě posune přímo na dané místo v dokumentu.
 4. **Schválení návrhu**: Klikněte na **✓ Aplikovat do PDF** (buď v bočním panelu, nebo přímo na plátně u zvýrazněného textu). Návrh se okamžitě převede na vaši oficiální anotaci.
-5. **Zamítnutí návrhu**: Kliknutím na **✕ Zahodit** návrh odstraníte, pokud jej nepovažujete za relevantní.
+5. **Zamítnutí návrhu**: Kliknutím na **✕ Zahodit** návrh trvale odstraníte.
+
+### Záložka 💬 AI Chat s interaktivním zadáváním úkolů
+V záložce **AI Chat** můžete s asistentem vést přirozený dialog specifický pro otevřený protokol:
+- **Teoretické dotazy**: Můžete se zeptat na fyzikální vztahy, jednotky či metody měření (např. *„Jaký je vztah pro tepelnou kapacitu kalorimetru?“*).
+- **Zadávání interaktivních úkolů**: Zadejte úkol, např. *„Zkontroluj vzorce a jednotky v diskuzi na straně 3“* nebo *„Prověř, zda jsou správně zaokrouhleny nejistoty v tabulce 2“*.
+- **Automatická tvorba návrhů v PDF**: Pokud AI při řešení úkolu nalezne konkrétní chyby, nejenže je vysvětlí v chatu, ale rovnou je **automaticky vygeneruje jako návrhy označení do textu protokolu** (s možností jejich okamžitého schválení či zahození).
+- **Trvalá historie**: Konverzace v chatu se automaticky ukládá ke každému protokolu a lze ji kdykoliv vymazat tlačítkem *Smazat chat*.
 
 ---
 

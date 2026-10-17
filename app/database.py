@@ -240,6 +240,11 @@ def init_db():
         pass
 
     try:
+        cur.execute("ALTER TABLE protocols ADD COLUMN ai_chat_json TEXT DEFAULT '[]'")
+    except Exception:
+        pass
+
+    try:
         cur.execute("ALTER TABLE measurements ADD COLUMN instructions_text TEXT DEFAULT ''")
     except Exception:
         pass

@@ -247,3 +247,19 @@ class AIProposalActionRequest(BaseModel):
     action: str  # approve_annotation, reject_annotation, approve_deduction, reject_deduction, approve_all_annotations, approve_all_deductions
     proposal_id: Optional[str] = None
     annotation_data: Optional[Dict[str, Any]] = None
+
+class AIChatMessage(BaseModel):
+    role: str # "user" or "assistant"
+    text: str
+    timestamp: Optional[str] = None
+    annotations_added: Optional[int] = 0
+
+class AIChatRequest(BaseModel):
+    message: str
+    language: Optional[str] = None
+
+class AIChatResponse(BaseModel):
+    reply: str
+    annotations: List[AIAnnotationSuggestion] = []
+    history: List[AIChatMessage] = []
+

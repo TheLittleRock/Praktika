@@ -249,9 +249,13 @@
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" x2="19" y1="12" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
               <span>Šipka</span>
             </button>
-            <button class="tool-btn" onclick="PDFStudio.undo()" title="Krok zpět (Ctrl+Z)">
+            <button class="tool-btn" id="btn-undo-action" onclick="PDFStudio.undo()" title="Krok zpět (Ctrl+Z)" disabled>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
               <span>Zpět</span>
+            </button>
+            <button class="tool-btn" id="btn-redo-action" onclick="PDFStudio.redo()" title="Krok vpřed (Ctrl+Y / Ctrl+Shift+Z)" disabled>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
+              <span>Vpřed</span>
             </button>
           </div>
 
@@ -347,7 +351,18 @@
               </div>
             </div>
 
-            <div class="ai-drawer-body">
+            <!-- AI Drawer Tabs: Proposals vs Chat -->
+            <div class="ai-drawer-tabs" id="ai-drawer-tabs">
+              <button type="button" class="ai-tab-btn active" id="ai-tab-btn-proposals" onclick="App.switchAITab('proposals')">
+                <span>📋</span> Návrhy chyb (<span id="ai-tab-proposals-count">0</span>)
+              </button>
+              <button type="button" class="ai-tab-btn" id="ai-tab-btn-chat" onclick="App.switchAITab('chat')">
+                <span>💬</span> AI Chat
+                <span class="badge-dot" id="ai-chat-badge-dot" style="display:none;"></span>
+              </button>
+            </div>
+
+            <div class="ai-drawer-body" id="ai-drawer-proposals-view">
               <div id="ai-drawer-fallback-container"></div>
               <div class="ai-drawer-summary-card">
                 <div style="font-weight:700; font-size:0.82rem; margin-bottom:4px;">Souhrn hodnocení AI:</div>
@@ -374,6 +389,29 @@
                 <div id="ai-drawer-annotations-list" style="display:flex; flex-direction:column; gap:6px;">
                   <!-- Populated by JS -->
                 </div>
+              </div>
+            </div>
+
+            <!-- AI Chat View -->
+            <div class="ai-drawer-chat-view" id="ai-drawer-chat-view" style="display:none;">
+              <div class="ai-chat-header-actions">
+                <span class="ai-chat-meta-info">Konverzace s AI asistentem</span>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="App.clearAIChatHistory()" style="font-size:0.7rem; padding:2px 8px;" title="Vymazat historii chatu">Smazat chat</button>
+              </div>
+              <div class="ai-chat-messages-container" id="ai-chat-messages-container">
+                <!-- Messages populated by JS -->
+              </div>
+              <!-- Quick Prompt Chips -->
+              <div class="ai-chat-chips-container" id="ai-chat-chips-container">
+                <button type="button" class="ai-chat-chip" onclick="App.sendQuickChatPrompt('Zkontroluj vzorce a jednotky v protokolu a navrhni označení chyb.')">📐 Zkontroluj vzorce &amp; jednotky</button>
+                <button type="button" class="ai-chat-chip" onclick="App.sendQuickChatPrompt('Zkontroluj diskusi výsledků a porovnání s tabulkovými hodnotami.')">📊 Zhodnoť diskusi</button>
+                <button type="button" class="ai-chat-chip" onclick="App.sendQuickChatPrompt('Jaký je teoretický vzorec pro kalorimetrickou rovnici?')">❓ Dotaz na teorii</button>
+              </div>
+              <div class="ai-chat-input-bar">
+                <textarea id="ai-chat-input" class="form-control" rows="2" placeholder="Zadejte dotaz nebo úkol pro AI... (Enter = odeslat, Shift+Enter = nový řádek)" onkeydown="App.handleAIChatKeydown(event)"></textarea>
+                <button type="button" class="btn btn-primary" id="ai-chat-send-btn" onclick="App.sendAIChatMessage()" title="Odeslat zprávu">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
               </div>
             </div>
           </div>

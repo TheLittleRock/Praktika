@@ -4,6 +4,37 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.15.0] - 2026-10-17
+
+### 🚀 Novinky a vylepšení ve verzi 2.15.0
+
+#### 💬 Interaktivní AI Chat s automatickými návrhy do PDF
+- **Dvouzáložkový panel AI asistenta**: V panelu asistenta přibyly záložky `[📋 Návrhy chyb]` pro strukturovaný přehled detekcí a `[💬 AI Chat]` pro přirozenou konverzaci.
+- **Duální konverzační režim**:
+  - *Fyzikální dotazy*: Odpovědi na teoretické dotazy, ověřování vztahů a jednotek bez zásahu do PDF.
+  - *Zadávání korekčních úkolů*: Možnost zadat asistentovi konkrétní pokyn (např. *„Zkontroluj vzorce a jednotky v diskuzi“*). AI chyby nejen vysvětlí v chatu, ale rovnou je **automaticky vygeneruje jako návrhy označení do textu protokolu**, které asistent může okamžitě schválit nebo zamítnout.
+- **Rychlé promptové čipy**: Tlačítka pro rychlé spuštění typických úkolů (kontrola vzorců a jednotek, zhodnocení diskuze, dotaz na teorii).
+- **Perzistentní historie konverzace**: Historie zpráv je ukládána v databázi pro každý protokol zvlášť s možností promazání tlačítkem *Smazat chat*.
+
+#### 🎯 Zpřesnění AI asistenta a eliminace falešných chyb
+- **Konec halucinací o dolních indexech a mezerách ve vzorcích**: Upraven systémový prompt Gemini pro potlačení falešných detekcí způsobených artefakty při extrakci textu z PDF (rozpad dolních indexů $m_2 c_2$, chybějící mezery u rovnic jako `K^{-1}.Tento`).
+- **Zaměření na fyzikální podstatu**: AI se striktně orientuje na věcnou správnost, fyzikální interpretaci, metodiku, výpočty a logickou návaznost diskuze.
+
+#### 🔗 Plně funkční klikací odkazy v PDF prohlížeči
+- **Interaktivní hypertextové odkazy**: Webové URL adresy (externí zdroje, datasheety) i vnitřní křížové odkazy (rovnice, citace literatury, kapitoly) jsou nyní v plátně Studia plně klikací přes transparentní vrstvu `.pdf-links-layer`.
+- **Hladká navigace**: Interní odkazy plynule odscrollují na příslušnou cílovou stránku protokolu.
+
+#### 🛠️ Ergonomie anotací a editoru komentářů
+- **Klávesové zkratky v komentářích**: Klávesa `Enter` v textovém poli komentáře okamžitě uloží a zavře komentářovou kartu; `Shift + Enter` vytvoří nový řádek.
+- **Ochrana zvýraznění před posunem**: Zvýraznění textu nelze nechtěně posouvat nástrojem Výběr (zůstávají pevně ukotvena k textu), avšak kliknutí na ně nástrojem Výběr okamžitě otevře komentář k editaci.
+- **Bezpečné poznámky**: Nově vytvořené poznámky mají volbu srážky bodů ve výchozím stavu vypnutou (`checked = false`).
+- **Otevření existující poznámky**: Kliknutí na existující poznámku `[⊖]` v nástroji Poznámka (i Výběr) otevře existující poznámku pro úpravu a přesun, místo vytvoření nežádoucí duplikace.
+- **Rychlý převod výběru textu**: Výběr textu myší v nástroji Ruka / Výběr lze jedním kliknutím na Zvýrazňovač či Přeškrtnutí okamžitě převést na anotaci.
+- **Plnohodnotný obousměrný Undo / Redo**: Historie změn (`Ctrl+Z`, `Ctrl+Y`, `Ctrl+Shift+Z`) eviduje nejen přidání a smazání, ale i posun libovolného prvku po plátně a editaci textu komentáře. V liště přibylo tlačítko `Vpřed`.
+- **Spolehlivé skrývání hover tooltipů**: Plovoucí bubliny komentářů a návrhů okamžitě mizí při opuštění prvku kurzorem, při scrollování, smazání či schválení návrhu.
+
+---
+
 ## [2.14.0] - 2026-10-16
 
 ### 🚀 Novinky a vylepšení ve verzi 2.14.0

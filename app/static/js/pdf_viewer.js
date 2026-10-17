@@ -8,6 +8,8 @@ const PDFStudio = {
   penWidth: 2,
   annotations: [],
   aiProposals: [],
+  historyStack: [],
+  redoStack: [],
   protocolId: null,
   currentUser: null,
   floatingBoxEl: null,
@@ -196,6 +198,13 @@ const PDFStudio = {
     this.createFloatingCommentCard();
     this.createTooltipBubble();
     this.setupZoomGestures();
+    this.setupKeyboardShortcuts();
+
+    if (this.container) {
+      this.container.addEventListener('scroll', () => this.hideTooltip(), { passive: true });
+      this.container.addEventListener('mouseleave', () => this.hideTooltip());
+    }
+    window.addEventListener('blur', () => this.hideTooltip());
   },
 
   createTooltipBubble() {
@@ -245,6 +254,24 @@ const PDFStudio = {
       document.body.appendChild(el);
     }
     this.floatingBoxEl = el;
+  },
+
+  setupKeyboardShortcuts() {
+    window.addEventListener('keydown', (e) => {
+      if (e.target.matches('input, textarea, [contenteditable="true"]')) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        if (e.shiftKey) {
+          e.preventDefault();
+          this.redo();
+        } else {
+          e.preventDefault();
+          this.undo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        this.redo();
+      }
+    });
   },
 
   setupZoomGestures() {
@@ -519,13 +546,69 @@ const PDFStudio = {
     this.setZoom(targetScale);
   },
 
-  resetZoom() {
-    this.zoomFit();
+  convertCurrentSelectionToAnnotation(toolName, sel) {
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    const clientRects = range.getClientRects();
+    if (!clientRects || clientRects.length === 0) return;
+
+    let node = range.commonAncestorContainer;
+    if (node && node.nodeType === 3) node = node.parentNode;
+    const pageWrap = node ? node.closest('.pdf-page-container') : null;
+    if (!pageWrap) return;
+    const pageNum = parseInt(pageWrap.dataset.pageNumber, 10) || 1;
+
+    const pageBox = pageWrap.getBoundingClientRect();
+    const lineRects = [];
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+    for (const r of clientRects) {
+      if (r.width > 2 && r.height > 2) {
+        const x0 = (r.left - pageBox.left) / this.scale;
+        const y0 = (r.top - pageBox.top) / this.scale;
+        const x1 = (r.right - pageBox.left) / this.scale;
+        const y1 = (r.bottom - pageBox.top) / this.scale;
+        lineRects.push([x0, y0, x1, y1]);
+        minX = Math.min(minX, x0);
+        minY = Math.min(minY, y0);
+        maxX = Math.max(maxX, x1);
+        maxY = Math.max(maxY, y1);
+      }
+    }
+
+    sel.removeAllRanges();
+
+    if (maxX > minX && maxY > minY) {
+      const newAnnot = {
+        id: `annot_${this.protocolId || 0}_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        page: pageNum,
+        type: toolName,
+        rect: [minX, minY, maxX, maxY],
+        rects: lineRects.length > 0 ? lineRects : [[minX, minY, maxX, maxY]],
+        color: toolName === 'highlight' ? this.highlightColor : '#ef4444',
+        content: '',
+        author: this.getAuthorName()
+      };
+      this.addAnnotation(newAnnot);
+      this.redrawPageAnnotations(pageNum);
+
+      const lastRect = clientRects[clientRects.length - 1];
+      this.openCommentBox(newAnnot, lastRect.right, lastRect.bottom, false);
+    }
   },
 
   setTool(toolName) {
     this.activeTool = toolName;
     this.activeSelectedAnnot = null;
+    this.hideTooltip();
+
+    if (toolName === 'highlight' || toolName === 'strikeout') {
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+        this.convertCurrentSelectionToAnnotation(toolName, sel);
+      }
+    }
+
     document.querySelectorAll('.tool-btn').forEach(btn => {
       if (btn.dataset.tool === toolName) btn.classList.add('active');
       else btn.classList.remove('active');
@@ -688,6 +771,7 @@ const PDFStudio = {
 
   // Approve AI proposal and turn into standard teacher highlight annotation via atomic backend action
   approveAIProposal(target) {
+    this.hideTooltip();
     let pId = null;
     let prop = null;
     if (typeof target === 'string') {
@@ -738,6 +822,7 @@ const PDFStudio = {
 
   // Reject AI proposal via atomic backend action
   rejectAIProposal(target) {
+    this.hideTooltip();
     let pId = null;
     let prop = null;
     if (typeof target === 'string') {
@@ -829,7 +914,12 @@ const PDFStudio = {
         textLayerDiv.className = 'textLayer';
         pageWrap.appendChild(textLayerDiv);
 
-        // 3. SVG Overlay for interactive annotations & Acrobat pins
+        // 3. LinksLayer for clickable PDF hyperlinks
+        const linksLayerDiv = document.createElement('div');
+        linksLayerDiv.className = 'pdf-links-layer';
+        pageWrap.appendChild(linksLayerDiv);
+
+        // 4. SVG Overlay for interactive annotations & Acrobat pins
         svgOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svgOverlay.setAttribute('class', 'annotation-layer annotation-overlay');
         svgOverlay.dataset.page = pageNum;
@@ -885,6 +975,9 @@ const PDFStudio = {
         textDivs: []
       });
 
+      // Render clickable links from PDF
+      await this.renderPageLinks(page, pageWrap, viewport);
+
       // Update SVG Overlay
       svgOverlay.setAttribute('width', Math.floor(viewport.width));
       svgOverlay.setAttribute('height', Math.floor(viewport.height));
@@ -900,6 +993,89 @@ const PDFStudio = {
 
     if (savedLoc) {
       this.restoreLocation(savedLoc);
+    }
+  },
+
+  scrollToPage(pageNum) {
+    const pageWrap = this.container.querySelector(`.pdf-page-container[data-page-number="${pageNum}"]`);
+    if (pageWrap) {
+      pageWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      this.hideTooltip();
+    }
+  },
+
+  async renderPageLinks(page, pageWrap, viewport) {
+    let linksDiv = pageWrap.querySelector('.pdf-links-layer');
+    if (!linksDiv) {
+      linksDiv = document.createElement('div');
+      linksDiv.className = 'pdf-links-layer';
+      const textLayer = pageWrap.querySelector('.textLayer');
+      if (textLayer && textLayer.nextSibling) {
+        pageWrap.insertBefore(linksDiv, textLayer.nextSibling);
+      } else {
+        pageWrap.appendChild(linksDiv);
+      }
+    }
+    linksDiv.innerHTML = '';
+    linksDiv.style.width = `${Math.floor(viewport.width)}px`;
+    linksDiv.style.height = `${Math.floor(viewport.height)}px`;
+
+    try {
+      const annots = await page.getAnnotations({ intent: 'display' });
+      for (const a of annots) {
+        if (a.subtype !== 'Link' || !a.rect) continue;
+        const vRect = viewport.convertToViewportRectangle(a.rect);
+        const minX = Math.min(vRect[0], vRect[2]);
+        const maxX = Math.max(vRect[0], vRect[2]);
+        const minY = Math.min(vRect[1], vRect[3]);
+        const maxY = Math.max(vRect[1], vRect[3]);
+        const width = maxX - minX;
+        const height = maxY - minY;
+        if (width <= 0 || height <= 0) continue;
+
+        const linkEl = document.createElement('a');
+        linkEl.className = 'pdf-link-element';
+        linkEl.style.left = `${Math.floor(minX)}px`;
+        linkEl.style.top = `${Math.floor(minY)}px`;
+        linkEl.style.width = `${Math.ceil(width)}px`;
+        linkEl.style.height = `${Math.ceil(height)}px`;
+
+        if (a.url) {
+          linkEl.href = a.url;
+          linkEl.target = '_blank';
+          linkEl.rel = 'noopener noreferrer';
+          linkEl.title = `Otevřít odkaz: ${a.url}`;
+          linkEl.addEventListener('click', (e) => {
+            if (this.activeTool !== 'pan') {
+              e.preventDefault();
+            }
+          });
+        } else if (a.dest) {
+          linkEl.href = '#';
+          linkEl.title = 'Přejít na odkaz v dokumentu';
+          linkEl.addEventListener('click', async (e) => {
+            e.preventDefault();
+            if (this.activeTool !== 'pan') return;
+            try {
+              let dest = a.dest;
+              if (typeof dest === 'string') {
+                dest = await this.pdfDoc.getDestination(dest);
+              }
+              if (Array.isArray(dest) && dest.length > 0) {
+                const pageRef = dest[0];
+                const pageIdx = await this.pdfDoc.getPageIndex(pageRef);
+                const targetPageNum = pageIdx + 1;
+                this.scrollToPage(targetPageNum);
+              }
+            } catch (err) {
+              console.warn("Error navigating internal PDF link:", err);
+            }
+          });
+        }
+        linksDiv.appendChild(linkEl);
+      }
+    } catch (e) {
+      console.warn("Error rendering PDF links:", e);
     }
   },
 
@@ -934,6 +1110,25 @@ const PDFStudio = {
 
       // Acrobat Note pin anywhere on click
       if (this.activeTool === 'note') {
+        const existingIcon = e.target.closest('.acrobat-comment-icon, .pdf-pin');
+        if (existingIcon) {
+          const matched = this.annotations.find(an => {
+            if (an.page !== pageNum) return false;
+            if (an.type === 'note' && an.point) {
+              return Math.hypot((an.point[0] * this.scale) - pt.viewX, (an.point[1] * this.scale) - pt.viewY) < 35;
+            }
+            if (an.rect) {
+              const [rx0, ry0] = this.normalizeRect(an.rect);
+              return Math.hypot((rx0 * this.scale) - pt.viewX, (ry0 * this.scale) - pt.viewY) < 35;
+            }
+            return false;
+          });
+          if (matched) {
+            this.openCommentBox(matched, pt.screenX, pt.screenY, false);
+            return;
+          }
+        }
+
         this.openCommentBox({
           page: pageNum,
           type: 'note',
@@ -1073,6 +1268,7 @@ const PDFStudio = {
     pageWrap.addEventListener('mousedown', onStart);
     pageWrap.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onEnd);
+    pageWrap.addEventListener('mouseleave', () => this.hideTooltip());
 
     // Native Acrobat text selection listener on TextLayer
     pageWrap.addEventListener('mouseup', (e) => {
@@ -1231,7 +1427,7 @@ const PDFStudio = {
       <!-- Quick Deduction option -->
       <div style="display:flex; align-items:center; justify-content:space-between; padding-top:6px; border-top:1px solid var(--border); font-size:0.78rem;">
         <label style="display:flex; align-items:center; gap:6px; cursor:pointer; color:var(--text-main);">
-          <input type="checkbox" id="acrobat-deduct-check" ${isNew ? 'checked' : ''}>
+          <input type="checkbox" id="acrobat-deduct-check">
           <span>Strhnout body</span>
         </label>
         <div style="display:flex; gap:4px; align-items:center;">
@@ -1304,8 +1500,18 @@ const PDFStudio = {
       };
     }
 
+    const origContent = annot ? (annot.content || '') : '';
+    const origColor = annot ? (annot.color || '#ef4444') : '#ef4444';
+
     const textarea = card.querySelector('#acrobat-comment-textarea');
     textarea.focus();
+    textarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const postBtn = card.querySelector('#acrobat-post-btn');
+        if (postBtn) postBtn.click();
+      }
+    });
 
     card.querySelector('#acrobat-preset-btn').onclick = async () => {
       const val = textarea.value.trim();
@@ -1339,6 +1545,17 @@ const PDFStudio = {
 
     card.querySelector('#acrobat-post-btn').onclick = () => {
       const val = textarea.value.trim();
+      if (!isNew && (origContent !== val || origColor !== annot.color)) {
+        this.pushHistoryAction({
+          type: 'edit',
+          annotId: annot.id,
+          oldContent: origContent,
+          newContent: val,
+          oldColor: origColor,
+          newColor: annot.color,
+          page: annot.page
+        });
+      }
       annot.content = val;
       annot.author = author;
 
@@ -1403,8 +1620,15 @@ const PDFStudio = {
   },
 
   deleteAnnotationObj(idx) {
+    this.hideTooltip();
     if (idx >= 0 && idx < this.annotations.length) {
       const removed = this.annotations.splice(idx, 1)[0];
+      this.pushHistoryAction({
+        type: 'delete',
+        annot: JSON.parse(JSON.stringify(removed)),
+        index: idx,
+        page: removed.page
+      });
       this.activeSelectedAnnot = null;
       this.redrawPageAnnotations(removed.page);
       this.syncAnnotationsWithBackend();
@@ -1413,19 +1637,15 @@ const PDFStudio = {
   },
 
   deleteSelectedAnnotation() {
+    this.hideTooltip();
     if (!this.activeSelectedAnnot) return;
     const idx = this.annotations.indexOf(this.activeSelectedAnnot);
     if (idx !== -1) {
-      const page = this.activeSelectedAnnot.page;
-      this.annotations.splice(idx, 1);
-      this.activeSelectedAnnot = null;
-      this.redrawPageAnnotations(page);
-      this.syncAnnotationsWithBackend();
+      this.deleteAnnotationObj(idx);
       if (window.App && window.App.showToast) {
         window.App.showToast("Anotace byla smazána.");
       }
     }
-    this.closeCommentBox();
   },
 
   bindShapeInteractions(el, a, pageNumInt) {
@@ -1442,6 +1662,12 @@ const PDFStudio = {
     this.redrawPageAnnotations(pageNumInt);
 
     if (!downEvent) return;
+
+    // Highlights must not be moved! Open comment card directly to edit text, color and deduction
+    if (a.type === 'highlight') {
+      this.openCommentBox(a, downEvent.clientX, downEvent.clientY, false);
+      return;
+    }
 
     const startX = downEvent.clientX;
     const startY = downEvent.clientY;
@@ -1488,7 +1714,33 @@ const PDFStudio = {
       window.removeEventListener('mousemove', onWindowMove);
       window.removeEventListener('mouseup', onWindowUp);
       if (hasMoved) {
+        const origCoords = {
+          rect: origRect,
+          rects: origRects,
+          p1: origP1,
+          p2: origP2,
+          point: origPoint,
+          strokes: origStrokes
+        };
+        const newCoords = {
+          rect: a.rect ? [...a.rect] : null,
+          rects: a.rects ? a.rects.map(r => [...r]) : null,
+          p1: a.p1 ? [...a.p1] : null,
+          p2: a.p2 ? [...a.p2] : null,
+          point: a.point ? [...a.point] : null,
+          strokes: a.strokes ? a.strokes.map(st => st.map(pt => [...pt])) : null
+        };
+        this.pushHistoryAction({
+          type: 'move',
+          annotId: a.id,
+          oldCoords: origCoords,
+          newCoords: newCoords,
+          page: a.page
+        });
         this.syncAnnotationsWithBackend();
+      } else {
+        // Simple click without dragging opens comment box to edit!
+        this.openCommentBox(a, downEvent.clientX, downEvent.clientY, false);
       }
     };
 
@@ -1496,7 +1748,7 @@ const PDFStudio = {
     window.addEventListener('mouseup', onWindowUp);
   },
 
-  addAnnotation(annot) {
+  addAnnotation(annot, recordHistory = true) {
     if (!annot) return;
     if (!this.annotations.includes(annot)) {
       if (annot.id && this.annotations.some(existing => existing.id === annot.id)) {
@@ -1506,18 +1758,123 @@ const PDFStudio = {
         annot.id = `annot_${this.protocolId || 0}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
       }
       this.annotations.push(annot);
+      if (recordHistory) {
+        this.pushHistoryAction({
+          type: 'add',
+          annot: JSON.parse(JSON.stringify(annot)),
+          page: annot.page
+        });
+      }
     }
     this.activeSelectedAnnot = null;
     this.redrawPageAnnotations(annot.page);
     this.syncAnnotationsWithBackend();
   },
 
+  pushHistoryAction(action) {
+    this.historyStack.push(action);
+    this.redoStack = [];
+    this.updateUndoRedoButtons();
+  },
+
+  updateUndoRedoButtons() {
+    const undoBtn = document.getElementById('btn-undo-action');
+    const redoBtn = document.getElementById('btn-redo-action');
+    if (undoBtn) undoBtn.disabled = this.historyStack.length === 0;
+    if (redoBtn) redoBtn.disabled = this.redoStack.length === 0;
+  },
+
   undo() {
-    if (this.annotations.length === 0) return;
-    const removed = this.annotations.pop();
+    this.hideTooltip();
+    if (this.historyStack.length === 0) return;
+    const action = this.historyStack.pop();
+
+    if (action.type === 'add') {
+      const idx = this.annotations.findIndex(x => x.id === action.annot.id);
+      if (idx !== -1) {
+        this.annotations.splice(idx, 1);
+      }
+      this.redoStack.push(action);
+      this.redrawPageAnnotations(action.page);
+      this.syncAnnotationsWithBackend();
+    } else if (action.type === 'delete') {
+      const insertIdx = Math.min(action.index !== undefined ? action.index : this.annotations.length, this.annotations.length);
+      this.annotations.splice(insertIdx, 0, action.annot);
+      this.redoStack.push(action);
+      this.redrawPageAnnotations(action.page);
+      this.syncAnnotationsWithBackend();
+    } else if (action.type === 'move') {
+      const annot = this.annotations.find(x => x.id === action.annotId);
+      if (annot && action.oldCoords) {
+        if (action.oldCoords.rect) annot.rect = [...action.oldCoords.rect];
+        if (action.oldCoords.rects) annot.rects = action.oldCoords.rects.map(r => [...r]);
+        if (action.oldCoords.point) annot.point = [...action.oldCoords.point];
+        if (action.oldCoords.p1) annot.p1 = [...action.oldCoords.p1];
+        if (action.oldCoords.p2) annot.p2 = [...action.oldCoords.p2];
+        if (action.oldCoords.strokes) annot.strokes = action.oldCoords.strokes.map(st => st.map(pt => [...pt]));
+      }
+      this.redoStack.push(action);
+      this.redrawPageAnnotations(action.page);
+      this.syncAnnotationsWithBackend();
+    } else if (action.type === 'edit') {
+      const annot = this.annotations.find(x => x.id === action.annotId);
+      if (annot) {
+        annot.content = action.oldContent;
+        annot.color = action.oldColor;
+      }
+      this.redoStack.push(action);
+      this.redrawPageAnnotations(action.page);
+      this.syncAnnotationsWithBackend();
+    }
+
     this.activeSelectedAnnot = null;
-    this.redrawPageAnnotations(removed.page);
-    this.syncAnnotationsWithBackend();
+    this.updateUndoRedoButtons();
+  },
+
+  redo() {
+    this.hideTooltip();
+    if (this.redoStack.length === 0) return;
+    const action = this.redoStack.pop();
+
+    if (action.type === 'add') {
+      this.annotations.push(action.annot);
+      this.historyStack.push(action);
+      this.redrawPageAnnotations(action.page);
+      this.syncAnnotationsWithBackend();
+    } else if (action.type === 'delete') {
+      const idx = this.annotations.findIndex(x => x.id === action.annot.id);
+      if (idx !== -1) {
+        this.annotations.splice(idx, 1);
+      }
+      this.historyStack.push(action);
+      this.redrawPageAnnotations(action.page);
+      this.syncAnnotationsWithBackend();
+    } else if (action.type === 'move') {
+      const annot = this.annotations.find(x => x.id === action.annotId);
+      if (annot && action.newCoords) {
+        if (action.newCoords.rect) annot.rect = [...action.newCoords.rect];
+        if (action.newCoords.rects) annot.rects = action.newCoords.rects.map(r => [...r]);
+        if (action.newCoords.point) annot.point = [...action.newCoords.point];
+        if (action.newCoords.p1) annot.p1 = [...action.newCoords.p1];
+        if (action.newCoords.p2) annot.newCoords = [...action.newCoords.p2];
+        if (action.newCoords.strokes) annot.strokes = action.newCoords.strokes.map(st => st.map(pt => [...pt]));
+      }
+      this.historyStack.push(action);
+      this.redrawPageAnnotations(action.page);
+      this.syncAnnotationsWithBackend();
+    } else if (action.type === 'edit') {
+      const annot = this.annotations.find(x => x.id === action.annotId);
+      if (annot) {
+        annot.content = action.newContent;
+        annot.color = action.newColor;
+      }
+      this.historyStack.push(action);
+      this.redrawPageAnnotations(action.page);
+      this.syncAnnotationsWithBackend();
+    }
+
+    this.activeSelectedAnnot = null;
+    this.updateUndoRedoButtons();
   },
 
   // Redraw all annotations and AI proposals on a specific page

@@ -1266,6 +1266,8 @@ const App = {
       this.updateGradingDockScore();
 
       this.showView('studio');
+      this.switchAITab('proposals');
+      this.loadAIChatHistory(protoId);
     } catch(e) {
       await AppModal.alert({ title: "Chyba", message: "Chyba při otevírání protokolu: " + e.message });
     }
@@ -3055,6 +3057,8 @@ const App = {
       if (annCount) annCount.textContent = '0';
       const annList = document.getElementById('ai-drawer-annotations-list');
       if (annList) annList.innerHTML = `<div style="font-size:0.78rem; color:var(--text-muted); font-style:italic;">Žádná označení v textu.</div>`;
+      const tabProposalsCount = document.getElementById('ai-tab-proposals-count');
+      if (tabProposalsCount) tabProposalsCount.textContent = '0';
       const fallbackCont = document.getElementById('ai-drawer-fallback-container');
       if (fallbackCont) { fallbackCont.innerHTML = ''; fallbackCont.style.display = 'none'; }
       return;
@@ -3344,6 +3348,10 @@ const App = {
     if (btnText2) {
       btnText2.textContent = totalCount > 0 ? `AI Asistent (${totalCount})` : `AI Asistent`;
     }
+    const tabProposalsCount = document.getElementById('ai-tab-proposals-count');
+    if (tabProposalsCount) {
+      tabProposalsCount.textContent = totalCount;
+    }
   },
 
   async executeAIProposalAction(action, proposalId = null, extraData = null) {
@@ -3455,6 +3463,231 @@ const App = {
 
   approveAllAIAnnotations() {
     this.executeAIProposalAction('approve_all_annotations');
+  },
+
+  // AI Drawer Tab Switching (Proposals vs Chat)
+  switchAITab(tabName) {
+    const proposalsBtn = document.getElementById('ai-tab-btn-proposals');
+    const chatBtn = document.getElementById('ai-tab-btn-chat');
+    const proposalsView = document.getElementById('ai-drawer-proposals-view');
+    const chatView = document.getElementById('ai-drawer-chat-view');
+
+    if (tabName === 'chat') {
+      if (proposalsBtn) proposalsBtn.classList.remove('active');
+      if (chatBtn) chatBtn.classList.add('active');
+      if (proposalsView) proposalsView.style.display = 'none';
+      if (chatView) chatView.style.display = 'flex';
+      const badgeDot = document.getElementById('ai-chat-badge-dot');
+      if (badgeDot) badgeDot.style.display = 'none';
+
+      const container = document.getElementById('ai-chat-messages-container');
+      if (container) container.scrollTop = container.scrollHeight;
+
+      const input = document.getElementById('ai-chat-input');
+      if (input) setTimeout(() => input.focus(), 80);
+    } else {
+      if (proposalsBtn) proposalsBtn.classList.add('active');
+      if (chatBtn) chatBtn.classList.remove('active');
+      if (proposalsView) proposalsView.style.display = 'flex';
+      if (chatView) chatView.style.display = 'none';
+    }
+  },
+
+  async loadAIChatHistory(protoId) {
+    const container = document.getElementById('ai-chat-messages-container');
+    if (!container) return;
+    try {
+      const resp = await fetch(`/api/protocols/${protoId}/ai/chat`);
+      if (!resp.ok) return;
+      const history = await resp.json();
+      this.renderAIChatMessages(history);
+    } catch (e) {
+      console.warn("Chyba při načítání historie AI chatu:", e);
+    }
+  },
+
+  renderAIChatMessages(messages) {
+    const container = document.getElementById('ai-chat-messages-container');
+    if (!container) return;
+    if (!Array.isArray(messages) || messages.length === 0) {
+      container.innerHTML = `
+        <div style="text-align:center; padding:24px 12px; color:var(--text-muted); font-size:0.8rem;">
+          <div style="font-size:1.8rem; margin-bottom:8px;">💬</div>
+          <div style="font-weight:700; margin-bottom:4px; color:var(--text-main);">Chat s AI asistentem</div>
+          <div>Můžete se zeptat na fyzikální teorii nebo zadat úkol k protokolu (např. <em>„Zkontroluj vzorce a jednotky v diskuzi“</em>). Nalezené chyby budou navrženy přímo v textu protokolu.</div>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = messages.map(msg => {
+      const isUser = msg.role === 'user';
+      const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      return `
+        <div class="ai-chat-msg ${isUser ? 'user' : 'assistant'}">
+          <div class="ai-chat-bubble">${this.escape(msg.content)}</div>
+          ${timeStr ? `<div class="ai-chat-time">${timeStr}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+
+    container.scrollTop = container.scrollHeight;
+  },
+
+  async sendAIChatMessage() {
+    if (!this.currentProtocol) return;
+    const input = document.getElementById('ai-chat-input');
+    const sendBtn = document.getElementById('ai-chat-send-btn');
+    if (!input || !sendBtn) return;
+    const text = input.value.trim();
+    if (!text) return;
+
+    input.value = '';
+    input.disabled = true;
+    sendBtn.disabled = true;
+
+    // Append user message immediately
+    const container = document.getElementById('ai-chat-messages-container');
+    if (container) {
+      if (container.querySelector('div[style*="text-align:center"]')) {
+        container.innerHTML = '';
+      }
+      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const userMsgEl = document.createElement('div');
+      userMsgEl.className = 'ai-chat-msg user';
+      userMsgEl.innerHTML = `
+        <div class="ai-chat-bubble">${this.escape(text)}</div>
+        <div class="ai-chat-time">${now}</div>
+      `;
+      container.appendChild(userMsgEl);
+
+      // Typing indicator
+      const typingEl = document.createElement('div');
+      typingEl.id = 'ai-chat-typing';
+      typingEl.className = 'ai-chat-msg assistant';
+      typingEl.innerHTML = `
+        <div class="ai-chat-bubble ai-chat-typing-indicator">
+          <span>AI asistent analyzuje dotaz...</span>
+        </div>
+      `;
+      container.appendChild(typingEl);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    try {
+      const resp = await fetch(`/api/protocols/${this.currentProtocol.id}/ai/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text })
+      });
+
+      const typingEl = document.getElementById('ai-chat-typing');
+      if (typingEl) typingEl.remove();
+
+      if (!resp.ok) {
+        let err;
+        try { err = await resp.json(); } catch(e) { err = { detail: resp.statusText }; }
+        throw new Error(err.detail || "Chyba při komunikaci s AI");
+      }
+
+      const resData = await resp.json();
+      const reply = resData.reply || "";
+      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      if (container) {
+        const assistantMsgEl = document.createElement('div');
+        assistantMsgEl.className = 'ai-chat-msg assistant';
+        assistantMsgEl.innerHTML = `
+          <div class="ai-chat-bubble">${this.escape(reply)}</div>
+          <div class="ai-chat-time">${now}</div>
+        `;
+        container.appendChild(assistantMsgEl);
+        container.scrollTop = container.scrollHeight;
+      }
+
+      // If AI returned structured annotation suggestions, integrate them as new proposals!
+      if (Array.isArray(resData.annotations) && resData.annotations.length > 0) {
+        if (!this.currentAIResult) {
+          this.currentAIResult = { annotations: [], deductions: [] };
+        }
+        if (!Array.isArray(this.currentAIResult.annotations)) {
+          this.currentAIResult.annotations = [];
+        }
+        const protoId = this.currentProtocol?.id || 0;
+        resData.annotations.forEach((a, i) => {
+          if (!a.proposal_id) a.proposal_id = `chat_annot_${protoId}_${Date.now()}_${i + 1}`;
+          this.currentAIResult.annotations.push(a);
+        });
+
+        if (this.currentProtocol) {
+          this.currentProtocol.ai_proposals = this.currentAIResult;
+        }
+        if (window.PDFStudio) {
+          window.PDFStudio.setAIProposals(this.currentAIResult.annotations);
+          window.PDFStudio.renderAIProposals();
+        }
+        this.updateAIDrawerLists();
+        this.showToast(`✨ AI asistent navrhl ${resData.annotations.length} označení do textu protokolu!`);
+      }
+    } catch (e) {
+      const typingEl = document.getElementById('ai-chat-typing');
+      if (typingEl) typingEl.remove();
+      if (container) {
+        const errEl = document.createElement('div');
+        errEl.className = 'ai-chat-msg assistant';
+        errEl.innerHTML = `
+          <div class="ai-chat-bubble" style="border-color:var(--accent-red); color:var(--accent-red);">
+            ⚠️ Chyba: ${this.escape(e.message)}
+          </div>
+        `;
+        container.appendChild(errEl);
+        container.scrollTop = container.scrollHeight;
+      }
+      this.showToast("Chyba AI chatu: " + e.message, "error");
+    } finally {
+      input.disabled = false;
+      sendBtn.disabled = false;
+      input.focus();
+    }
+  },
+
+  sendQuickChatPrompt(promptText) {
+    const input = document.getElementById('ai-chat-input');
+    if (input) {
+      input.value = promptText;
+      this.sendAIChatMessage();
+    }
+  },
+
+  handleAIChatKeydown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      this.sendAIChatMessage();
+    }
+  },
+
+  async clearAIChatHistory() {
+    if (!this.currentProtocol) return;
+    const ok = await AppModal.confirm({
+      title: "Smazat historii chatu",
+      message: "Opravdu chcete vymazat celou historii konverzace s AI asistentem k tomuto protokolu?"
+    });
+    if (!ok) return;
+
+    try {
+      const resp = await fetch(`/api/protocols/${this.currentProtocol.id}/ai/chat`, {
+        method: 'DELETE'
+      });
+      if (resp.ok) {
+        this.renderAIChatMessages([]);
+        this.showToast("Historie chatu byla smazána.");
+      } else {
+        const err = await resp.json();
+        throw new Error(err.detail || "Chyba při mazání chatu");
+      }
+    } catch (e) {
+      this.showToast("Chyba při mazání chatu: " + e.message, "error");
+    }
   },
 
   // Settings: AI API Key and Settings

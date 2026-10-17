@@ -3,9 +3,10 @@ import re
 import json
 import httpx
 import fitz
+from datetime import datetime
 from typing import Dict, Any, List, Optional
 from app.database import get_db
-from app.models import AIAnalysisResult, AIDeductionSuggestion, AIAnnotationSuggestion
+from app.models import AIAnalysisResult, AIDeductionSuggestion, AIAnnotationSuggestion, AIChatMessage, AIChatResponse
 
 DEFAULT_PHYSICS_GUIDELINES = """
 ZÁVAZNÁ METODIKA PRO HODNOCENÍ FYZIKÁLNÍCH PROTOKOLŮ (vychází z oficiálních pokynů garantů a prezentace "Nejčastější chyby v protokolech"):
@@ -37,11 +38,12 @@ ZÁVAZNÁ METODIKA PRO HODNOCENÍ FYZIKÁLNÍCH PROTOKOLŮ (vychází z oficiál
   * Postup měření: 1. os. mn. č., přítomný čas (CZ: "měříme čas", SK: "meriame čas").
   * Závěr: minulý čas (CZ: "změřili jsme", SK: "zmerali sme").
   * PŘÍSNÝ ZÁKAZ 1. osoby jednotného čísla ("změřil jsem", "vyšlo mi", "bych nedával")!
-- Sazba indexů a jednotek:
-  * Indexy musí být dolním indexem: V_1 - V_2 -> V₁ - V₂.
-  * Mezera mezi číslem a jednotkou je POVINNÁ: 22 °C, 30,3 %, 1,003 76 cm³·g⁻¹. V českém i slovenském textu se používá desetinná čárka (např. 3,14), nikoliv tečka.
-  * Formát zápisu výsledku: (hodnota ± chyba) · 10ⁿ jednotka (např. (9,36 ± 0,08) · 10⁻³ kg·m²). Znaménko násobení "·" před 10ⁿ je povinné!
-  * Žádné zapomenuté zbytky kódu z LaTeXu / Pythonu ani nepřeložené anglické popisky.
+- ZÁKAZ TYPOGRAFICKÝCH A INDEXOVÝCH HALUCINACÍ VE VZORCÍCH:
+  * Surový text extrahovaný z PDF ztrácí formátování LaTeXové sazby (dolní a horní indexy, mikro-mezery u exponentů a fonty). Ve vysázeném PDF jsou tyto vzorce (např. m₂c₂ nebo jednotky K⁻¹) vysázeny korektně!
+  * PŘÍSNÝ ZÁKAZ kritizovat dolní či horní indexy ve vzorcích a chemických vzorcích (např. m2c2, t1, t2, K-1, H2O), chybějící mezery bezprostředně navazující na matematické indexy či tečky vzorců a kurzívu písem. Tyto zdánlivé chyby vznikají pouze extrakcí textu.
+  * Soustřeď se na FAKTIČNOST A FYZIKU: platnost použitých rovnic, fyzikální odvození, správnost jednotek a řádů veličin.
+  * Formát zápisu výsledků: (hodnota ± chyba) · 10ⁿ jednotka (např. (9,36 ± 0,08) · 10⁻³ kg·m²). V českém a slovenském textu se používá desetinná čárka.
+  * FORMULACE A SROZUMITELNOST: Pokud věta v textu skutečně nedává smysl, je formulačně zmatená, neúplná nebo gramaticky vadná, označ ji a navrhni srozumitelnou akademickou opravu. Žádné zapomenuté zbytky kódu z LaTeXu / Pythonu ani nepřeložené anglické popisky.
 
 4. ZAOKROUHLOVÁNÍ A CHYBY MĚŘENÍ:
 - Chyba/nejistota měření se zaokrouhluje na 1 PLATNOU CIFRU (výjimečně 2, pouze pokud začíná číslicí 1).
@@ -262,12 +264,12 @@ DŮLEŽITÉ POKYNY K HODNOCENÍ A VYHLEDÁVÁNÍ CHYB:
 1. VYSOKÝ POČET NÁVRHŮ ANOTACÍ (EXHAUSTIVNÍ KONTROLA):
    - Vyhledej a označ v textu CO NEJVÍCE konkrétních chyb a nedostatků (usiluj o nalezení 15 až 40+ konkrétních míst k opravě, pokud jsou v textu nedostatky).
    - Nepřehlížej žádné drobné chyby! Zkontroluj každou větu, vzorec, číslo, jednotku, graf a tabulku.
-2. TYPOGRAFIE VZORCŮ A SYNTAX (VELMI DŮLEŽITÉ!):
-   - Každý vzorec je součástí věty a musí mít odpovídající interpunkci (čárka nebo tečka na konci vzorce).
-   - ČÁRKA PŘED ", kde": Pokud po samostatném vzorci následuje vysvětlení veličin (např. "... v = s / t, kde s je dráha..."), MUSÍ být na konci vzorce ČÁRKA a slovo "kde" začíná malým písmenem! Chybějící čárka mezi vzorcem a ", kde" nebo velké počáteční písmeno ("Kde") je závažná syntaktická a formální chyba – KAŽDÝ takový výskyt v textu označ!
-   - MEZERA PŘED JEDNOTKOU: Mezi číslem a fyzikální jednotkou MUSÍ být mezera (např. "5 m", "10 kg", "22 °C", nikoliv "5m", "10kg", "22°C").
-   - DESETINNÁ ČÁRKA: V českém a slovenském odborném textu se používá desetinná čárka (např. 3,14), nikoliv desetinná tečka (3.14).
-   - INDEXY A SYMBOLY: Dolní indexy musí být vysázeny korektně (V₁, a₂), nikoliv surové podtržítko (V_1, a_2) nebo bez indexu (V1). Fyzikální veličiny se sázejí kurzívou, jednotky stojatě. Násobení u mocnin 10ⁿ musí mít středovou tečku "·" (nikoliv "x", "*" nebo vynecháno).
+2. INTERPUNKCE VZORCŮ A ZÁKAZ INDEXOVÝCH HALUCINACÍ (VELMI DŮLEŽITÉ!):
+   - PŘÍSNÝ ZÁKAZ VYMEJŠLENÍ CHYB VE VZORCÍCH (INDEXY A MEZERY): Extrakce surového textu z PDF maže formátování indexů (např. m₂c₂ se extrahuje jako m2c2) a mezery u mocnin (např. K⁻¹.Tento). NIKDY nekritizuj chybějící dolní/horní indexy ve vzorcích a chemických značkách, kurzívu písma veličin ani chybějící mezery u matematických zápisů – ve vysázeném PDF jsou tyto prvky v pořádku!
+   - INTERPUNKCE U VZORCŮ: Každý vzorec je součástí věty a musí mít odpovídající interpunkci (čárka nebo tečka na konci vzorce).
+   - ČÁRKA PŘED ", kde": Pokud po samostatném vzorci následuje výčet veličin se slovem "kde", MUSÍ být za vzorcem čárka a pokračování malým písmenem ", kde ...". Chybějící čárka nebo velké "Kde" je závažná chyba.
+   - SROZUMITELNOST A FORMULACE: Pokud je nějaká věta v textu skutečně nesrozumitelná, nedává smysl, má rozpadlý slovosled nebo obsahuje zakázanou 1. osobu jednotného čísla ("vyšlo mi"), označ ji a navrhni jasnou akademickou opravu.
+   - DESETINNÁ ČÁRKA: V běžném textu se používá desetinná čárka (např. 3,14), nikoliv desetinná tečka.
 3. GRAFY, TABULKY A KŘÍŽOVÉ ODKAZY:
    - Chybové úsečky v grafech se nazývají "errorbary" a jsou povinné u všech experimentálních bodů.
    - Všechny tabulky a grafy MUSÍ být citovány a diskutovány v souvislém textu (např. "jak je vidět na Obr. 1", "hodnoty v Tab. 2"). Tabulky i grafy musí mít popisky.
@@ -466,6 +468,77 @@ ZÁVAZNÁ PRAVIDLA:
 
     raise RuntimeError(f"AI asistent nemohl protokol vyhodnotit. Všechny dostupné Gemini modely selhaly: {last_error or 'Chyba připojení nebo vyčerpaná kvóta'}. Zkontrolujte připojení k internetu a platnost API klíče.")
 
+def resolve_single_annotation(a: dict, doc: fitz.Document, idx: int, proto_id: int, proposal_id: Optional[str] = None) -> AIAnnotationSuggestion:
+    try:
+        page_num = max(1, min(len(doc), int(a.get("page", 1))))
+    except Exception:
+        page_num = 1
+    annot_type = "highlight"
+    search_text = str(a.get("search_text") or "").strip()
+    comment = str(a.get("comment") or "")
+
+    rect = None
+    point = None
+
+    if search_text:
+        cleaned_search = " ".join(search_text.split())
+        page = doc[page_num - 1]
+        rects = page.search_for(cleaned_search)
+
+        # Try stripped punctuation
+        if not rects:
+            stripped = cleaned_search.strip('.,;:"\'()[]{}')
+            if stripped != cleaned_search:
+                rects = page.search_for(stripped)
+
+        # Try sub-phrases of 4, 3, or 2 words
+        words = cleaned_search.split()
+        if not rects and len(words) > 3:
+            rects = page.search_for(" ".join(words[:4]))
+        if not rects and len(words) > 2:
+            rects = page.search_for(" ".join(words[:3]))
+        if not rects and len(words) > 1:
+            rects = page.search_for(" ".join(words[:2]))
+
+        # Search across all other pages in the document
+        if not rects and len(doc) > 1:
+            for alt_idx, alt_p in enumerate(doc):
+                alt_rects = alt_p.search_for(cleaned_search)
+                if not alt_rects and len(words) > 2:
+                    alt_rects = alt_p.search_for(" ".join(words[:3]))
+                if alt_rects:
+                    page_num = alt_idx + 1
+                    rects = alt_rects
+                    break
+
+        if rects:
+            r = rects[0]
+            rect = [round(r.x0, 1), round(r.y0, 1), round(r.x1, 1), round(r.y1, 1)]
+            point = [round(r.x0, 1), round(r.y0, 1)]
+
+    # Fallback coordinates if text wasn't directly found in text stream
+    if not rect:
+        p_height = doc[page_num - 1].rect.height if len(doc) >= page_num else 842.0
+        top_y = min(p_height - 60.0, 110.0 + ((idx % 12) * 38.0))
+        rect = [72.0, round(top_y, 1), 480.0, round(top_y + 18.0, 1)]
+        point = [72.0, round(top_y, 1)]
+
+    # Ensure valid non-zero dimensions
+    if rect[2] <= rect[0]:
+        rect[2] = rect[0] + 120.0
+    if rect[3] <= rect[1]:
+        rect[3] = rect[1] + 16.0
+
+    return AIAnnotationSuggestion(
+        proposal_id=proposal_id or f"annot_{proto_id}_{idx+1}",
+        page=int(page_num),
+        type=annot_type,
+        search_text=search_text,
+        comment=comment,
+        rect=rect,
+        point=point
+    )
+
 def build_resolved_result(proto_id: int, parsed: dict, doc: fitz.Document, model_used: str = "Gemini Flash", preferred_model: Optional[str] = None, fallback_note: Optional[str] = None) -> AIAnalysisResult:
     scores = parsed.get("scores", {"vysledky": 2.25, "diskuze": 2.0, "format": 1.5, "chyby": 1.5, "total_points": 7.25})
     raw_deductions = parsed.get("deductions", [])
@@ -512,75 +585,7 @@ def build_resolved_result(proto_id: int, parsed: dict, doc: fitz.Document, model
 
     annotations: List[AIAnnotationSuggestion] = []
     for idx, a in enumerate(raw_annotations):
-        try:
-            page_num = max(1, min(len(doc), int(a.get("page", 1))))
-        except Exception:
-            page_num = 1
-        annot_type = "highlight"
-        search_text = str(a.get("search_text") or "").strip()
-        comment = str(a.get("comment") or "")
-
-        rect = None
-        point = None
-
-        if search_text:
-            cleaned_search = " ".join(search_text.split())
-            page = doc[page_num - 1]
-            rects = page.search_for(cleaned_search)
-
-            # Try stripped punctuation
-            if not rects:
-                stripped = cleaned_search.strip('.,;:"\'()[]{}')
-                if stripped != cleaned_search:
-                    rects = page.search_for(stripped)
-
-            # Try sub-phrases of 4, 3, or 2 words
-            words = cleaned_search.split()
-            if not rects and len(words) > 3:
-                rects = page.search_for(" ".join(words[:4]))
-            if not rects and len(words) > 2:
-                rects = page.search_for(" ".join(words[:3]))
-            if not rects and len(words) > 1:
-                rects = page.search_for(" ".join(words[:2]))
-
-            # Search across all other pages in the document
-            if not rects and len(doc) > 1:
-                for alt_idx, alt_p in enumerate(doc):
-                    alt_rects = alt_p.search_for(cleaned_search)
-                    if not alt_rects and len(words) > 2:
-                        alt_rects = alt_p.search_for(" ".join(words[:3]))
-                    if alt_rects:
-                        page_num = alt_idx + 1
-                        rects = alt_rects
-                        break
-
-            if rects:
-                r = rects[0]
-                rect = [round(r.x0, 1), round(r.y0, 1), round(r.x1, 1), round(r.y1, 1)]
-                point = [round(r.x0, 1), round(r.y0, 1)]
-
-        # Fallback coordinates if text wasn't directly found in text stream
-        if not rect:
-            p_height = doc[page_num - 1].rect.height if len(doc) >= page_num else 842.0
-            top_y = min(p_height - 60.0, 110.0 + ((idx % 12) * 38.0))
-            rect = [72.0, round(top_y, 1), 480.0, round(top_y + 18.0, 1)]
-            point = [72.0, round(top_y, 1)]
-
-        # Ensure valid non-zero dimensions
-        if rect[2] <= rect[0]:
-            rect[2] = rect[0] + 120.0
-        if rect[3] <= rect[1]:
-            rect[3] = rect[1] + 16.0
-
-        annotations.append(AIAnnotationSuggestion(
-            proposal_id=f"annot_{proto_id}_{idx+1}",
-            page=int(page_num),
-            type=annot_type,
-            search_text=search_text,
-            comment=comment,
-            rect=rect,
-            point=point
-        ))
+        annotations.append(resolve_single_annotation(a, doc, idx, proto_id))
 
     return AIAnalysisResult(
         protocol_id=proto_id,
@@ -669,5 +674,223 @@ def merge_ai_results(existing_data: dict, new_result: AIAnalysisResult) -> AIAna
         preferred_model=new_result.preferred_model,
         fallback_note=new_result.fallback_note
     )
+
+async def chat_with_ai(
+    proto_id: int, 
+    user_message: str, 
+    custom_key: Optional[str] = None, 
+    custom_model: Optional[str] = None, 
+    language: Optional[str] = None
+) -> AIChatResponse:
+    """Interactively process a question or grading assignment task in AI chat for a given protocol."""
+    api_key = (custom_key or "").strip() or get_gemini_api_key()
+    if not api_key:
+        raise ValueError("Není nastaven platný API klíč pro Google Gemini. Zadejte jej prosím v Nastavení -> AI Asistent.")
+
+    target_lang = (language or get_ai_setting("ai_language", "cs")).strip().lower()
+    if target_lang == "sk":
+        lang_directive = "JAZYK ODPOVĚDÍ: Veškeré textové odpovědi i případné komentáře v anotacích generuj striktně a výhradně ve SLOVENŠTINĚ."
+    elif target_lang == "en":
+        lang_directive = "LANGUAGE OF REPLIES: Generate all replies and annotation comments strictly and exclusively in ENGLISH."
+    else:
+        lang_directive = "JAZYK ODPOVĚDÍ: Veškeré textové odpovědi i případné komentáře v anotacích generuj striktně a výhradně v ČEŠTINĚ."
+
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("""
+    SELECT p.*, m.name as measurement_name, m.number as measurement_number, m.code as measurement_code, m.instructions_text as measurement_instructions
+    FROM protocols p
+    JOIN measurements m ON p.measurement_id = m.id
+    WHERE p.id = ?
+    """, (proto_id,))
+    row = cur.fetchone()
+
+    if not row:
+        conn.close()
+        raise ValueError("Protokol nenalezen")
+
+    existing_chat_json = row["ai_chat_json"] or "[]"
+    try:
+        chat_history = json.loads(existing_chat_json)
+    except Exception:
+        chat_history = []
+
+    source_path = row["source_path"]
+    if not source_path or not os.path.isfile(source_path):
+        conn.close()
+        raise ValueError("Soubor protokolu nebyl nalezen na disku")
+
+    doc = fitz.open(source_path)
+
+    pages_text = []
+    for idx, page in enumerate(doc):
+        t = page.get_text()
+        pages_text.append(f"--- STRANA {idx + 1} ---\n{t}")
+    combined_text = "\n\n".join(pages_text)
+
+    instructions = (row["measurement_instructions"] or "").strip()
+    instructions_block = f"\nMETODICKÉ POKYNY A ZADÁNÍ ÚLOHY:\n{instructions}\n" if instructions else ""
+
+    # Format recent history as text for Gemini prompt
+    history_lines = []
+    for h in chat_history[-10:]:
+        role_label = "Vyučující" if h.get("role") == "user" else "AI Asistent"
+        history_lines.append(f"{role_label}: {h.get('text', '')}")
+    history_text = "\n".join(history_lines) if history_lines else "Zatím žádná předchozí konverzace."
+
+    prompt = f"""Jsi AI asistent pro hodnocení a konzultaci laboratorních fyzikálních protokolů v aplikaci Praktika.
+Spolupracuješ s vysokoškolským pedagogem / asistentem, který opravuje odevzdaný protokol studenta.
+
+{lang_directive}
+
+KONTEXT PROTOKOLU:
+- Úloha: {row['measurement_number']}. {row['measurement_name']} (Kód: {row['measurement_code']})
+- Student: {row['student_name']}
+{instructions_block}
+
+TEXT ODEVZDANÉHO PROTOKOLU:
+{combined_text[:35000]}
+
+DOSAVADNÍ HISTORIE CHATU:
+{history_text}
+
+AKTUÁLNÍ ZPRÁVA VYUČUJÍCÍHO:
+{user_message}
+
+POKYNY PRO ODPOVĚĎ:
+1. DVĚ MOŽNOSTI CHOVÁNÍ:
+   A) OTÁZKA / DOTAZ: Pokud vyučující pokládá obecný, faktický, fyzikální nebo metodický dotaz (např. "Jak zní vzorec pro Poissonovu konstantu?", "Jaké jsou tabulkové hodnoty mědi?"), odpověz srozumitelně, přesně a odborně v textu 'reply'. Pole 'annotations' ponech prázdné: [].
+   B) KOREKČNÍ ÚKOL / POŽADAVEK NA OZNAČENÍ CHYB: Pokud vyučující zadává úkol zkontrolovat konkrétní část protokolu nebo označit chyby v textu (např. "Zkontroluj diskuzi a přidej komentáře k nedostatkům", "Označ chyby ve vzorcích teorie"):
+      - V textu 'reply' shrň výsledek své kontroly a co jsi našel.
+      - V poli 'annotations' vrať konkrétní seznam návrhů anotací k označení v textu protokolu!
+2. PRAVIDLA PRO ANOTACE V 'annotations':
+   - 'page': 1-indexované číslo strany v protokolu.
+   - 'type': vždy "highlight".
+   - 'search_text': PŘESNÝ krátký úsek textu (2 až 6 slov) z dané strany protokolu, který má být zvýrazněn.
+   - 'comment': věcná, konstruktivní a přesná poznámka pro studenta k nalezené chybě.
+   - ZÁKAZ indexových/mezerových halucinací ve vzorcích: surový text z PDF maže formátování indexů (např. m2c2 místo m₂c₂). NIKDY nekritizuj dolní indexy ani chybějící mezery u exponentů. Soustřeď se na fyzikální platnost, jednotky, chybná tvrzení a nesrozumitelné formulace.
+
+ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
+{{
+  "reply": "Textová odpověď pro vyučujícího...",
+  "annotations": [
+    {{
+      "page": 1,
+      "type": "highlight",
+      "search_text": "text z protokolu",
+      "comment": "Pedagogický komentář k chybě..."
+    }}
+  ]
+}}
+"""
+
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "response_mime_type": "application/json",
+            "temperature": 0.3
+        }
+    }
+
+    models_to_try = get_candidate_models(custom_model)
+    raw_response = None
+    last_error = None
+
+    for model_name in models_to_try:
+        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+        try:
+            async with httpx.AsyncClient(timeout=65.0) as client:
+                resp = await client.post(gemini_url, json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
+                    raw_response = json.loads(raw_text)
+                    break
+                else:
+                    last_error = f"HTTP {resp.status_code}: {resp.text[:80]}"
+        except Exception as e:
+            last_error = str(e)
+            continue
+
+    if not raw_response or not isinstance(raw_response, dict):
+        conn.close()
+        raise RuntimeError(f"AI asistent neodpověděl: {last_error or 'Neznámá chyba'}")
+
+    reply_text = str(raw_response.get("reply", "")).strip()
+    raw_annots = raw_response.get("annotations", [])
+    if not isinstance(raw_annots, list):
+        raw_annots = []
+
+    resolved_annots: List[AIAnnotationSuggestion] = []
+    ts = int(datetime.now().timestamp() * 1000)
+    for i, a in enumerate(raw_annots):
+        prop_id = f"chat_{proto_id}_{ts}_{i+1}"
+        resolved = resolve_single_annotation(a, doc, i, proto_id, proposal_id=prop_id)
+        resolved_annots.append(resolved)
+
+    # Append to chat history
+    now_iso = datetime.now().isoformat()
+    chat_history.append({
+        "role": "user",
+        "text": user_message,
+        "timestamp": now_iso,
+        "annotations_added": 0
+    })
+    chat_history.append({
+        "role": "assistant",
+        "text": reply_text,
+        "timestamp": now_iso,
+        "annotations_added": len(resolved_annots)
+    })
+
+    # Save to DB
+    cur.execute("UPDATE protocols SET ai_chat_json = ? WHERE id = ?", (json.dumps(chat_history, ensure_ascii=False), proto_id))
+
+    # If annotations were generated, also merge them into protocols.ai_proposals_json
+    if resolved_annots:
+        existing_proposals_raw = row["ai_proposals_json"]
+        if existing_proposals_raw:
+            try:
+                ep_data = json.loads(existing_proposals_raw)
+            except Exception:
+                ep_data = {}
+        else:
+            ep_data = {}
+        ep_annots = ep_data.get("annotations", [])
+        for ra in resolved_annots:
+            ep_annots.append(ra.dict())
+        ep_data["annotations"] = ep_annots
+        cur.execute("UPDATE protocols SET ai_proposals_json = ? WHERE id = ?", (json.dumps(ep_data, ensure_ascii=False), proto_id))
+
+    conn.commit()
+    conn.close()
+
+    return AIChatResponse(
+        reply=reply_text,
+        annotations=resolved_annots,
+        history=[AIChatMessage(**m) for m in chat_history]
+    )
+
+def get_protocol_chat_history(proto_id: int) -> List[AIChatMessage]:
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT ai_chat_json FROM protocols WHERE id = ?", (proto_id,))
+    row = cur.fetchone()
+    conn.close()
+    if not row or not row[0]:
+        return []
+    try:
+        data = json.loads(row[0])
+        return [AIChatMessage(**m) for m in data]
+    except Exception:
+        return []
+
+def clear_protocol_chat_history(proto_id: int):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("UPDATE protocols SET ai_chat_json = '[]' WHERE id = ?", (proto_id,))
+    conn.commit()
+    conn.close()
+
 
 

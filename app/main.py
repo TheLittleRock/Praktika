@@ -32,11 +32,16 @@ from app.models import (
     PresetCreate, PresetResponse,
     EvaluationSaveRequest, AutosaveRequest, ProtocolAssignRequest, AnnotationSaveRequest,
     ProtocolMetadataUpdateRequest, BulkDeleteRequest, BulkUpdateRequest, AISettingsRequest, AdminPasswordResetRequest, ProfileUpdateRequest,
-    UserAdminUpdateRequest, AutodetectResponse, AIProposalActionRequest
+    UserAdminUpdateRequest, AutodetectResponse, AIProposalActionRequest,
+    AIChatMessage, AIChatRequest, AIChatResponse
 )
 from app.storage import save_source_file, save_corrected_file, save_bodovani_file, slugify, format_slot_folder, format_semester_folder
 from app.pdf_service import extract_pdf_annotations, burn_annotations_to_pdf, format_points, calculate_grade_letter
-from app.ai_service import analyze_protocol, get_gemini_api_key, save_gemini_api_key, get_ai_setting, save_ai_setting, run_background_ai_analysis, generate_task_rubric, merge_ai_results
+from app.ai_service import (
+    analyze_protocol, get_gemini_api_key, save_gemini_api_key, get_ai_setting, save_ai_setting,
+    run_background_ai_analysis, generate_task_rubric, merge_ai_results,
+    chat_with_ai, get_protocol_chat_history, clear_protocol_chat_history
+)
 from app.version import VERSION
 
 
@@ -1891,6 +1896,41 @@ def ai_proposal_action(
         }
     finally:
         conn.close()
+
+# Interactive AI Chat Endpoints
+@app.post("/api/protocols/{proto_id}/ai/chat", response_model=AIChatResponse)
+async def ai_chat_endpoint(
+    proto_id: int,
+    req: AIChatRequest,
+    user: dict = Depends(get_current_user)
+):
+    try:
+        custom_key = user.get("custom_gemini_api_key")
+        resp = await chat_with_ai(
+            proto_id,
+            user_message=req.message,
+            custom_key=custom_key,
+            language=req.language
+        )
+        return resp
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/protocols/{proto_id}/ai/chat", response_model=List[AIChatMessage])
+def get_ai_chat_endpoint(
+    proto_id: int,
+    user: dict = Depends(get_current_user)
+):
+    return get_protocol_chat_history(proto_id)
+
+@app.delete("/api/protocols/{proto_id}/ai/chat")
+def clear_ai_chat_endpoint(
+    proto_id: int,
+    user: dict = Depends(get_current_user)
+):
+    clear_protocol_chat_history(proto_id)
+    return {"status": "ok", "message": "Historie chatu byla vymazána."}
+
 
 
 @app.get("/api/settings/ai")
