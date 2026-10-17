@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import base64
 import httpx
 import fitz
 from datetime import datetime
@@ -232,6 +233,15 @@ async def analyze_protocol(proto_id: int, custom_key: Optional[str] = None, cust
     doc = fitz.open(source_path)
     total_pages = len(doc)
 
+    pdf_b64 = None
+    try:
+        with open(source_path, "rb") as f:
+            pdf_bytes = f.read()
+        if len(pdf_bytes) <= 20 * 1024 * 1024:
+            pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
+    except Exception as e:
+        print(f"Error reading PDF bytes for multimodal Gemini input: {e}")
+
     pages_text = []
     for idx, page in enumerate(doc):
         t = page.get_text()
@@ -292,6 +302,9 @@ DŮLEŽITÉ POKYNY K HODNOCENÍ A VYHLEDÁVÁNÍ CHYB:
    - Všechny položky v 'annotations' MUSÍ mít "type": "highlight".
 8. TERMINOLOGIE:
    - Chybové úsečky v grafech striktně označuj pojmem "errorbary".
+9. MULTIMODÁLNÍ VIZUÁLNÍ KONTROLA GRAFŮ A TABULEK (PŘÍMÉ PDF VSTUPY):
+   - K dispozici máš originální vysázené PDF (připojené v datech) a zároveň extrahovaný text.
+   - Využij vizuální vnímání PDF ke kontrole grafů (zda jsou vyneseny errorbary, zda osy mají symboly veličin a jednotky v hranatých závorkách, zda body nejsou spojeny lomenou čarou, zda je u fitu uvedena rovnice s chybami parametrů) a formátování tabulek.
 
 ZADÁNÍ A HODNOTÍCÍ METODIKA ÚLOHY:
 Úloha {row['measurement_number']}: {row['measurement_name']}
@@ -307,7 +320,7 @@ SPECIÁLNÍ POŽADAVKY NA DETAIL A HLOUBKU KONTROLY (KONTROLUJ SYSTEMATICKY KAŽ
    - Zkontroluj splnění VŠECH bodů ze zadání.
    - Zkontroluj jednotky ve všech tabulkách, vzorcích a grafech.
    - Jsou grafy kompletní? Mají grafy popsány obě osy včetně jednotek v [ ]? Jsou vyneseny errorbary? Jsou uvedeny parametry fitu s nejistotami?
-   - Nejsou data v grafu spojena lomenou čárou? Nemá graf titulek uvnitř plátna?
+   - Nejsou data v grafu spojena lomenou čarou? Nemá graf titulek uvnitř plátna?
 3. DISKUZE A ZÁVĚR (max 3.0 b):
    - Je diskuze pouze suchým výčtem naměřených čísel ze závěru? Pokud ano, strhni 0.25 b!
    - Chybí porovnání výsledku s tabulkovou nebo referenční hodnotou v počtu směrodatných odchylek σ či v %? Pokud ano, strhni body!
@@ -411,8 +424,18 @@ ZÁVAZNÁ PRAVIDLA:
 4. Vytvoř anotace v textu POUZE pro skutečné chyby a nedostatky. Každá anotace musí studentovi věcně sdělovat, co má špatně a jak to opravit. Žádná prázdná konstatování ani komentáře k věcem, které jsou v pořádku.
 """
 
+    parts = []
+    if pdf_b64:
+        parts.append({
+            "inline_data": {
+                "mime_type": "application/pdf",
+                "data": pdf_b64
+            }
+        })
+    parts.append({"text": prompt})
+
     payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
+        "contents": [{"parts": parts}],
         "generationConfig": {
             "response_mime_type": "application/json",
             "temperature": 0.35
@@ -431,6 +454,13 @@ ZÁVAZNÁ PRAVIDLA:
             try:
                 async with httpx.AsyncClient(timeout=75.0) as client:
                     resp = await client.post(gemini_url, json=payload)
+                    if resp.status_code == 400 and pdf_b64:
+                        # Fallback to text-only payload if multimodal inline_data is rejected
+                        text_payload = {
+                            "contents": [{"parts": [{"text": prompt}]}],
+                            "generationConfig": payload["generationConfig"]
+                        }
+                        resp = await client.post(gemini_url, json=text_payload)
                     if resp.status_code == 200:
                         data = resp.json()
                         raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
@@ -722,6 +752,15 @@ async def chat_with_ai(
 
     doc = fitz.open(source_path)
 
+    pdf_b64 = None
+    try:
+        with open(source_path, "rb") as f:
+            pdf_bytes = f.read()
+        if len(pdf_bytes) <= 20 * 1024 * 1024:
+            pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
+    except Exception as e:
+        print(f"Error reading PDF bytes for chat multimodal Gemini input: {e}")
+
     pages_text = []
     for idx, page in enumerate(doc):
         t = page.get_text()
@@ -769,6 +808,9 @@ POKYNY PRO ODPOVĚĎ:
    - 'search_text': PŘESNÝ krátký úsek textu (2 až 6 slov) z dané strany protokolu, který má být zvýrazněn.
    - 'comment': věcná, konstruktivní a přesná poznámka pro studenta k nalezené chybě.
    - ZÁKAZ indexových/mezerových halucinací ve vzorcích: surový text z PDF maže formátování indexů (např. m2c2 místo m₂c₂). NIKDY nekritizuj dolní indexy ani chybějící mezery u exponentů. Soustřeď se na fyzikální platnost, jednotky, chybná tvrzení a nesrozumitelné formulace.
+3. MULTIMODÁLNÍ VIZUÁLNÍ KONTEXT:
+   - Jako součást vstupu máš přiložen celý vysázený PDF soubor protokolu.
+   - Pokud se vyučující ptá na grafy, tabulky, schémata či vizuální zpracování protokolu, vycházej přímo z vizuální podoby stránek v PDF.
 
 ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
 {{
@@ -784,8 +826,18 @@ ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
 }}
 """
 
+    chat_parts = []
+    if pdf_b64:
+        chat_parts.append({
+            "inline_data": {
+                "mime_type": "application/pdf",
+                "data": pdf_b64
+            }
+        })
+    chat_parts.append({"text": prompt})
+
     payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
+        "contents": [{"parts": chat_parts}],
         "generationConfig": {
             "response_mime_type": "application/json",
             "temperature": 0.3
@@ -801,6 +853,13 @@ ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
         try:
             async with httpx.AsyncClient(timeout=65.0) as client:
                 resp = await client.post(gemini_url, json=payload)
+                if resp.status_code == 400 and pdf_b64:
+                    # Fallback to text-only payload if multimodal inline_data is rejected
+                    text_payload = {
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": payload["generationConfig"]
+                    }
+                    resp = await client.post(gemini_url, json=text_payload)
                 if resp.status_code == 200:
                     data = resp.json()
                     raw_text = data["candidates"][0]["content"]["parts"][0]["text"]

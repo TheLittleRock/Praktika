@@ -3,5 +3,5 @@ Praktika Evaluation Studio - Central Version Definition
 Single source of truth for application version across backend, frontend, API, and documentation.
 """
 
-VERSION = "2.15.0"
+VERSION = "2.16.0"
 __version__ = VERSION

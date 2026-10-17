@@ -1545,7 +1545,12 @@ const PDFStudio = {
 
     card.querySelector('#acrobat-post-btn').onclick = () => {
       const val = textarea.value.trim();
-      if (!isNew && (origContent !== val || origColor !== annot.color)) {
+      const lastAction = this.historyStack.length > 0 ? this.historyStack[this.historyStack.length - 1] : null;
+      if (lastAction && lastAction.type === 'add' && lastAction.annot && lastAction.annot.id === annot.id) {
+        // Atomic creation: update comment and color on the initial add event so Undo/Redo is 1 single step!
+        lastAction.annot.content = val;
+        lastAction.annot.color = annot.color;
+      } else if (!isNew && (origContent !== val || origColor !== annot.color)) {
         this.pushHistoryAction({
           type: 'edit',
           annotId: annot.id,

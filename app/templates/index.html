@@ -7,6 +7,10 @@
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/app.css">
+  <!-- Offline KaTeX & Marked for Math & Markdown -->
+  <link rel="stylesheet" href="/static/vendor/katex/katex.min.css">
+  <script src="/static/vendor/katex/katex.min.js"></script>
+  <script src="/static/vendor/marked.min.js"></script>
   <!-- Offline PDF.js -->
   <script src="/static/vendor/pdf.min.js"></script>
 </head>
@@ -396,7 +400,10 @@
             <div class="ai-drawer-chat-view" id="ai-drawer-chat-view" style="display:none;">
               <div class="ai-chat-header-actions">
                 <span class="ai-chat-meta-info">Konverzace s AI asistentem</span>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="App.clearAIChatHistory()" style="font-size:0.7rem; padding:2px 8px;" title="Vymazat historii chatu">Smazat chat</button>
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="App.showAIChatGuideModal()" style="font-size:0.7rem; padding:2px 8px;" title="Jak funguje AI chat a zadávání úkolů">ℹ️ Návod k chatu</button>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="App.clearAIChatHistory()" style="font-size:0.7rem; padding:2px 8px;" title="Vymazat historii chatu">Smazat chat</button>
+                </div>
               </div>
               <div class="ai-chat-messages-container" id="ai-chat-messages-container">
                 <!-- Messages populated by JS -->
@@ -425,6 +432,9 @@
                 <span style="font-weight:700; font-size:0.88rem; color:var(--text-main);">Bodování</span>
               </div>
               <div style="display:flex; align-items:center; gap:6px; margin-left:auto;">
+                <button class="dock-ctrl-btn" id="dock-btn-side" onclick="App.toggleGradingDockSide()" title="Přepnout přikotvení vlevo / vpravo">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg>
+                </button>
                 <button class="dock-ctrl-btn" id="dock-btn-mode" onclick="App.toggleDockFloatingMode()" title="Přepnout plovoucí / přikotvené okno">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"></path><path d="M10 14L21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>
                 </button>
@@ -1346,6 +1356,53 @@
       </div>
       <div id="app-modal-body" style="margin-bottom:16px;"></div>
       <div style="display:flex; justify-content:flex-end; gap:8px;" id="app-modal-actions"></div>
+    </div>
+  </div>
+
+  <!-- AI Chat Guide & Capabilities Modal -->
+  <div class="modal-backdrop" id="ai-chat-guide-modal" style="display:none; z-index:10000;">
+    <div class="modal-box" style="max-width:560px; max-height:90vh; overflow-y:auto;">
+      <div class="modal-header">
+        <h3 style="display:flex; align-items:center; gap:8px;">
+          <span>✨</span>
+          <span>Jak pracovat s AI Chatem</span>
+        </h3>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="App.closeAIChatGuideModal()">✕</button>
+      </div>
+      <div style="font-size:0.86rem; line-height:1.55; color:var(--text-main); margin-bottom:16px;">
+        <p style="margin-top:0;">AI chat není jen obyčejná konverzační schránka. Rozumí celému studentskému protokolu (včetně grafů a tabulek) a dokáže <strong>automaticky navrhovat anotace přímo do textu protokolu</strong>!</p>
+        
+        <div style="background:rgba(99, 102, 241, 0.08); border:1px solid rgba(99, 102, 241, 0.25); border-radius:8px; padding:12px; margin-bottom:14px;">
+          <div style="font-weight:700; color:var(--primary); margin-bottom:6px;">🚀 Dva hlavní režimy práce:</div>
+          <ul style="margin:0; padding-left:18px;">
+            <li><strong>Obecné fyzikální dotazy</strong>: Zeptejte se na teoretický vztah, vzorec, hodnoty konstant či metodu měření. AI odpoví přímo v chatu s plnou podporou LaTeX vzorců ($...$, $$...$$).</li>
+            <li><strong>Zadávání korekčních úkolů</strong>: Zadejte pokyn k vyhledání chyb v protokolu. AI nejenže chyby v chatu vysvětlí, ale <strong>rovnou je vloží jako interaktivní návrhy přímo do textu PDF</strong>.</li>
+          </ul>
+        </div>
+
+        <div style="font-weight:700; margin-bottom:8px;">💡 Příklady efektivních úkolů (kliknutím vložíte do chatu):</div>
+        <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:14px;">
+          <button type="button" class="ai-guide-sample-prompt" onclick="App.pasteSamplePrompt('Zkontroluj vzorce a jednotky v diskuzi na straně 3 a navrhni označení chyb.')">
+            📐 <em>„Zkontroluj vzorce a jednotky v diskuzi na straně 3 a navrhni označení chyb.“</em>
+          </button>
+          <button type="button" class="ai-guide-sample-prompt" onclick="App.pasteSamplePrompt('Zkontroluj grafy a tabulky – mají správné popisky os s jednotkami a chybovými úsečkami?')">
+            📊 <em>„Zkontroluj grafy a tabulky – mají správné popisky os s jednotkami a chybovými úsečkami?“</em>
+          </button>
+          <button type="button" class="ai-guide-sample-prompt" onclick="App.pasteSamplePrompt('Prověř správnost zaokrouhlení nejistot a shodu řádu s výsledkem.')">
+            🎯 <em>„Prověř správnost zaokrouhlení nejistot a shodu řádu s výsledkem.“</em>
+          </button>
+          <button type="button" class="ai-guide-sample-prompt" onclick="App.pasteSamplePrompt('Jaký je teoretický vztah pro výpočet tepelné kapacity kalorimetru a kde se nejčastěji chybuje?')">
+            ❓ <em>„Jaký je teoretický vztah pro výpočet tepelné kapacity kalorimetru?“</em>
+          </button>
+        </div>
+
+        <div style="background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px; font-size:0.8rem; color:var(--text-muted);">
+          ℹ️ Všechny nově navržené chyby se zobrazí s tlačítky <strong>✓ Aplikovat do PDF</strong> a <strong>✕ Zahodit</strong>. Máte tak 100% kontrolu nad tím, co se do hodnocení propíše.
+        </div>
+      </div>
+      <div style="display:flex; justify-content:flex-end;">
+        <button type="button" class="btn btn-primary btn-sm" onclick="App.closeAIChatGuideModal()">Rozumím</button>
+      </div>
     </div>
   </div>
 

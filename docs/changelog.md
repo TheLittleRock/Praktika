@@ -4,6 +4,41 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.16.0] - 2026-10-17
+
+### 🚀 Novinky a vylepšení ve verzi 2.16.0
+
+#### 📑 Multimodální analýza a AI Chat s celým PDF dokumentem (Google Gemini 3.5 Flash)
+- **Přímé zasílání celého vysázeného PDF**: Všechny požadavky na AI analýzu (`analyze_protocol`) i konverzaci (`chat_with_ai`) nyní posílají celkový PDF dokument nativně v `inline_data` (`application/pdf`, base64).
+- **Vizuální inspekce grafů a tabulek**: Model Gemini má k dispozici originální vizuální podobu protokolu a může přímo kontrolovat:
+  - přítomnost a správnost popisků os a jednotek v hranatých závorkách (např. $T\ [\text{s}]$),
+  - vynesení chybových úseček (**errorbarů**),
+  - proložení teoretickou křivkou fitu namísto nevhodných lomených spojnic bodů,
+  - parametry fitu s nejistotami a koeficientem determinace $R^2$,
+  - formátování a popisky tabulek.
+- **Robustní automatický fallback**: V případě jakéhokoliv problému se síťovým přenosem binárních dat proběhne okamžitý transparentní fallback na textový režim.
+
+#### 🧮 Podpora Markdown a matematiky LaTeX (KaTeX) v AI Chatu
+- **Lokální offline KaTeX & Marked**: Zprávy asistenta i AI v chatu jsou renderovány pomocí lokálně uložených knihoven `marked.min.js` a `KaTeX` (včetně fontů v `app/static/vendor/` pro 100% offline provoz).
+- **Matematické výrazy a symboly**: Plná podpora inline matematiky (`$...$`, `\(...\)`) i display bloků (`$$...$$`, `\[...\]`).
+- **Ochrana vzorců před poškozením**: Matematické výrazy jsou před parsováním Markdownu tokenizovány a chráněny, takže podtržítka dolních indexů ani hvězdičky násobení nejsou poškozeny jako kurzíva či tučné písmo.
+
+#### 📐 Ergonomické textové pole a interaktivní průvodce chatem
+- **Automaticky zvětšované textové pole**: Vstupní textarea se plynule přizpůsobuje délce psaného promptu (`min-height: 56px`, `max-height: 220px`) a umožňuje také manuální svislé roztažení.
+- **Tlačítko [ℹ️ Návod k chatu]**: V záhlaví chatu přibylo tlačítko otevírající interaktivní nápovědu. Vysvětluje obě možnosti využití chatu (teoretické dotazy bez zásahu do PDF vs. korekční úkoly s automatickým generováním anotací do textu) a nabízí klikací ukázkové prompty k okamžitému vyzkoušení.
+
+#### 🔀 Nezávislé ukotvení panelů (AI asistent a Bodování vlevo / vpravo)
+- **Nezávislé přepínání strany**: Panel AI asistenta i Bodovací dok disponují vlastním tlačítkem `[⇄]` pro přepínání strany ukotvení (vlevo vs. vpravo) s perzistencí v `localStorage`.
+- **Současné otevření obou panelů**: Pokud je jeden panel ukotven vlevo a druhý vpravo, **mohou být oba panely otevřené současně**. Vzniká tak komfortní třísloupcové uspořádání (AI Asistent vlevo, PDF plátno uprostřed a Bodování vpravo).
+- **Inteligentní přemístění při kolizi**: Při otevření druhého panelu na stejné straně se protilehlý panel automaticky přemístí na opačnou stranu.
+- **Překrytí stavu uložení**: Levý dok má nastaven vyšší `z-index`, takže čistě a nerušeně překrývá plovoucí odznáček stavu uložení `#autosave-indicator`.
+
+#### ⚡ Atomický Undo / Redo pro zvýraznění s komentářem
+- **Sloučení do 1 události historie**: Vytvoření zvýraznění textu a následné vepsání komentáře do otevírací karty se v historii změn (`historyStack`) nyní eviduje jako jediná atomická událost.
+- **Jedno kliknutí na Zpět**: Stisknutí `Ctrl+Z` (nebo kliknutí na tlačítko Zpět) odstraní zvýraznění i jeho komentář najednou bez nutnosti dvojitého klikání.
+
+---
+
 ## [2.15.0] - 2026-10-17
 
 ### 🚀 Novinky a vylepšení ve verzi 2.15.0

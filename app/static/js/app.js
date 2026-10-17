@@ -220,6 +220,7 @@ const App = {
   layoutMode: localStorage.getItem('praktika_layout_mode') || 'split',
   toolbarPos: localStorage.getItem('praktika_toolbar_pos') || 'vertical',
   theme: localStorage.getItem('praktika_theme') || 'light',
+  gradingDockSide: localStorage.getItem('praktika_grading_dock_side') || 'right',
   aiDrawerDockSide: localStorage.getItem('praktika_ai_dock_side') || 'right',
   aiDrawerFloating: localStorage.getItem('praktika_ai_floating') === 'true',
   selectedProtocolIds: new Set(),
@@ -233,6 +234,9 @@ const App = {
     this.setupGradingDockDrag();
     this.setupAIDrawerDrag();
     this.setupAllPanelResizers();
+    this.setupAIChatInputAutoGrow();
+    this.updateGradingDockSideButton();
+    this.updateAIDockSideButton();
     this.checkAIKeyStatus();
     this.showView('dashboard');
     this.applyLayoutMode();
@@ -617,29 +621,75 @@ const App = {
     dock.style.display = isOpening ? 'flex' : 'none';
 
     if (isOpening) {
-      // If AI drawer is open and docked, hide AI drawer so both 410px panels do not collide
+      this.updateGradingDockSideButton();
+      // If AI drawer is open and both would be on the SAME side, auto-move AI drawer to opposite side!
       const aiDrawer = document.getElementById('studio-ai-drawer');
-      if (aiDrawer && aiDrawer.style.display !== 'none' && !aiDrawer.classList.contains('floating-mode')) {
-        this.wasAIDrawerOpen = true;
-        aiDrawer.style.display = 'none';
+      if (aiDrawer && aiDrawer.style.display !== 'none' && !aiDrawer.classList.contains('floating-mode') && !dock.classList.contains('floating-mode')) {
+        if (this.gradingDockSide === this.aiDrawerDockSide) {
+          this.toggleAIDrawerSide();
+        }
       }
     }
+  },
+
+  updateGradingDockSideButton() {
+    const btn = document.getElementById('dock-btn-side');
+    if (!btn) return;
+    if (this.gradingDockSide === 'left') {
+      btn.title = "Přikotvit bodování vpravo";
+      btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/></svg>`;
+    } else {
+      btn.title = "Přikotvit bodování vlevo";
+      btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg>`;
+    }
+  },
+
+  toggleGradingDockSide() {
+    const dock = document.getElementById('studio-grading-dock');
+    if (!dock) return;
+    if (this.gradingDockSide === 'right') {
+      this.gradingDockSide = 'left';
+      dock.classList.remove('docked-right', 'floating-mode');
+      dock.classList.add('docked-left');
+      dock.style.left = '';
+      dock.style.top = '';
+      dock.style.right = '';
+      // If AI drawer is also docked left, auto-flip AI drawer to right so both stay visible!
+      const aiDrawer = document.getElementById('studio-ai-drawer');
+      if (aiDrawer && aiDrawer.style.display !== 'none' && !aiDrawer.classList.contains('floating-mode') && this.aiDrawerDockSide === 'left') {
+        this.toggleAIDrawerSide();
+      }
+    } else {
+      this.gradingDockSide = 'right';
+      dock.classList.remove('docked-left', 'floating-mode');
+      dock.classList.add('docked-right');
+      dock.style.left = '';
+      dock.style.top = '';
+      dock.style.right = '';
+      // If AI drawer is also docked right, auto-flip AI drawer to left so both stay visible!
+      const aiDrawer = document.getElementById('studio-ai-drawer');
+      if (aiDrawer && aiDrawer.style.display !== 'none' && !aiDrawer.classList.contains('floating-mode') && this.aiDrawerDockSide === 'right') {
+        this.toggleAIDrawerSide();
+      }
+    }
+    this.updateGradingDockSideButton();
+    localStorage.setItem('praktika_grading_dock_side', this.gradingDockSide);
   },
 
   toggleDockFloatingMode() {
     const dock = document.getElementById('studio-grading-dock');
     const btn = document.getElementById('dock-btn-mode');
     if (!dock) return;
-    if (dock.classList.contains('docked-right')) {
-      dock.classList.remove('docked-right');
+    if (!dock.classList.contains('floating-mode')) {
+      dock.classList.remove('docked-right', 'docked-left');
       dock.classList.add('floating-mode');
       if (btn) {
-        btn.title = "Přikotvit bodování vpravo";
+        btn.title = this.gradingDockSide === 'left' ? "Přikotvit bodování vlevo" : "Přikotvit bodování vpravo";
         btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/><path d="m11 9 3 3-3 3"/></svg>`;
       }
     } else {
       dock.classList.remove('floating-mode');
-      dock.classList.add('docked-right');
+      dock.classList.add(this.gradingDockSide === 'left' ? 'docked-left' : 'docked-right');
       dock.style.left = '';
       dock.style.top = '';
       dock.style.right = '';
@@ -743,6 +793,11 @@ const App = {
       drawer.style.left = '';
       drawer.style.top = '';
       drawer.style.right = '';
+      // If grading dock is also docked left, auto-flip grading dock to right so both stay visible!
+      const dock = document.getElementById('studio-grading-dock');
+      if (dock && dock.style.display !== 'none' && !dock.classList.contains('floating-mode') && this.gradingDockSide === 'left') {
+        this.toggleGradingDockSide();
+      }
     } else {
       this.aiDrawerDockSide = 'right';
       drawer.classList.remove('docked-left', 'floating-mode');
@@ -750,6 +805,11 @@ const App = {
       drawer.style.left = '';
       drawer.style.top = '';
       drawer.style.right = '';
+      // If grading dock is also docked right, auto-flip grading dock to left so both stay visible!
+      const dock = document.getElementById('studio-grading-dock');
+      if (dock && dock.style.display !== 'none' && !dock.classList.contains('floating-mode') && this.gradingDockSide === 'right') {
+        this.toggleGradingDockSide();
+      }
     }
     this.updateAIDockSideButton();
     localStorage.setItem('praktika_ai_dock_side', this.aiDrawerDockSide);
@@ -3161,20 +3221,14 @@ const App = {
     const isHidden = (drawer.style.display === 'none' || !drawer.style.display);
     drawer.style.display = isHidden ? 'flex' : 'none';
     if (isHidden) {
-      // Opening AI drawer: if grading dock is open and docked, minimize it so both 410px panels do not collide
-      const gradingDock = document.getElementById('studio-grading-dock');
-      if (gradingDock && gradingDock.style.display !== 'none' && !gradingDock.classList.contains('floating-mode')) {
-        this.wasGradingDockOpen = true;
-        gradingDock.style.display = 'none';
-      }
       this.updateAIDockSideButton();
       this.updateAIDrawerLists();
-    } else {
-      // Closing AI drawer: restore grading dock if it was open before
-      if (this.wasGradingDockOpen) {
-        this.wasGradingDockOpen = false;
-        const gradingDock = document.getElementById('studio-grading-dock');
-        if (gradingDock) gradingDock.style.display = 'flex';
+      // If grading dock is open and both would be on the SAME side, auto-move grading dock to opposite side!
+      const gradingDock = document.getElementById('studio-grading-dock');
+      if (gradingDock && gradingDock.style.display !== 'none' && !gradingDock.classList.contains('floating-mode') && !drawer.classList.contains('floating-mode')) {
+        if (this.aiDrawerDockSide === this.gradingDockSide) {
+          this.toggleGradingDockSide();
+        }
       }
     }
   },
@@ -3506,6 +3560,82 @@ const App = {
     }
   },
 
+  renderFormattedText(content) {
+    if (!content) return '';
+    try {
+      let text = String(content);
+      const mathTokens = [];
+
+      // 1. Extract and stash display math: $$...$$ and \[...\]
+      text = text.replace(/\$\$([\s\S]*?)\$\$/g, (m, math) => {
+        const id = `%%MATH_DISP_${mathTokens.length}%%`;
+        let html = '';
+        if (typeof katex !== 'undefined') {
+          try {
+            html = katex.renderToString(math.trim(), { displayMode: true, throwOnError: false });
+          } catch(e) { html = m; }
+        } else { html = `<pre>${this.escape(m)}</pre>`; }
+        mathTokens.push(html);
+        return id;
+      });
+
+      text = text.replace(/\\\[([\s\S]*?)\\\]/g, (m, math) => {
+        const id = `%%MATH_DISP_${mathTokens.length}%%`;
+        let html = '';
+        if (typeof katex !== 'undefined') {
+          try {
+            html = katex.renderToString(math.trim(), { displayMode: true, throwOnError: false });
+          } catch(e) { html = m; }
+        } else { html = `<pre>${this.escape(m)}</pre>`; }
+        mathTokens.push(html);
+        return id;
+      });
+
+      // 2. Extract and stash inline math: $...$ and \(...\)
+      text = text.replace(/\$([^\$\n\r]+?)\$/g, (m, math) => {
+        const id = `%%MATH_INL_${mathTokens.length}%%`;
+        let html = '';
+        if (typeof katex !== 'undefined') {
+          try {
+            html = katex.renderToString(math.trim(), { displayMode: false, throwOnError: false });
+          } catch(e) { html = m; }
+        } else { html = `<code>${this.escape(m)}</code>`; }
+        mathTokens.push(html);
+        return id;
+      });
+
+      text = text.replace(/\\\(([\s\S]*?)\\\)/g, (m, math) => {
+        const id = `%%MATH_INL_${mathTokens.length}%%`;
+        let html = '';
+        if (typeof katex !== 'undefined') {
+          try {
+            html = katex.renderToString(math.trim(), { displayMode: false, throwOnError: false });
+          } catch(e) { html = m; }
+        } else { html = `<code>${this.escape(m)}</code>`; }
+        mathTokens.push(html);
+        return id;
+      });
+
+      // 3. Parse Markdown using marked
+      let parsedHtml = '';
+      if (typeof marked !== 'undefined') {
+        parsedHtml = marked.parse(text, { breaks: true, gfm: true });
+      } else {
+        parsedHtml = `<p>${this.escape(text).replace(/\n/g, '<br>')}</p>`;
+      }
+
+      // 4. Restore KaTeX math HTML tokens
+      mathTokens.forEach((html, idx) => {
+        parsedHtml = parsedHtml.replace(new RegExp(`%%MATH_(?:DISP|INL)_${idx}%%`, 'g'), html);
+      });
+
+      return parsedHtml;
+    } catch (e) {
+      console.warn("Formatting failed, fallback to escaped text:", e);
+      return `<p>${this.escape(content).replace(/\n/g, '<br>')}</p>`;
+    }
+  },
+
   renderAIChatMessages(messages) {
     const container = document.getElementById('ai-chat-messages-container');
     if (!container) return;
@@ -3525,13 +3655,46 @@ const App = {
       const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
       return `
         <div class="ai-chat-msg ${isUser ? 'user' : 'assistant'}">
-          <div class="ai-chat-bubble">${this.escape(msg.content)}</div>
+          <div class="ai-chat-bubble">${this.renderFormattedText(msg.content)}</div>
           ${timeStr ? `<div class="ai-chat-time">${timeStr}</div>` : ''}
         </div>
       `;
     }).join('');
 
     container.scrollTop = container.scrollHeight;
+  },
+
+  setupAIChatInputAutoGrow() {
+    const input = document.getElementById('ai-chat-input');
+    if (input && !input.dataset.autogrowInit) {
+      input.dataset.autogrowInit = 'true';
+      input.addEventListener('input', () => {
+        input.style.height = 'auto';
+        input.style.height = Math.min(220, Math.max(56, input.scrollHeight)) + 'px';
+      });
+    }
+  },
+
+  showAIChatGuideModal() {
+    const modal = document.getElementById('ai-chat-guide-modal');
+    if (modal) modal.style.display = 'flex';
+  },
+
+  closeAIChatGuideModal() {
+    const modal = document.getElementById('ai-chat-guide-modal');
+    if (modal) modal.style.display = 'none';
+  },
+
+  pasteSamplePrompt(text) {
+    this.closeAIChatGuideModal();
+    this.switchAITab('chat');
+    const input = document.getElementById('ai-chat-input');
+    if (input) {
+      input.value = text;
+      input.style.height = 'auto';
+      input.style.height = Math.min(220, Math.max(56, input.scrollHeight)) + 'px';
+      input.focus();
+    }
   },
 
   async sendAIChatMessage() {
@@ -3543,6 +3706,7 @@ const App = {
     if (!text) return;
 
     input.value = '';
+    input.style.height = '';
     input.disabled = true;
     sendBtn.disabled = true;
 
@@ -3556,7 +3720,7 @@ const App = {
       const userMsgEl = document.createElement('div');
       userMsgEl.className = 'ai-chat-msg user';
       userMsgEl.innerHTML = `
-        <div class="ai-chat-bubble">${this.escape(text)}</div>
+        <div class="ai-chat-bubble">${this.renderFormattedText(text)}</div>
         <div class="ai-chat-time">${now}</div>
       `;
       container.appendChild(userMsgEl);
@@ -3598,7 +3762,7 @@ const App = {
         const assistantMsgEl = document.createElement('div');
         assistantMsgEl.className = 'ai-chat-msg assistant';
         assistantMsgEl.innerHTML = `
-          <div class="ai-chat-bubble">${this.escape(reply)}</div>
+          <div class="ai-chat-bubble">${this.renderFormattedText(reply)}</div>
           <div class="ai-chat-time">${now}</div>
         `;
         container.appendChild(assistantMsgEl);
@@ -3655,6 +3819,8 @@ const App = {
     const input = document.getElementById('ai-chat-input');
     if (input) {
       input.value = promptText;
+      input.style.height = 'auto';
+      input.style.height = Math.min(220, Math.max(56, input.scrollHeight)) + 'px';
       this.sendAIChatMessage();
     }
   },

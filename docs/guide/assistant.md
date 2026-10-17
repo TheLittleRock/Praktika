@@ -1,6 +1,6 @@
 # Příručka pro asistenty: Průvodce opravou protokolů
 
-Tento průvodce vás krok za krokem provede hodnocením a opravou studentských laboratorních protokolů v **Praktika Evaluation Studio v2.14.0**. Cílem aplikace je ušetřit vám čas při rutinních činnostech (přepisování bodů, formátování srážek pro Moodle) a umožnit vám soustředit se na věcnou a pedagogickou zpětnou vazbu pro studenta.
+Tento průvodce vás krok za krokem provede hodnocením a opravou studentských laboratorních protokolů v **Praktika Evaluation Studio v2.16.0**. Cílem aplikace je ušetřit vám čas při rutinních činnostech (přepisování bodů, formátování srážek pro Moodle) a umožnit vám soustředit se na věcnou a pedagogickou zpětnou vazbu pro studenta.
 
 ---
 
@@ -40,7 +40,7 @@ Kliknutím na tlačítko **Opravit** nebo přímo na řádek studenta v tabulce 
 - **Kolečko myši s klávesou Ctrl (`Ctrl + Scroll`)**: Rychlé krokové přibližování centrované na pozici kurzoru.
 - **Tlačítka v nástrojové liště**: K dispozici jsou tlačítka `+`, `−`, reset na `100 %` a přizpůsobení na celou šířku obrazovky (`Na šířku`).
 - **Celoobrazovkový režim (`⛶`)**: Tlačítko vpravo nahoře maximalizuje okno na celý monitor.
-- **Přizpůsobení bočních doků**: Šířku panelů AI Asistenta i Bodovacího doku můžete jednoduše měnit tažením za jejich levý okraj.
+- **Nezávislé ukotvení doků (Vlevo / Vpravo)**: Panel AI Asistenta i Bodovací dok mají v záhlaví tlačítko `[⇄]` pro přepnutí ukotvení na levou či pravou stranu. Pokud je jeden panel vlevo a druhý vpravo, **lze mít oba panely otevřené současně** (třísloupcové uspořádání s PDF plátnem uprostřed). Šířku obou panelů můžete plynule měnit tažením za jejich okrajový úchyt.
 
 ---
 
@@ -71,7 +71,7 @@ Horní nástrojová lišta poskytuje standardní nástroje kompatibilní s Adobe
 
 ### Výběr, úpravy a ergonomie nástrojů
 - **Výběr a přesun objektů**: Nástrojem **Ruka / Výběr** (`H`) klikněte na libovolný tvar (obdélník, šipku, poznámku). Lze jej snadno přetáhnout na nové místo nebo smazat klávesou **`Delete`** / **`Backspace`**. Zvýraznění textu zůstávají bezpečně ukotvena k textu a kliknutím na ně nástrojem Výběr okamžitě otevřete jejich komentář k úpravě.
-- **Kroky zpět a vpřed (Undo / Redo)**: Klávesové zkratky **`Ctrl+Z`** a **`Ctrl+Y`** (nebo `Ctrl+Shift+Z`) a tlačítka `Zpět` / `Vpřed` v liště spolehlivě vracejí nejen přidání a smazání, ale i posun objektů po stránce či editaci textu poznámky.
+- **Atomické kroky zpět a vpřed (Undo / Redo)**: Klávesové zkratky **`Ctrl+Z`** a **`Ctrl+Y`** (nebo `Ctrl+Shift+Z`) a tlačítka `Zpět` / `Vpřed` v liště spolehlivě vracejí nejen přidání a smazání, ale i posun objektů po stránce či editaci textu poznámky. Vytvoření zvýraznění s vepsaným komentářem je nyní **1 jediná atomická událost**, takže stisknutím `Ctrl+Z` vrátíte zvýraznění i komentář najednou.
 - **Rychlé ukládání komentářů**: Stisk klávesy **`Enter`** v kartě komentáře jej okamžitě uloží a zavře. Pro zalomení na nový řádek použijte **`Shift+Enter`**.
 - **Editace poznámek bez duplikace**: Kliknutí na existující poznámku `[⊖]` (jak v nástroji Výběr, tak přímo v nástroji Poznámka) otevře stávající poznámku k úpravě a přesunu, namísto nechtěného vytvoření duplikátu. Volba srážky bodů je u poznámek ve výchozím stavu nezaškrtnutá.
 - **Rychlý převod označeného textu**: Označíte-li blok textu myší v režimu Výběr a následně kliknete na Zvýrazňovač (`U`) či Přeškrtnutí (`S`), označený úsek se ihned převede na danou anotaci.
@@ -79,9 +79,11 @@ Horní nástrojová lišta poskytuje standardní nástroje kompatibilní s Adobe
 
 ---
 
-## 6. Práce s AI Asistentem a AI Chatem (Google Gemini)
+## 6. Práce s AI Asistentem a AI Chatem (Google Gemini 3.5 Flash)
 
-AI Asistent vám poslouží jako chytrý pedagogický partner. Panel AI asistenta disponuje dvěma záložkami:
+AI Asistent vám poslouží jako chytrý pedagogický partner s **multimodálním zrakem**. Přímo analyzuje nejen extrahovaný text, ale celý originální vysázený PDF dokument (včetně vizuální podoby grafů, popisků os s jednotkami, errorbarů, fitů a tabulek).
+
+Panel AI asistenta disponuje dvěma záložkami:
 
 ![Práce s AI asistentem a schvalování návrhů](../assets/images/clip_ai_assistant.webp)
 
@@ -92,11 +94,13 @@ AI Asistent vám poslouží jako chytrý pedagogický partner. Panel AI asistent
 4. **Schválení návrhu**: Klikněte na **✓ Aplikovat do PDF** (buď v bočním panelu, nebo přímo na plátně u zvýrazněného textu). Návrh se okamžitě převede na vaši oficiální anotaci.
 5. **Zamítnutí návrhu**: Kliknutím na **✕ Zahodit** návrh trvale odstraníte.
 
-### Záložka 💬 AI Chat s interaktivním zadáváním úkolů
+### Záložka 💬 AI Chat s formátováním Markdown & LaTeX matematiky
 V záložce **AI Chat** můžete s asistentem vést přirozený dialog specifický pro otevřený protokol:
-- **Teoretické dotazy**: Můžete se zeptat na fyzikální vztahy, jednotky či metody měření (např. *„Jaký je vztah pro tepelnou kapacitu kalorimetru?“*).
-- **Zadávání interaktivních úkolů**: Zadejte úkol, např. *„Zkontroluj vzorce a jednotky v diskuzi na straně 3“* nebo *„Prověř, zda jsou správně zaokrouhleny nejistoty v tabulce 2“*.
-- **Automatická tvorba návrhů v PDF**: Pokud AI při řešení úkolu nalezne konkrétní chyby, nejenže je vysvětlí v chatu, ale rovnou je **automaticky vygeneruje jako návrhy označení do textu protokolu** (s možností jejich okamžitého schválení či zahození).
+- **Podpora Markdown a KaTeX matematiky**: Všechny odpovědi i vzorce jsou srozumitelně vysázeny včetně matematických symbolů a rovnic (např. $C = \frac{Q}{\Delta T}$ nebo $\rho = (8\,920 \pm 40)\ \text{kg}\cdot\text{m}^{-3}$).
+- **Ergonomické textové pole a tlačítko [ℹ️ Návod k chatu]**: Vstupní pole chatu se automaticky zvětšuje s délkou dotazu. Kliknutím na tlačítko *Návod k chatu* v záhlaví otevřete přehledného průvodce s klikacími ukázkami promptů.
+- **Duální režim použití**:
+  - *Teoretické dotazy*: Dotazy na teorii, tabulkové hodnoty či metodiku měření bez ovlivnění PDF.
+  - *Korekční úkoly*: Pokyn k prověření konkrétní pasáže či grafu (např. *„Zkontroluj graf závislosti na straně 3 a errorbary“*). AI chyby nejen vysvětlí v chatu, ale rovnou je **automaticky vytvoří jako návrhy zvýraznění do textu protokolu**, které můžete jedním kliknutím schválit.
 - **Trvalá historie**: Konverzace v chatu se automaticky ukládá ke každému protokolu a lze ji kdykoliv vymazat tlačítkem *Smazat chat*.
 
 ---
