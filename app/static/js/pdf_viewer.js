@@ -18,6 +18,9 @@ const PDFStudio = {
   pendingRender: false,
   activeSelectedAnnot: null,
   activeEditingCommentAnnot: null,
+  _isCreatingNewAnnotation: null,
+  _activeCommentBoxOrigState: null,
+  _commentBoxEscHandler: null,
   highlightColor: '#ef4444',
   penColor: '#ef4444',
   highlightColors: [
@@ -205,6 +208,15 @@ const PDFStudio = {
       this.container.addEventListener('mouseleave', () => this.hideTooltip());
     }
     window.addEventListener('blur', () => this.hideTooltip());
+
+    // Window-level mouseup catches text selection cleanly even if pointer released in margins/gutter
+    window.addEventListener('mouseup', (e) => {
+      if (this.activeTool !== 'highlight' && this.activeTool !== 'strikeout') return;
+      if (e.target && e.target.closest && e.target.closest('#acrobat-floating-comment, .tool-btn, .navbar, .modal')) return;
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+      this.convertCurrentSelectionToAnnotation(this.activeTool, sel);
+    });
   },
 
   createTooltipBubble() {
@@ -547,33 +559,104 @@ const PDFStudio = {
   },
 
   convertCurrentSelectionToAnnotation(toolName, sel) {
-    if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return false;
     const range = sel.getRangeAt(0);
-    const clientRects = range.getClientRects();
-    if (!clientRects || clientRects.length === 0) return;
+    const clientRects = Array.from(range.getClientRects());
+    if (!clientRects || clientRects.length === 0) return false;
 
     let node = range.commonAncestorContainer;
     if (node && node.nodeType === 3) node = node.parentNode;
     const pageWrap = node ? node.closest('.pdf-page-container') : null;
-    if (!pageWrap) return;
+    if (!pageWrap) return false;
     const pageNum = parseInt(pageWrap.dataset.pageNumber, 10) || 1;
 
     const pageBox = pageWrap.getBoundingClientRect();
-    const lineRects = [];
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-
+    const rawRects = [];
     for (const r of clientRects) {
-      if (r.width > 2 && r.height > 2) {
-        const x0 = (r.left - pageBox.left) / this.scale;
-        const y0 = (r.top - pageBox.top) / this.scale;
-        const x1 = (r.right - pageBox.left) / this.scale;
-        const y1 = (r.bottom - pageBox.top) / this.scale;
-        lineRects.push([x0, y0, x1, y1]);
-        minX = Math.min(minX, x0);
-        minY = Math.min(minY, y0);
-        maxX = Math.max(maxX, x1);
-        maxY = Math.max(maxY, y1);
+      if (r.width < 1.5 || r.height < 1.5) continue;
+      const x0 = (r.left - pageBox.left) / this.scale;
+      const y0 = (r.top - pageBox.top) / this.scale;
+      const x1 = (r.right - pageBox.left) / this.scale;
+      const y1 = (r.bottom - pageBox.top) / this.scale;
+      if (x1 > x0 && y1 > y0) {
+        rawRects.push({
+          x0, y0, x1, y1,
+          width: x1 - x0,
+          height: y1 - y0,
+          screenRight: r.right,
+          screenBottom: r.bottom,
+          screenTop: r.top,
+          screenLeft: r.left
+        });
       }
+    }
+
+    if (rawRects.length === 0) return false;
+
+    // Sort rects top-to-bottom, left-to-right
+    rawRects.sort((a, b) => a.y0 - b.y0 || a.x0 - b.x0);
+
+    // Group rects into lines by vertical overlap
+    const lines = [];
+    for (const rect of rawRects) {
+      let placed = false;
+      for (const line of lines) {
+        const lineH = line.y1 - line.y0;
+        const overlap = Math.min(line.y1, rect.y1) - Math.max(line.y0, rect.y0);
+        const minH = Math.min(lineH, rect.height);
+        if (overlap > 0.45 * minH) {
+          line.rects.push(rect);
+          line.x0 = Math.min(line.x0, rect.x0);
+          line.y0 = Math.min(line.y0, rect.y0);
+          line.x1 = Math.max(line.x1, rect.x1);
+          line.y1 = Math.max(line.y1, rect.y1);
+          line.screenRight = Math.max(line.screenRight, rect.screenRight);
+          line.screenBottom = Math.max(line.screenBottom, rect.screenBottom);
+          line.screenTop = Math.min(line.screenTop, rect.screenTop);
+          line.screenLeft = Math.min(line.screenLeft, rect.screenLeft);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        lines.push({
+          x0: rect.x0,
+          y0: rect.y0,
+          x1: rect.x1,
+          y1: rect.y1,
+          screenRight: rect.screenRight,
+          screenBottom: rect.screenBottom,
+          screenTop: rect.screenTop,
+          screenLeft: rect.screenLeft,
+          rects: [rect]
+        });
+      }
+    }
+
+    // Filter spurious line jumps (e.g. caret or accidental overshoot onto next line when selecting heading)
+    if (lines.length > 1) {
+      const lastLine = lines[lines.length - 1];
+      if ((lastLine.x1 - lastLine.x0) < 9) {
+        lines.pop();
+      }
+    }
+    if (lines.length > 1) {
+      const firstLine = lines[0];
+      if ((firstLine.x1 - firstLine.x0) < 9) {
+        lines.shift();
+      }
+    }
+
+    if (lines.length === 0) return false;
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const lineRects = [];
+    for (const l of lines) {
+      lineRects.push([l.x0, l.y0, l.x1, l.y1]);
+      minX = Math.min(minX, l.x0);
+      minY = Math.min(minY, l.y0);
+      maxX = Math.max(maxX, l.x1);
+      maxY = Math.max(maxY, l.y1);
     }
 
     sel.removeAllRanges();
@@ -584,17 +667,24 @@ const PDFStudio = {
         page: pageNum,
         type: toolName,
         rect: [minX, minY, maxX, maxY],
-        rects: lineRects.length > 0 ? lineRects : [[minX, minY, maxX, maxY]],
+        rects: lineRects,
         color: toolName === 'highlight' ? this.highlightColor : '#ef4444',
         content: '',
         author: this.getAuthorName()
       };
+
+      this._isCreatingNewAnnotation = newAnnot;
       this.addAnnotation(newAnnot);
       this.redrawPageAnnotations(pageNum);
 
-      const lastRect = clientRects[clientRects.length - 1];
-      this.openCommentBox(newAnnot, lastRect.right, lastRect.bottom, false);
+      const anchorLine = lines[lines.length - 1];
+      const screenX = anchorLine.screenRight;
+      const screenY = anchorLine.screenBottom;
+
+      this.openCommentBox(newAnnot, screenX, screenY, true);
+      return true;
     }
+    return false;
   },
 
   setTool(toolName) {
@@ -966,14 +1056,19 @@ const PDFStudio = {
       // Update TextLayer
       textLayerDiv.style.width = `${Math.floor(viewport.width)}px`;
       textLayerDiv.style.height = `${Math.floor(viewport.height)}px`;
+      textLayerDiv.style.setProperty('--scale-factor', viewport.scale);
       textLayerDiv.innerHTML = '';
       const textContent = await page.getTextContent();
-      window.pdfjsLib.renderTextLayer({
+      const textTask = window.pdfjsLib.renderTextLayer({
+        textContentSource: textContent,
         textContent: textContent,
         container: textLayerDiv,
         viewport: viewport,
         textDivs: []
       });
+      if (textTask && textTask.promise) {
+        await textTask.promise;
+      }
 
       // Render clickable links from PDF
       await this.renderPageLinks(page, pageWrap, viewport);
@@ -1129,12 +1224,16 @@ const PDFStudio = {
           }
         }
 
-        this.openCommentBox({
+        const newNoteAnnot = {
+          id: `annot_${this.protocolId || 0}_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
           page: pageNum,
           type: 'note',
           point: [pt.x, pt.y],
-          content: ''
-        }, pt.screenX, pt.screenY, true);
+          content: '',
+          author: this.getAuthorName()
+        };
+        this._isCreatingNewAnnotation = newNoteAnnot;
+        this.openCommentBox(newNoteAnnot, pt.screenX, pt.screenY, true);
         return;
       }
 
@@ -1271,52 +1370,11 @@ const PDFStudio = {
     pageWrap.addEventListener('mouseleave', () => this.hideTooltip());
 
     // Native Acrobat text selection listener on TextLayer
-    pageWrap.addEventListener('mouseup', (e) => {
+    pageWrap.addEventListener('mouseup', () => {
       if (this.activeTool !== 'highlight' && this.activeTool !== 'strikeout') return;
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || !sel.rangeCount) return;
-
-      const range = sel.getRangeAt(0);
-      const clientRects = range.getClientRects();
-      if (clientRects.length === 0) return;
-
-      const pageBox = pageWrap.getBoundingClientRect();
-      const lineRects = [];
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-
-      for (const r of clientRects) {
-        if (r.width > 2 && r.height > 2) {
-          const x0 = (r.left - pageBox.left) / this.scale;
-          const y0 = (r.top - pageBox.top) / this.scale;
-          const x1 = (r.right - pageBox.left) / this.scale;
-          const y1 = (r.bottom - pageBox.top) / this.scale;
-          lineRects.push([x0, y0, x1, y1]);
-          minX = Math.min(minX, x0);
-          minY = Math.min(minY, y0);
-          maxX = Math.max(maxX, x1);
-          maxY = Math.max(maxY, y1);
-        }
-      }
-
-      sel.removeAllRanges();
-
-      if (maxX > minX && maxY > minY) {
-        const newAnnot = {
-          page: pageNum,
-          type: this.activeTool,
-          rect: [minX, minY, maxX, maxY],
-          rects: lineRects.length > 0 ? lineRects : [[minX, minY, maxX, maxY]],
-          color: this.activeTool === 'highlight' ? this.highlightColor : '#ef4444',
-          content: '',
-          author: this.getAuthorName()
-        };
-        // Add highlight immediately to canvas so user sees the visual highlight right away!
-        this.addAnnotation(newAnnot);
-        this.redrawPageAnnotations(pageNum);
-
-        const lastRect = clientRects[clientRects.length - 1];
-        this.openCommentBox(newAnnot, lastRect.right, lastRect.bottom, false);
-      }
+      this.convertCurrentSelectionToAnnotation(this.activeTool, sel);
     });
   },
 
@@ -1373,9 +1431,23 @@ const PDFStudio = {
     const card = this.floatingBoxEl;
     if (!card) return;
 
+    // Cleanly cancel any previous unconfirmed annotation draft
+    if (this._isCreatingNewAnnotation && this._isCreatingNewAnnotation !== annot) {
+      this.closeCommentBox(true);
+    }
+    if (isNew) {
+      this._isCreatingNewAnnotation = annot;
+    } else {
+      this._isCreatingNewAnnotation = null;
+    }
+
     this.activeSelectedAnnot = annot;
     this.activeEditingCommentAnnot = annot;
     this.redrawPageAnnotations(annot.page);
+
+    const origContent = annot ? (annot.content || '') : '';
+    const origColor = annot ? (annot.color || '#ef4444') : '#ef4444';
+    this._activeCommentBoxOrigState = { content: origContent, color: origColor };
 
     const author = this.getAuthorName(annot ? annot.author : null);
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1398,7 +1470,7 @@ const PDFStudio = {
             <div style="font-size:0.72rem; color:var(--text-muted);">${timeStr}</div>
           </div>
         </div>
-        <button class="acrobat-close-btn" onclick="PDFStudio.closeCommentBox()" title="Zavřít">✕</button>
+        <button class="acrobat-close-btn" onclick="PDFStudio.closeCommentBox(true)" title="Zavřít">✕</button>
       </div>
 
       <!-- Color selector for this highlight/comment -->
@@ -1454,19 +1526,52 @@ const PDFStudio = {
           ${!isNew ? `<button type="button" class="btn btn-danger btn-sm" onclick="PDFStudio.deleteAnnotationObj(${this.annotations.indexOf(annot)})" style="padding:3px 8px; font-size:0.72rem;">Smazat</button>` : ''}
         </div>
         <div style="display:flex; gap:6px; align-items:center; margin-left:auto;">
-          <button type="button" class="btn btn-secondary btn-sm" onclick="PDFStudio.closeCommentBox()" style="padding:3px 8px; font-size:0.72rem;">Zrušit</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="PDFStudio.closeCommentBox(true)" style="padding:3px 8px; font-size:0.72rem;">Zrušit</button>
           <button type="button" class="btn btn-primary btn-sm" id="acrobat-post-btn" style="padding:3px 10px; font-size:0.72rem; font-weight:700; white-space:nowrap; flex-shrink:0;">Uložit komentář</button>
         </div>
       </div>
     `;
 
+    // Calculate smart positioning with real card dimensions and viewport clamping
+    card.style.visibility = 'hidden';
     card.style.display = 'flex';
-    const cardWidth = 410;
-    const cardHeight = 240;
-    let posX = Math.min(window.innerWidth - cardWidth - 20, Math.max(20, screenX + 15));
-    let posY = Math.min(window.innerHeight - cardHeight - 20, Math.max(20, screenY - 20));
-    card.style.left = `${posX}px`;
-    card.style.top = `${posY}px`;
+    const cardWidth = card.offsetWidth || 410;
+    const cardHeight = card.offsetHeight || 360;
+
+    const margin = 16;
+    let targetY;
+    if (screenY + cardHeight + margin > window.innerHeight) {
+      // Flip above selection/anchor
+      targetY = screenY - cardHeight - 16;
+    } else {
+      // Below anchor point
+      targetY = isNew ? (screenY + 10) : (screenY - 20);
+    }
+
+    let posY = targetY;
+    if (posY + cardHeight > window.innerHeight - margin) {
+      posY = window.innerHeight - cardHeight - margin;
+    }
+    if (posY < margin) {
+      posY = margin;
+    }
+
+    let targetX = screenX + 15;
+    if (targetX + cardWidth > window.innerWidth - margin) {
+      targetX = screenX - cardWidth - 15;
+    }
+
+    let posX = targetX;
+    if (posX + cardWidth > window.innerWidth - margin) {
+      posX = window.innerWidth - cardWidth - margin;
+    }
+    if (posX < margin) {
+      posX = margin;
+    }
+
+    card.style.left = `${Math.round(posX)}px`;
+    card.style.top = `${Math.round(posY)}px`;
+    card.style.visibility = 'visible';
 
     // Make card draggable across screen by header
     const headerEl = card.querySelector('.acrobat-comment-header');
@@ -1500,9 +1605,6 @@ const PDFStudio = {
       };
     }
 
-    const origContent = annot ? (annot.content || '') : '';
-    const origColor = annot ? (annot.color || '#ef4444') : '#ef4444';
-
     const textarea = card.querySelector('#acrobat-comment-textarea');
     textarea.focus();
     textarea.addEventListener('keydown', (e) => {
@@ -1510,8 +1612,24 @@ const PDFStudio = {
         e.preventDefault();
         const postBtn = card.querySelector('#acrobat-post-btn');
         if (postBtn) postBtn.click();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        this.closeCommentBox(true);
       }
     });
+
+    // Global ESC listener while comment card is open
+    if (this._commentBoxEscHandler) {
+      window.removeEventListener('keydown', this._commentBoxEscHandler);
+    }
+    this._commentBoxEscHandler = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        this.closeCommentBox(true);
+      }
+    };
+    window.addEventListener('keydown', this._commentBoxEscHandler);
 
     card.querySelector('#acrobat-preset-btn').onclick = async () => {
       const val = textarea.value.trim();
@@ -1592,7 +1710,7 @@ const PDFStudio = {
       }
 
       if (onCompleteCallback) onCompleteCallback();
-      this.closeCommentBox();
+      this.closeCommentBox(false);
     };
   },
 
@@ -1604,18 +1722,50 @@ const PDFStudio = {
     }
   },
 
-  closeCommentBox() {
+  closeCommentBox(isCancelled = false) {
+    if (this._commentBoxEscHandler) {
+      window.removeEventListener('keydown', this._commentBoxEscHandler);
+      this._commentBoxEscHandler = null;
+    }
     if (this.floatingBoxEl) {
       this.floatingBoxEl.style.display = 'none';
     }
-    // Clean up empty newly created note if cancelled without content
-    if (this._isCreatingNewNote && this.activeEditingCommentAnnot && !this.activeEditingCommentAnnot.content) {
-      const idx = this.annotations.indexOf(this.activeEditingCommentAnnot);
-      if (idx !== -1) {
-        this.annotations.splice(idx, 1);
+
+    if (isCancelled) {
+      if (this._isCreatingNewAnnotation) {
+        const annotToRemove = this._isCreatingNewAnnotation;
+        const pageNum = annotToRemove.page;
+        const idx = this.annotations.indexOf(annotToRemove);
+        if (idx !== -1) {
+          this.annotations.splice(idx, 1);
+        }
+        if (this.historyStack.length > 0) {
+          const lastAction = this.historyStack[this.historyStack.length - 1];
+          if (lastAction && lastAction.type === 'add' && lastAction.annot && lastAction.annot.id === annotToRemove.id) {
+            this.historyStack.pop();
+          }
+        }
+        this.redrawPageAnnotations(pageNum);
+        this.syncAnnotationsWithBackend();
+      } else if (this.activeEditingCommentAnnot && this._activeCommentBoxOrigState) {
+        this.activeEditingCommentAnnot.content = this._activeCommentBoxOrigState.content;
+        this.activeEditingCommentAnnot.color = this._activeCommentBoxOrigState.color;
+        this.redrawPageAnnotations(this.activeEditingCommentAnnot.page);
+        this.syncAnnotationsWithBackend();
+      }
+    } else {
+      // Clean up empty newly created note if cancelled/closed without content
+      if (this._isCreatingNewNote && this.activeEditingCommentAnnot && !this.activeEditingCommentAnnot.content) {
+        const idx = this.annotations.indexOf(this.activeEditingCommentAnnot);
+        if (idx !== -1) {
+          this.annotations.splice(idx, 1);
+        }
       }
     }
+
+    this._isCreatingNewAnnotation = null;
     this._isCreatingNewNote = false;
+    this._activeCommentBoxOrigState = null;
     this.activeSelectedAnnot = null;
     this.activeEditingCommentAnnot = null;
     if (this.container) {

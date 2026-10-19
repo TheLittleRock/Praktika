@@ -1067,24 +1067,22 @@ tr:hover td {
   display: block;
 }
 
-/* PDF.js TextLayer for real text selection */
+/* PDF.js TextLayer for real, responsive text selection */
 .textLayer {
   position: absolute;
   text-align: initial;
-  left: 0;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   overflow: hidden;
-  opacity: 0.25;
-  line-height: 1.0;
+  opacity: 1; /* Keep 1 so selection is vivid, crisp, and responsive with 0 lag */
+  line-height: 1;
   text-size-adjust: none;
   forced-color-adjust: none;
   transform-origin: 0 0;
   z-index: 5;
+  user-select: text;
 }
 
-.textLayer span {
+.textLayer :is(span, br) {
   color: transparent;
   position: absolute;
   white-space: pre;
@@ -1092,9 +1090,40 @@ tr:hover td {
   transform-origin: 0% 0%;
 }
 
-.textLayer ::selection {
-  background: rgba(0, 122, 204, 0.35);
+.textLayer span.markedContent {
+  top: 0;
+  height: 0;
+}
+
+.textLayer ::-moz-selection {
+  background: rgba(37, 99, 235, 0.42);
   color: transparent;
+}
+
+.textLayer ::selection {
+  background: rgba(37, 99, 235, 0.42);
+  color: transparent;
+}
+
+.textLayer br::-moz-selection {
+  background: transparent;
+}
+
+.textLayer br::selection {
+  background: transparent;
+}
+
+.textLayer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: -1;
+  cursor: default;
+  user-select: none;
+}
+
+.textLayer .endOfContent.active {
+  top: 0;
 }
 
 .annotation-layer {
@@ -1167,6 +1196,8 @@ tr:hover td {
   position: fixed;
   width: 410px;
   max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);

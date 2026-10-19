@@ -1,6 +1,6 @@
 # Příručka pro asistenty: Průvodce opravou protokolů
 
-Tento průvodce vás krok za krokem provede hodnocením a opravou studentských laboratorních protokolů v **Praktika Evaluation Studio v2.16.0**. Cílem aplikace je ušetřit vám čas při rutinních činnostech (přepisování bodů, formátování srážek pro Moodle) a umožnit vám soustředit se na věcnou a pedagogickou zpětnou vazbu pro studenta.
+Tento průvodce vás krok za krokem provede hodnocením a opravou studentských laboratorních protokolů v **Praktika Evaluation Studio v2.17.0**. Cílem aplikace je ušetřit vám čas při rutinních činnostech (přepisování bodů, formátování srážek pro Moodle) a umožnit vám soustředit se na věcnou a pedagogickou zpětnou vazbu pro studenta.
 
 ---
 
@@ -71,6 +71,9 @@ Horní nástrojová lišta poskytuje standardní nástroje kompatibilní s Adobe
 
 ### Výběr, úpravy a ergonomie nástrojů
 - **Výběr a přesun objektů**: Nástrojem **Ruka / Výběr** (`H`) klikněte na libovolný tvar (obdélník, šipku, poznámku). Lze jej snadno přetáhnout na nové místo nebo smazat klávesou **`Delete`** / **`Backspace`**. Zvýraznění textu zůstávají bezpečně ukotvena k textu a kliknutím na ně nástrojem Výběr okamžitě otevřete jejich komentář k úpravě.
+- **Zrušení zvýraznění a klávesa `Escape`**: Pokud po označení textu stisknete `Escape` nebo kliknete na *Zrušit*, nově vytvořené zvýraznění se ihned bezestopy odstraní z plátna i historie. Klávesa `Escape` spolehlivě zavírá okénko komentáře na jeden stisk. Čisté zvýraznění bez komentáře potvrdíte stiskem `Enter` (nebo *Uložit komentář*).
+- **Inteligentní plovoucí karta komentáře**: Okénko komentáře automaticky detekuje spodní okraj obrazovky – označíte-li text dole, okénko se automaticky otevře **NAD** označeným textem a je vždy celé viditelné včetně ovládacích tlačítek.
+- **Přesné a responzivní označování textu**: Nativní výběr textu myší reaguje okamžitě a zřetelně bez zpoždění. Algoritmus slučuje segmenty na stejném řádku do čistého pruhu a filtruje nechtěné přeskakování na následující řádky při označování nadpisů. Výběr spolehlivě funguje i při uvolnění myši v okrajích dokumentu.
 - **Atomické kroky zpět a vpřed (Undo / Redo)**: Klávesové zkratky **`Ctrl+Z`** a **`Ctrl+Y`** (nebo `Ctrl+Shift+Z`) a tlačítka `Zpět` / `Vpřed` v liště spolehlivě vracejí nejen přidání a smazání, ale i posun objektů po stránce či editaci textu poznámky. Vytvoření zvýraznění s vepsaným komentářem je nyní **1 jediná atomická událost**, takže stisknutím `Ctrl+Z` vrátíte zvýraznění i komentář najednou.
 - **Rychlé ukládání komentářů**: Stisk klávesy **`Enter`** v kartě komentáře jej okamžitě uloží a zavře. Pro zalomení na nový řádek použijte **`Shift+Enter`**.
 - **Editace poznámek bez duplikace**: Kliknutí na existující poznámku `[⊖]` (jak v nástroji Výběr, tak přímo v nástroji Poznámka) otevře stávající poznámku k úpravě a přesunu, namísto nechtěného vytvoření duplikátu. Volba srážky bodů je u poznámek ve výchozím stavu nezaškrtnutá.

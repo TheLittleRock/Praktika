@@ -4,6 +4,26 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.17.0] - 2026-10-19
+
+### 🚀 Novinky a vylepšení ve verzi 2.17.0
+
+#### 🎯 Zrušení nového zvýraznění a spolehlivá klávesa Escape
+- **Okamžité odstranění zvýraznění při zrušení**: Při stisku klávesy `Escape` nebo kliknutí na tlačítko *Zrušit* při zadávání komentáře k nově vytvořenému zvýraznění se zvýraznění kompletně a bezestopy odstraní z plátna, ze seznamu anotací i z historie akcí (`Undo`).
+- **Klávesa Escape pro zavření okénka**: Stisk klávesy `Escape` spolehlivě zavírá okénko komentáře jak z textového pole, tak z jakéhokoliv místa na obrazovce. Při editaci již existující dřívější poznámky obnoví stisk `Escape` původní text i barvu bez smazání anotace.
+- **Zvýraznění bez komentáře na stisk Enter**: Čisté zvýraznění bez textového komentáře se potvrdí stiskem `Enter` (nebo kliknutím na *Uložit komentář*) s prázdným polem.
+
+#### 📍 Inteligentní pozicování okénka komentáře (Acrobat Comment Card)
+- **Automatické překlopení nad označený text**: Plovoucí karta komentáře měří svou reálnou výšku (~360 px) a detekuje přiblížení ke spodnímu okraji okna. Pokud se karta pod označený řádek nevejde, automaticky se otevře **NAD** označeným textem.
+- **100% viditelnost a bezpečný clamping**: Souřadnice karty jsou striktně ořezány v mezích okna prohlížeče (`window.innerWidth`, `window.innerHeight`) s bezpečným odstupem 16 px. Karta ani její spodní ovládací tlačítka už nikdy nezmizí pod dolním okrajem obrazovky.
+- **Responzivní posun**: V případě velmi malých obrazovek je karta omezena na `max-height: calc(100vh - 32px)` s vnitřním posuvníkem.
+
+#### ⚡ Responzivní a přesné označování textu (PDF.js TextLayer)
+- **Kalibrace měřítka textové vrstvy**: Každé stránce je při renderování předána dynamická CSS proměnná `--scale-factor: viewport.scale`. Tím je odstraněn rozpad geometrie písem a nesoulad souřadnic v PDF.js 3.11.174 při jakékoliv úrovni zoomu.
+- **Okamžitá odezva výběru bez zpoždění**: Odstraněna redukce průhlednosti (`opacity: 0.25`) textové vrstvy. Nativní výběr myší je jasný, sytě modrý a okamžitě viditelný během tažení myší.
+- **Konec nechtěných přeskoků na další řádky**: Algoritmus označování textu inteligentně seskupuje segmenty na stejném řádku do čistých linií a filtruje nechtěné koncové caret artefakty při označování nadpisů.
+- **Globální zachycení myši**: Výběr textu spolehlivě funguje i v případě, že uživatel uvolní tlačítko myši těsně za okrajem stránky či v mezeře mezi stranami.
+
 ## [2.16.0] - 2026-10-17
 
 ### 🚀 Novinky a vylepšení ve verzi 2.16.0
