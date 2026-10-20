@@ -6,7 +6,7 @@ import json
 import re
 import time
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
@@ -15,14 +15,14 @@ try:
 except ImportError:
     import fitz as pymupdf
 
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status, Response, Request, BackgroundTasks, Query
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status, Response, Request, BackgroundTasks
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from fastapi.templating import Jinja2Templates
 from app.config import BASE_DIR, DATA_DIR, PROTOCOLS_DIR, DB_PATH, BACKUPS_DIR
-from app.database import get_db, init_db, create_sqlite_backup, perform_daily_auto_backup, log_event
+from app.database import get_db, init_db, create_sqlite_backup, perform_daily_auto_backup
 from app.auth import verify_password, get_password_hash, create_access_token, get_current_user
 from app.models import (
     UserLogin, UserCreate, UserResponse, ChangePasswordRequest,
@@ -69,8 +69,7 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 # ==========================================
 
 @app.post("/api/auth/login")
-def login(credentials: UserLogin, response: Response, request: Request):
-    client_ip = request.client.host if request.client else None
+def login(credentials: UserLogin, response: Response):
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT id, username, password_hash, full_name, role FROM users WHERE username = ?", (credentials.username,))
@@ -78,13 +77,10 @@ def login(credentials: UserLogin, response: Response, request: Request):
     conn.close()
 
     if not user or not verify_password(credentials.password, user["password_hash"]):
-        log_event("WARNING", "auth", "auth.failed_login", {"username": credentials.username}, ip_address=client_ip)
         raise HTTPException(status_code=400, detail="Nesprávné uživatelské jméno nebo heslo")
 
     token = create_access_token({"sub": user["username"], "role": user["role"]})
     response.set_cookie(key="access_token", value=f"Bearer {token}", httponly=True, max_age=60*60*24*7)
-
-    log_event("ACTION", "auth", "auth.login", {"username": user["username"], "role": user["role"]}, user=dict(user), ip_address=client_ip)
 
     return {
         "access_token": token,
@@ -102,9 +98,7 @@ def get_me(user: dict = Depends(get_current_user)):
     return user
 
 @app.post("/api/auth/logout")
-def logout(response: Response, request: Request, user: dict = Depends(get_current_user)):
-    client_ip = request.client.host if request.client else None
-    log_event("INFO", "auth", "auth.logout", user=user, ip_address=client_ip)
+def logout(response: Response):
     response.delete_cookie("access_token")
     return {"status": "ok", "message": "Odhlášeno"}
 
@@ -117,14 +111,12 @@ def change_password(req: ChangePasswordRequest, user: dict = Depends(get_current
 
     if not row or not verify_password(req.old_password, row["password_hash"]):
         conn.close()
-        log_event("WARNING", "auth", "auth.change_password_failed", user=user)
         raise HTTPException(status_code=400, detail="Současné heslo není správné")
 
     new_hash = get_password_hash(req.new_password)
     cur.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_hash, user["id"]))
     conn.commit()
     conn.close()
-    log_event("ACTION", "auth", "auth.change_password_success", user=user)
     return {"status": "ok", "message": "Heslo bylo úspěšně změněno"}
 
 @app.post("/api/auth/profile")
@@ -853,13 +845,6 @@ async def upload_protocol(
     conn.commit()
     conn.close()
 
-    log_event("ACTION", "protocol", "protocol.upload", {
-        "protocol_id": protocol_id,
-        "student_name": actual_student_name,
-        "filename": file.filename,
-        "measurement_id": measurement_id
-    }, user=user)
-
     # Automatically trigger background AI analysis if enabled
     if get_ai_setting("auto_analyze_on_upload", "true").lower() in ("true", "1", "yes"):
         background_tasks.add_task(run_background_ai_analysis, protocol_id)
@@ -978,8 +963,6 @@ def delete_protocol(proto_id: int, user: dict = Depends(get_current_user)):
         conn.commit()
     finally:
         conn.close()
-
-    log_event("ACTION", "protocol", "protocol.delete", {"protocol_id": proto_id}, user=user)
 
     for p in [row["source_path"], row["corrected_path"]]:
         if p and Path(p).exists():
@@ -1241,13 +1224,6 @@ def save_evaluation(proto_id: int, req: EvaluationSaveRequest, request: Request,
     conn.commit()
     conn.close()
 
-    log_event("ACTION", "grading", "grading.save", {
-        "protocol_id": proto_id,
-        "total_points": req.total_points,
-        "grade": req.grade,
-        "status": target_status
-    }, user=user)
-
     return {
         "status": "ok",
         "protocol_id": proto_id,
@@ -1327,7 +1303,6 @@ def autosave_protocol(proto_id: int, req: AutosaveRequest, user: dict = Depends(
 
     conn.commit()
     conn.close()
-    log_event("INFO", "grading", "grading.autosave", {"protocol_id": proto_id}, user=user)
     return {"status": "ok", "saved_at": now}
 
 # Assign evaluator to protocol
@@ -1449,7 +1424,6 @@ def bulk_delete_protocols(req: BulkDeleteRequest, user: dict = Depends(get_curre
     finally:
         conn.close()
         
-    log_event("ACTION", "protocol", "protocol.bulk_delete", {"protocol_ids": req.protocol_ids, "deleted_count": deleted_count}, user=user)
     return {"status": "ok", "deleted_count": deleted_count}
 
 # Bulk Update Protocols Metadata Endpoint
@@ -1500,7 +1474,6 @@ def bulk_update_protocols(req: BulkUpdateRequest, user: dict = Depends(get_curre
     finally:
         conn.close()
         
-    log_event("ACTION", "protocol", "protocol.bulk_update", {"protocol_ids": req.protocol_ids, "updated_count": updated_count}, user=user)
     return {"status": "ok", "updated_count": updated_count}
 
 # Autodetect Protocol Metadata Endpoint
@@ -1674,8 +1647,6 @@ async def ai_analyze_protocol_endpoint(
         )
         conn.commit()
         conn.close()
-
-        log_event("ACTION", "ai", "ai.analyze", {"protocol_id": proto_id, "mode": mode}, user=user)
 
         return result
     except Exception as e:
@@ -1943,7 +1914,6 @@ async def ai_chat_endpoint(
             custom_model=custom_model,
             language=req.language
         )
-        log_event("INFO", "ai", "ai.chat", {"protocol_id": proto_id, "user_msg_len": len(req.message), "reply_len": len(resp.reply)}, user=user)
         return resp
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -2272,7 +2242,6 @@ def download_database_backup(background_tasks: BackgroundTasks, user: dict = Dep
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chyba při vytváření zálohy: {str(e)}")
     
-    log_event("ACTION", "system", "database.backup", {"filename": backup_filename}, user=user)
     background_tasks.add_task(temp_target.unlink, missing_ok=True)
     return FileResponse(
         path=str(temp_target),
@@ -2353,7 +2322,6 @@ async def restore_database(file: UploadFile = File(...), user: dict = Depends(ge
     except Exception as ex:
         raise HTTPException(status_code=500, detail=f"Chyba při obnově databáze: {str(ex)}")
 
-    log_event("ACTION", "system", "database.restore", {"safety_backup": safety_name}, user=user)
     return {"status": "ok", "message": "Databáze byla úspěšně obnovena ze zálohy.", "safety_backup": safety_name}
 
 # ==========================================
@@ -2443,165 +2411,6 @@ async def test_gemini_connection(user: dict = Depends(get_current_user)):
             "error": str(e),
             "message": f"Chyba spojení s Gemini: {str(e)}"
         }
-
-# ==========================================
-# SYSTEM AUDIT LOGS (ADMIN ONLY)
-# ==========================================
-
-@app.get("/api/system/logs")
-def get_system_logs(
-    level: Optional[str] = None,
-    category: Optional[str] = None,
-    search: Optional[str] = None,
-    limit: int = Query(default=100, ge=1, le=1000),
-    offset: int = Query(default=0, ge=0),
-    user: dict = Depends(get_current_user)
-):
-    if user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="Pouze administrátor má přístup k systémovým logům.")
-    
-    conn = get_db()
-    cur = conn.cursor()
-    
-    where_clauses = []
-    params = []
-    
-    if level and level != "all":
-        where_clauses.append("level = ?")
-        params.append(level.upper())
-        
-    if category and category != "all":
-        where_clauses.append("category = ?")
-        params.append(category.lower())
-        
-    if search:
-        search_term = f"%{search.strip()}%"
-        where_clauses.append("(action LIKE ? OR details LIKE ? OR user_name LIKE ? OR ip_address LIKE ?)")
-        params.extend([search_term, search_term, search_term, search_term])
-        
-    where_str = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
-    
-    count_sql = f"SELECT COUNT(*) FROM system_logs{where_str}"
-    cur.execute(count_sql, params)
-    total = cur.fetchone()[0]
-    
-    data_sql = f"""
-    SELECT id, timestamp, level, category, user_id, user_name, action, details, ip_address
-    FROM system_logs
-    {where_str}
-    ORDER BY timestamp DESC, id DESC
-    LIMIT ? OFFSET ?
-    """
-    cur.execute(data_sql, params + [limit, offset])
-    rows = [dict(r) for r in cur.fetchall()]
-    conn.close()
-    
-    return {
-        "total": total,
-        "logs": rows,
-        "limit": limit,
-        "offset": offset
-    }
-
-@app.get("/api/system/logs/export")
-def export_system_logs(
-    format: str = Query(default="json", pattern="^(json|csv)$"),
-    level: Optional[str] = None,
-    category: Optional[str] = None,
-    search: Optional[str] = None,
-    limit: int = Query(default=2000, ge=1, le=10000),
-    user: dict = Depends(get_current_user)
-):
-    if user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="Pouze administrátor může exportovat systémové logy.")
-        
-    conn = get_db()
-    cur = conn.cursor()
-    
-    where_clauses = []
-    params = []
-    
-    if level and level != "all":
-        where_clauses.append("level = ?")
-        params.append(level.upper())
-        
-    if category and category != "all":
-        where_clauses.append("category = ?")
-        params.append(category.lower())
-        
-    if search:
-        search_term = f"%{search.strip()}%"
-        where_clauses.append("(action LIKE ? OR details LIKE ? OR user_name LIKE ? OR ip_address LIKE ?)")
-        params.extend([search_term, search_term, search_term, search_term])
-        
-    where_str = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
-    
-    data_sql = f"""
-    SELECT id, timestamp, level, category, user_id, user_name, action, details, ip_address
-    FROM system_logs
-    {where_str}
-    ORDER BY timestamp DESC, id DESC
-    LIMIT ?
-    """
-    cur.execute(data_sql, params + [limit])
-    rows = [dict(r) for r in cur.fetchall()]
-    conn.close()
-    
-    if format == "csv":
-        output = io.StringIO()
-        output.write('\ufeff')  # UTF-8 BOM for Excel
-        writer = csv.writer(output)
-        writer.writerow(["ID", "Časová značka", "Úroveň", "Kategorie", "Uživatel ID", "Uživatel", "Akce", "Detaily", "IP adresa"])
-        for r in rows:
-            writer.writerow([
-                r["id"],
-                r["timestamp"],
-                r["level"],
-                r["category"],
-                r["user_id"] or "",
-                r["user_name"] or "",
-                r["action"],
-                r["details"] or "",
-                r["ip_address"] or ""
-            ])
-        csv_bytes = output.getvalue().encode('utf-8-sig')
-        return Response(
-            content=csv_bytes,
-            media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename=system_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"}
-        )
-    else:
-        json_content = json.dumps(rows, ensure_ascii=False, indent=2)
-        return Response(
-            content=json_content,
-            media_type="application/json",
-            headers={"Content-Disposition": f"attachment; filename=system_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"}
-        )
-
-@app.delete("/api/system/logs")
-def clear_system_logs(
-    older_than_days: int = Query(default=30, ge=0),
-    user: dict = Depends(get_current_user)
-):
-    if user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="Pouze administrátor může promazávat systémové logy.")
-        
-    conn = get_db()
-    cur = conn.cursor()
-    
-    if older_than_days == 0:
-        cur.execute("DELETE FROM system_logs")
-    else:
-        cutoff = (datetime.now() - timedelta(days=older_than_days)).isoformat()
-        cur.execute("DELETE FROM system_logs WHERE timestamp < ?", (cutoff,))
-        
-    deleted_count = cur.rowcount
-    conn.commit()
-    conn.close()
-    
-    log_event("WARNING", "system", "logs.cleared", {"older_than_days": older_than_days, "deleted": deleted_count}, user=user)
-    return {"status": "ok", "deleted": deleted_count, "message": f"Úspěšně smazáno {deleted_count} záznamů logů."}
-
 
 # ==========================================
 # PUBLIC STUDENT VIEW (SECURE SHARE TOKEN)

@@ -1,10 +1,8 @@
 import sqlite3
 import bcrypt
 import secrets
-import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Any, Dict
 from app.config import DB_PATH, BACKUPS_DIR
 
 # 12 Standard physics lab measurements for Winter Semester (FPRA1 / ZS)
@@ -224,25 +222,6 @@ def init_db():
         FOREIGN KEY(protocol_id) REFERENCES protocols(id) ON DELETE CASCADE
     )
     """)
-
-    # System Audit Logs
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS system_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        timestamp TEXT NOT NULL,
-        level TEXT NOT NULL DEFAULT 'INFO',
-        category TEXT NOT NULL DEFAULT 'system',
-        user_id INTEGER,
-        user_name TEXT,
-        action TEXT NOT NULL,
-        details TEXT,
-        ip_address TEXT,
-        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
-    )
-    """)
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON system_logs(timestamp DESC)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_logs_category ON system_logs(category)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_logs_level ON system_logs(level)")
 
     # Migrations: check if semester_type column exists in measurements
     try:
@@ -477,54 +456,3 @@ def perform_daily_auto_backup():
             print("Auto backup error:", e)
             return None
     return backup_file
-
-def log_event(
-    level: str,
-    category: str,
-    action: str,
-    details: Optional[Any] = None,
-    user: Optional[Dict[str, Any]] = None,
-    ip_address: Optional[str] = None
-):
-    """
-    Records an audit log entry in the system_logs table.
-    - level: 'INFO', 'ACTION', 'WARNING', 'ERROR'
-    - category: 'auth', 'protocol', 'grading', 'ai', 'system'
-    - action: descriptive identifier (e.g. 'auth.login', 'protocol.upload')
-    - details: string or dict (will be JSON serialized if dict)
-    - user: user dict or user_id/name
-    - ip_address: client IP if available
-    """
-    try:
-        conn = get_db()
-        cur = conn.cursor()
-        now = datetime.now().isoformat()
-
-        user_id = None
-        user_name = None
-        if user:
-            if isinstance(user, dict):
-                user_id = user.get("id")
-                user_name = user.get("full_name") or user.get("username")
-            elif isinstance(user, int):
-                user_id = user
-            elif isinstance(user, str):
-                user_name = user
-
-        if details is not None and not isinstance(details, str):
-            try:
-                details_str = json.dumps(details, ensure_ascii=False)
-            except Exception:
-                details_str = str(details)
-        else:
-            details_str = details or ""
-
-        cur.execute("""
-        INSERT INTO system_logs (timestamp, level, category, user_id, user_name, action, details, ip_address)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (now, level.upper(), category.lower(), user_id, user_name, action, details_str, ip_address))
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print(f"Error recording system log event ({action}):", e)
-

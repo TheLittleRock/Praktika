@@ -224,14 +224,6 @@ const App = {
   aiDrawerDockSide: localStorage.getItem('praktika_ai_dock_side') || 'right',
   aiDrawerFloating: localStorage.getItem('praktika_ai_floating') === 'true',
   selectedProtocolIds: new Set(),
-  currentSort: (() => {
-    try {
-      const s = localStorage.getItem('praktika_protocol_sort');
-      return s ? JSON.parse(s) : { column: 'student', dir: 'asc' };
-    } catch(e) {
-      return { column: 'student', dir: 'asc' };
-    }
-  })(),
 
   async init() {
     this.applyTheme(this.theme);
@@ -450,10 +442,6 @@ const App = {
           if (uResp.ok) {
             this.allUsers = await uResp.json();
             this.populateEvaluatorFilterOptions();
-            const evalSel = document.getElementById('filter-evaluator-select');
-            if (evalSel && (!evalSel.value || evalSel.value === '')) {
-              evalSel.value = 'me';
-            }
           }
         } catch(e) {}
       }
@@ -1103,10 +1091,8 @@ const App = {
       if (resp.ok) {
         const protocols = await resp.json();
         this.loadedProtocols = protocols;
-        this.applySort(this.loadedProtocols);
-        this.updateSortIndicators();
-        this.renderProtocolsTable(this.loadedProtocols);
-        this.updateDashboardStats(this.loadedProtocols);
+        this.renderProtocolsTable(protocols);
+        this.updateDashboardStats(protocols);
       }
     } catch (e) {
       console.error("Error loading protocols:", e);
@@ -1126,93 +1112,7 @@ const App = {
         ${this.allUsers.map(u => `<option value="${u.id}">${this.escape(u.full_name)} (@${u.username})</option>`).join('')}
       </optgroup>
     `;
-    if (curVal) {
-      sel.value = curVal;
-    } else if (this.currentUser && this.currentUser.role === 'admin') {
-      sel.value = 'me';
-    }
-  },
-
-  // Protocols List Column Sorting
-  handleSortClick(columnKey) {
-    if (this.currentSort.column === columnKey) {
-      this.currentSort.dir = this.currentSort.dir === 'asc' ? 'desc' : 'asc';
-    } else {
-      this.currentSort.column = columnKey;
-      this.currentSort.dir = 'asc';
-    }
-    try {
-      localStorage.setItem('praktika_protocol_sort', JSON.stringify(this.currentSort));
-    } catch(e) {}
-    this.updateSortIndicators();
-    if (this.loadedProtocols && this.loadedProtocols.length > 0) {
-      this.applySort(this.loadedProtocols);
-      this.renderProtocolsTable(this.loadedProtocols);
-    }
-  },
-
-  updateSortIndicators() {
-    const cols = ['student', 'task', 'slot', 'status', 'points', 'evaluator'];
-    cols.forEach(col => {
-      const th = document.querySelector(`th.sortable-th[data-sort="${col}"]`);
-      const icon = document.getElementById(`sort-icon-${col}`);
-      if (!th || !icon) return;
-      th.classList.remove('sorted-asc', 'sorted-desc');
-      if (this.currentSort.column === col) {
-        if (this.currentSort.dir === 'asc') {
-          th.classList.add('sorted-asc');
-          icon.textContent = '▲';
-        } else {
-          th.classList.add('sorted-desc');
-          icon.textContent = '▼';
-        }
-      } else {
-        icon.textContent = '↕';
-      }
-    });
-  },
-
-  applySort(protocols) {
-    if (!Array.isArray(protocols) || protocols.length === 0) return protocols;
-    const { column, dir } = this.currentSort;
-    const mult = dir === 'desc' ? -1 : 1;
-
-    protocols.sort((a, b) => {
-      if (column === 'student') {
-        const nameA = (a.student_name || a.filename || '').trim();
-        const nameB = (b.student_name || b.filename || '').trim();
-        return mult * nameA.localeCompare(nameB, 'cs', { sensitivity: 'base', numeric: true });
-      }
-      if (column === 'task') {
-        const taskA = (a.measurement_code || a.measurement_name || '').trim();
-        const taskB = (b.measurement_code || b.measurement_name || '').trim();
-        return mult * taskA.localeCompare(taskB, 'cs', { sensitivity: 'base', numeric: true });
-      }
-      if (column === 'slot') {
-        const slotA = (a.slot_name || '').trim();
-        const slotB = (b.slot_name || '').trim();
-        return mult * slotA.localeCompare(slotB, 'cs', { sensitivity: 'base', numeric: true });
-      }
-      if (column === 'status') {
-        const order = { 'new': 0, 'in_progress': 1, 'revision': 2, 'graded': 3 };
-        const valA = order[a.status] !== undefined ? order[a.status] : -1;
-        const valB = order[b.status] !== undefined ? order[b.status] : -1;
-        return mult * (valA - valB);
-      }
-      if (column === 'points') {
-        const ptsA = (a.total_points !== null && a.total_points !== undefined) ? Number(a.total_points) : -1;
-        const ptsB = (b.total_points !== null && b.total_points !== undefined) ? Number(b.total_points) : -1;
-        return mult * (ptsA - ptsB);
-      }
-      if (column === 'evaluator') {
-        const evalA = (a.evaluator_name || '').trim();
-        const evalB = (b.evaluator_name || '').trim();
-        return mult * evalA.localeCompare(evalB, 'cs', { sensitivity: 'base', numeric: true });
-      }
-      return 0;
-    });
-
-    return protocols;
+    if (curVal) sel.value = curVal;
   },
 
   updateDashboardStats(protocols) {
@@ -1957,26 +1857,21 @@ const App = {
 
   showSettingsTab(tabName) {
     document.querySelectorAll('.settings-tab-pane').forEach(p => p.style.display = 'none');
-    document.querySelectorAll('.settings-tab-btn, .settings-nav-item').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.settings-tab-btn').forEach(b => b.classList.remove('active'));
 
     const targetPane = document.getElementById(`settings-pane-${tabName}`);
     const targetBtn = document.getElementById(`settings-tab-btn-${tabName}`);
     if (targetPane) targetPane.style.display = 'block';
     if (targetBtn) targetBtn.classList.add('active');
 
-    // Only show admin nav group and admin buttons if current user is admin
+    // Only show Users, Database and Diagnostics tabs if current user is admin
     const isAdmin = (this.currentUser && this.currentUser.role === 'admin');
-    const adminNavGroup = document.getElementById('settings-admin-nav-group');
-    if (adminNavGroup) adminNavGroup.style.display = isAdmin ? 'flex' : 'none';
-
     const userTabBtn = document.getElementById('settings-tab-btn-users');
     const dbTabBtn = document.getElementById('settings-tab-btn-database');
     const diagTabBtn = document.getElementById('settings-tab-btn-diagnostics');
-    const logsTabBtn = document.getElementById('settings-tab-btn-logs');
-    if (userTabBtn) userTabBtn.style.display = isAdmin ? 'flex' : 'none';
-    if (dbTabBtn) dbTabBtn.style.display = isAdmin ? 'flex' : 'none';
-    if (diagTabBtn) diagTabBtn.style.display = isAdmin ? 'flex' : 'none';
-    if (logsTabBtn) logsTabBtn.style.display = isAdmin ? 'flex' : 'none';
+    if (userTabBtn) userTabBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+    if (dbTabBtn) dbTabBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+    if (diagTabBtn) diagTabBtn.style.display = isAdmin ? 'inline-flex' : 'none';
 
     if (tabName === 'profile') {
       const nameInput = document.getElementById('profile-fullname-input');
@@ -1992,7 +1887,6 @@ const App = {
     else if (tabName === 'users') this.loadSettingsUsers();
     else if (tabName === 'ai') this.loadAISettings();
     else if (tabName === 'database') this.loadDatabaseStats();
-    else if (tabName === 'logs') this.loadSystemLogs();
     else if (tabName === 'diagnostics') this.loadSystemDiagnostics();
     else if (tabName === 'about') this.loadChangelog();
   },
@@ -2126,149 +2020,6 @@ const App = {
       await AppModal.alert({ title: "Chyba při obnově", message: err.message });
     } finally {
       if (btn) btn.disabled = false;
-    }
-  },
-
-  // System Audit Logs (Admin Only)
-  async loadSystemLogs() {
-    const tbody = document.getElementById('system-logs-tbody');
-    const countInfo = document.getElementById('system-logs-count-info');
-    if (!tbody) return;
-
-    const level = document.getElementById('log-filter-level')?.value || 'all';
-    const category = document.getElementById('log-filter-category')?.value || 'all';
-    const search = document.getElementById('log-filter-search')?.value || '';
-    const limit = document.getElementById('log-filter-limit')?.value || '100';
-
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">Načítám systémové logy...</td></tr>`;
-
-    try {
-      const params = new URLSearchParams();
-      if (level && level !== 'all') params.append('level', level);
-      if (category && category !== 'all') params.append('category', category);
-      if (search && search.trim()) params.append('search', search.trim());
-      params.append('limit', limit);
-
-      const resp = await fetch(`/api/system/logs?${params.toString()}`);
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--danger);">Chyba načítání logů: ${this.escape(err.detail || resp.statusText)}</td></tr>`;
-        return;
-      }
-
-      const data = await resp.json();
-      const logs = data.logs || [];
-      const total = data.total || 0;
-
-      if (countInfo) {
-        countInfo.textContent = `Zobrazeno ${logs.length} z celkem ${total} záznamů`;
-      }
-
-      if (logs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">Žádné záznamy logů neodpovídají zvoleným filtrům.</td></tr>`;
-        return;
-      }
-
-      tbody.innerHTML = logs.map(l => {
-        const lvl = (l.level || 'INFO').toUpperCase();
-        const badgeClass = lvl === 'ERROR' ? 'log-badge-error'
-          : lvl === 'WARNING' ? 'log-badge-warning'
-          : lvl === 'ACTION' ? 'log-badge-action'
-          : 'log-badge-info';
-
-        let dateStr = l.timestamp || '';
-        try {
-          const d = new Date(l.timestamp);
-          dateStr = d.toLocaleString('cs-CZ', {
-            year: 'numeric', month: '2-digit', day: '2-digit',
-            hour: '2-digit', minute: '2-digit', second: '2-digit'
-          });
-        } catch(e) {}
-
-        const detailsStr = l.details ? this.escape(l.details) : '<span style="color:var(--text-muted);">—</span>';
-
-        return `
-          <tr style="border-bottom:1px solid var(--border);">
-            <td style="padding:6px 10px; font-family:'JetBrains Mono',monospace; font-size:0.75rem; white-space:nowrap; color:var(--text-muted);">${dateStr}</td>
-            <td style="padding:6px 10px; text-align:center;"><span class="log-badge ${badgeClass}">${lvl}</span></td>
-            <td style="padding:6px 10px;"><span class="log-category-badge">${this.escape(l.category || '')}</span></td>
-            <td style="padding:6px 10px; font-weight:600; font-size:0.78rem;">${this.escape(l.user_name || (l.user_id ? `ID #${l.user_id}` : 'Systém'))}</td>
-            <td style="padding:6px 10px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--primary);">${this.escape(l.action)}</td>
-            <td style="padding:6px 10px;"><div class="log-detail-code">${detailsStr}</div></td>
-            <td style="padding:6px 10px; font-family:'JetBrains Mono',monospace; font-size:0.75rem; color:var(--text-muted);">${this.escape(l.ip_address || '—')}</td>
-          </tr>
-        `;
-      }).join('');
-
-    } catch (err) {
-      console.error("Error loading system logs:", err);
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--danger);">Chyba sítě při načítání logů: ${this.escape(err.message)}</td></tr>`;
-    }
-  },
-
-  toggleLogExportMenu() {
-    const menu = document.getElementById('logs-export-menu');
-    if (!menu) return;
-    const isVisible = menu.style.display === 'block';
-    menu.style.display = isVisible ? 'none' : 'block';
-    if (!isVisible) {
-      const closeHandler = (e) => {
-        if (!e.target.closest('.dropdown-wrapper')) {
-          menu.style.display = 'none';
-          document.removeEventListener('click', closeHandler);
-        }
-      };
-      setTimeout(() => document.addEventListener('click', closeHandler), 10);
-    }
-  },
-
-  exportSystemLogs(format = 'csv') {
-    const menu = document.getElementById('logs-export-menu');
-    if (menu) menu.style.display = 'none';
-
-    const level = document.getElementById('log-filter-level')?.value || 'all';
-    const category = document.getElementById('log-filter-category')?.value || 'all';
-    const search = document.getElementById('log-filter-search')?.value || '';
-
-    const params = new URLSearchParams();
-    params.append('format', format);
-    if (level && level !== 'all') params.append('level', level);
-    if (category && category !== 'all') params.append('category', category);
-    if (search && search.trim()) params.append('search', search.trim());
-    params.append('limit', '5000');
-
-    window.open(`/api/system/logs/export?${params.toString()}`, '_blank');
-  },
-
-  async promptClearLogs() {
-    const res = await AppModal.confirm({
-      title: "Promazání systémových logů",
-      message: "Chcete smazat staré logy? V následujícím kroku můžete zvolit počet dní (výchozí 30 dní, nebo 0 pro vymazání všech záznamů).",
-      confirmText: "Pokračovat",
-      confirmVariant: "danger"
-    });
-    if (!res) return;
-
-    const daysInput = prompt("Smazat záznamy starší než kolik dní? (Zadejte 0 pro smazání všech záznamů):", "30");
-    if (daysInput === null) return;
-    const days = parseInt(daysInput.trim(), 10);
-    if (isNaN(days) || days < 0) {
-      await AppModal.alert({ title: "Neplatný počet dní", message: "Zadejte nezáporné číslo (např. 30 nebo 0)." });
-      return;
-    }
-
-    try {
-      const resp = await fetch(`/api/system/logs?older_than_days=${days}`, { method: 'DELETE' });
-      if (resp.ok) {
-        const data = await resp.json();
-        this.showToast(data.message || "Logy byly úspěšně promazány.");
-        this.loadSystemLogs();
-      } else {
-        const err = await resp.json().catch(() => ({}));
-        await AppModal.alert({ title: "Chyba mazání logů", message: err.detail || resp.statusText });
-      }
-    } catch(err) {
-      await AppModal.alert({ title: "Chyba mazání logů", message: err.message });
     }
   },
 
