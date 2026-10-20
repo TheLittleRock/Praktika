@@ -128,6 +128,7 @@ const AppModal = {
       titleEl.textContent = title;
       
       const formHtml = fields.map(f => {
+        const fieldKey = f.id || f.name;
         if (f.type === 'select') {
           const opts = (f.options || []).map(o => {
             const val = typeof o === 'object' ? o.value : o;
@@ -138,14 +139,14 @@ const AppModal = {
           return `
             <div class="form-group" style="margin-bottom:12px;">
               <label class="form-label" style="font-size:0.82rem; font-weight:600; display:block; margin-bottom:4px;">${this._esc(f.label)}</label>
-              <select id="modal-field-${f.id}" class="form-control" style="width:100%;">${opts}</select>
+              <select id="modal-field-${fieldKey}" class="form-control" style="width:100%;">${opts}</select>
             </div>
           `;
         } else if (f.type === 'textarea') {
           return `
             <div class="form-group" style="margin-bottom:12px;">
               <label class="form-label" style="font-size:0.82rem; font-weight:600; display:block; margin-bottom:4px;">${this._esc(f.label)}</label>
-              <textarea id="modal-field-${f.id}" class="form-control" rows="${f.rows || 3}" style="width:100%; box-sizing:border-box;">${this._esc(String(f.value || ''))}</textarea>
+              <textarea id="modal-field-${fieldKey}" class="form-control" rows="${f.rows || 3}" style="width:100%; box-sizing:border-box;">${this._esc(String(f.value || ''))}</textarea>
             </div>
           `;
         } else {
@@ -154,7 +155,7 @@ const AppModal = {
           return `
             <div class="form-group" style="margin-bottom:12px;">
               <label class="form-label" style="font-size:0.82rem; font-weight:600; display:block; margin-bottom:4px;">${this._esc(f.label)}</label>
-              <input type="${f.type || 'text'}" id="modal-field-${f.id}" class="form-control" value="${this._esc(String(f.value !== undefined ? f.value : ''))}" ${stepAttr} ${minAttr} style="width:100%; box-sizing:border-box;">
+              <input type="${f.type || 'text'}" id="modal-field-${fieldKey}" class="form-control" value="${this._esc(String(f.value !== undefined ? f.value : ''))}" ${stepAttr} ${minAttr} style="width:100%; box-sizing:border-box;">
             </div>
           `;
         }
@@ -174,9 +175,13 @@ const AppModal = {
       const collect = () => {
         const result = {};
         for (const f of fields) {
-          const el = document.getElementById(`modal-field-${f.id}`);
+          const fieldKey = f.id || f.name;
+          const el = document.getElementById(`modal-field-${fieldKey}`);
           if (el) {
-            result[f.id] = f.type === 'number' ? (parseFloat(el.value) || 0) : el.value;
+            const parsedVal = f.type === 'number' ? (parseFloat(el.value) || 0) : el.value;
+            result[fieldKey] = parsedVal;
+            if (f.id) result[f.id] = parsedVal;
+            if (f.name) result[f.name] = parsedVal;
           }
         }
         this.close(result);
@@ -224,9 +229,15 @@ const App = {
   aiDrawerDockSide: localStorage.getItem('praktika_ai_dock_side') || 'right',
   aiDrawerFloating: localStorage.getItem('praktika_ai_floating') === 'true',
   selectedProtocolIds: new Set(),
+  currentSort: { column: 'student', dir: 'asc' },
 
   async init() {
     this.applyTheme(this.theme);
+    const savedCol = localStorage.getItem('praktika_sort_column');
+    const savedDir = localStorage.getItem('praktika_sort_dir');
+    if (savedCol) {
+      this.currentSort = { column: savedCol, dir: savedDir || 'asc' };
+    }
     await this.checkAuth();
     await this.loadInitialMetadata();
     await this.loadPresets();
@@ -437,6 +448,10 @@ const App = {
       await this.loadSlotsForSemester(this.activeSemesterId);
 
       if (this.currentUser && this.currentUser.role === 'admin') {
+        const evalSel = document.getElementById('filter-evaluator-select');
+        if (evalSel && !evalSel.value) {
+          evalSel.value = 'me';
+        }
         try {
           const uResp = await fetch('/api/users');
           if (uResp.ok) {
@@ -1091,12 +1106,83 @@ const App = {
       if (resp.ok) {
         const protocols = await resp.json();
         this.loadedProtocols = protocols;
-        this.renderProtocolsTable(protocols);
+        this.updateSortIndicators();
+        this.renderProtocolsTable(this.applySort(protocols));
         this.updateDashboardStats(protocols);
       }
     } catch (e) {
       console.error("Error loading protocols:", e);
     }
+  },
+
+  handleSortClick(columnKey) {
+    if (this.currentSort && this.currentSort.column === columnKey) {
+      this.currentSort.dir = this.currentSort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.currentSort = { column: columnKey, dir: 'asc' };
+    }
+    localStorage.setItem('praktika_sort_column', this.currentSort.column);
+    localStorage.setItem('praktika_sort_dir', this.currentSort.dir);
+    this.updateSortIndicators();
+    if (this.loadedProtocols) {
+      this.renderProtocolsTable(this.applySort(this.loadedProtocols));
+    }
+  },
+
+  updateSortIndicators() {
+    const cols = ['student', 'measurement', 'slot', 'status', 'score', 'evaluator'];
+    const curCol = this.currentSort ? this.currentSort.column : null;
+    const curDir = this.currentSort ? this.currentSort.dir : 'asc';
+    for (const col of cols) {
+      const el = document.getElementById(`sort-ind-${col}`);
+      if (!el) continue;
+      if (col === curCol) {
+        el.textContent = curDir === 'asc' ? '▲' : '▼';
+        el.classList.add('active');
+      } else {
+        el.textContent = '⇅';
+        el.classList.remove('active');
+      }
+    }
+  },
+
+  applySort(protocols) {
+    if (!protocols || !this.currentSort || !this.currentSort.column) return protocols || [];
+    const { column, dir } = this.currentSort;
+    const factor = dir === 'desc' ? -1 : 1;
+
+    return [...protocols].sort((a, b) => {
+      switch (column) {
+        case 'student':
+          return factor * (a.student_name || '').localeCompare(b.student_name || '', 'cs', { sensitivity: 'base' });
+        case 'measurement': {
+          const nA = (a.measurement_number !== undefined && a.measurement_number !== null) ? a.measurement_number : -1;
+          const nB = (b.measurement_number !== undefined && b.measurement_number !== null) ? b.measurement_number : -1;
+          if (nA !== nB) return factor * (nA - nB);
+          return factor * (a.measurement_name || '').localeCompare(b.measurement_name || '', 'cs');
+        }
+        case 'slot': {
+          const sA = `${a.day_of_week || ''} ${a.time_start || ''}`;
+          const sB = `${b.day_of_week || ''} ${b.time_start || ''}`;
+          return factor * sA.localeCompare(sB, 'cs');
+        }
+        case 'status': {
+          const order = { new: 0, in_progress: 1, revision: 2, graded: 3 };
+          const vA = order[a.status] !== undefined ? order[a.status] : 99;
+          const vB = order[b.status] !== undefined ? order[b.status] : 99;
+          return factor * (vA - vB);
+        }
+        case 'score': {
+          const scA = (a.total_points !== null && a.total_points !== undefined) ? a.total_points : -1;
+          const scB = (b.total_points !== null && b.total_points !== undefined) ? b.total_points : -1;
+          return factor * (scA - scB);
+        }
+        case 'evaluator':
+          return factor * (a.evaluator_name || '').localeCompare(b.evaluator_name || '', 'cs', { sensitivity: 'base' });
+        default:
+          return 0;
+      }
+    });
   },
 
   populateEvaluatorFilterOptions() {
@@ -1112,7 +1198,11 @@ const App = {
         ${this.allUsers.map(u => `<option value="${u.id}">${this.escape(u.full_name)} (@${u.username})</option>`).join('')}
       </optgroup>
     `;
-    if (curVal) sel.value = curVal;
+    if (curVal) {
+      sel.value = curVal;
+    } else if (this.currentUser && this.currentUser.role === 'admin') {
+      sel.value = 'me';
+    }
   },
 
   updateDashboardStats(protocols) {
@@ -1846,6 +1936,7 @@ const App = {
     const modal = document.getElementById('settings-modal');
     if (modal) {
       modal.classList.add('active');
+      this.updateSettingsAdminVisibility();
       this.showSettingsTab('profile');
     }
   },
@@ -1855,23 +1946,25 @@ const App = {
     if (modal) modal.classList.remove('active');
   },
 
+  updateSettingsAdminVisibility() {
+    const isAdmin = (this.currentUser && this.currentUser.role === 'admin');
+    const adminTabs = ['users', 'database', 'logs', 'diagnostics'];
+    for (const tab of adminTabs) {
+      const btn = document.getElementById(`settings-tab-btn-${tab}`);
+      if (btn) btn.style.display = isAdmin ? 'flex' : 'none';
+    }
+  },
+
   showSettingsTab(tabName) {
+    this.updateSettingsAdminVisibility();
+
     document.querySelectorAll('.settings-tab-pane').forEach(p => p.style.display = 'none');
-    document.querySelectorAll('.settings-tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.settings-nav-item, .settings-tab-btn').forEach(b => b.classList.remove('active'));
 
     const targetPane = document.getElementById(`settings-pane-${tabName}`);
     const targetBtn = document.getElementById(`settings-tab-btn-${tabName}`);
     if (targetPane) targetPane.style.display = 'block';
     if (targetBtn) targetBtn.classList.add('active');
-
-    // Only show Users, Database and Diagnostics tabs if current user is admin
-    const isAdmin = (this.currentUser && this.currentUser.role === 'admin');
-    const userTabBtn = document.getElementById('settings-tab-btn-users');
-    const dbTabBtn = document.getElementById('settings-tab-btn-database');
-    const diagTabBtn = document.getElementById('settings-tab-btn-diagnostics');
-    if (userTabBtn) userTabBtn.style.display = isAdmin ? 'inline-flex' : 'none';
-    if (dbTabBtn) dbTabBtn.style.display = isAdmin ? 'inline-flex' : 'none';
-    if (diagTabBtn) diagTabBtn.style.display = isAdmin ? 'inline-flex' : 'none';
 
     if (tabName === 'profile') {
       const nameInput = document.getElementById('profile-fullname-input');
@@ -1887,8 +1980,157 @@ const App = {
     else if (tabName === 'users') this.loadSettingsUsers();
     else if (tabName === 'ai') this.loadAISettings();
     else if (tabName === 'database') this.loadDatabaseStats();
+    else if (tabName === 'logs') this.loadSystemLogs();
     else if (tabName === 'diagnostics') this.loadSystemDiagnostics();
     else if (tabName === 'about') this.loadChangelog();
+  },
+
+  // System Logs Management (Admin Only)
+  logsState: {
+    offset: 0,
+    limit: 50,
+    total: 0
+  },
+
+  async loadSystemLogs(resetOffset = true) {
+    if (resetOffset) this.logsState.offset = 0;
+    const level = document.getElementById('logs-filter-level')?.value || '';
+    const category = document.getElementById('logs-filter-category')?.value || '';
+    const search = document.getElementById('logs-filter-search')?.value.trim() || '';
+    const limitSelect = document.getElementById('logs-filter-limit')?.value;
+    if (limitSelect) this.logsState.limit = parseInt(limitSelect, 10) || 50;
+
+    const params = new URLSearchParams();
+    if (level) params.append('level', level);
+    if (category) params.append('category', category);
+    if (search) params.append('search', search);
+    params.append('limit', this.logsState.limit);
+    params.append('offset', this.logsState.offset);
+
+    const tbody = document.getElementById('logs-tbody');
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:18px; color:var(--text-muted);">Načítání záznamů...</td></tr>`;
+    }
+
+    try {
+      const resp = await fetch(`/api/system/logs?${params.toString()}`);
+      if (!resp.ok) {
+        const err = await resp.json();
+        throw new Error(err.detail || 'Chyba při načítání logů');
+      }
+      const data = await resp.json();
+      this.logsState.total = data.total;
+      this.renderSystemLogs(data.logs);
+      this.updateLogsPagination();
+    } catch (e) {
+      if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:18px; color:var(--accent-red);">Chyba: ${this.escape(e.message)}</td></tr>`;
+      }
+    }
+  },
+
+  renderSystemLogs(logs) {
+    const tbody = document.getElementById('logs-tbody');
+    if (!tbody) return;
+    if (!logs || logs.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">Nebyly nalezeny žádné záznamy odpovídající filtrům.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = logs.map(l => {
+      const lvlClass = l.level === 'ERROR' ? 'log-level-error' : (l.level === 'WARNING' ? 'log-level-warning' : 'log-level-info');
+      const formattedTime = l.timestamp ? l.timestamp.replace('T', ' ').substring(0, 19) : '—';
+      return `
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:6px 8px; font-family:'JetBrains Mono',monospace; font-size:0.73rem; color:var(--text-muted); white-space:nowrap;">${formattedTime}</td>
+          <td style="padding:6px 8px;"><span class="log-level-badge ${lvlClass}">${this.escape(l.level)}</span></td>
+          <td style="padding:6px 8px;"><span class="log-cat-badge">${this.escape(l.category)}</span></td>
+          <td style="padding:6px 8px; font-weight:600; color:var(--text-main); white-space:nowrap;">${this.escape(l.user_name || 'Systém')}</td>
+          <td style="padding:6px 8px; font-family:'JetBrains Mono',monospace; font-size:0.75rem; color:var(--primary);">${this.escape(l.action)}</td>
+          <td style="padding:6px 8px; color:var(--text-main); word-break:break-word;">${this.escape(l.details || '—')}</td>
+          <td style="padding:6px 8px; font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--text-muted);">${this.escape(l.ip_address || '—')}</td>
+        </tr>
+      `;
+    }).join('');
+  },
+
+  updateLogsPagination() {
+    const info = document.getElementById('logs-count-info');
+    const prevBtn = document.getElementById('logs-prev-btn');
+    const nextBtn = document.getElementById('logs-next-btn');
+
+    const start = this.logsState.total > 0 ? (this.logsState.offset + 1) : 0;
+    const end = Math.min(this.logsState.offset + this.logsState.limit, this.logsState.total);
+    if (info) info.textContent = `Zobrazeno ${start}–${end} z ${this.logsState.total} záznamů`;
+
+    if (prevBtn) prevBtn.disabled = this.logsState.offset === 0;
+    if (nextBtn) nextBtn.disabled = (this.logsState.offset + this.logsState.limit) >= this.logsState.total;
+  },
+
+  prevLogsPage() {
+    if (this.logsState.offset > 0) {
+      this.logsState.offset = Math.max(0, this.logsState.offset - this.logsState.limit);
+      this.loadSystemLogs(false);
+    }
+  },
+
+  nextLogsPage() {
+    if ((this.logsState.offset + this.logsState.limit) < this.logsState.total) {
+      this.logsState.offset += this.logsState.limit;
+      this.loadSystemLogs(false);
+    }
+  },
+
+  exportSystemLogs(format = 'csv') {
+    const level = document.getElementById('logs-filter-level')?.value || '';
+    const category = document.getElementById('logs-filter-category')?.value || '';
+    const search = document.getElementById('logs-filter-search')?.value.trim() || '';
+
+    const params = new URLSearchParams();
+    params.append('format', format);
+    if (level) params.append('level', level);
+    if (category) params.append('category', category);
+    if (search) params.append('search', search);
+
+    window.open(`/api/system/logs/export?${params.toString()}`, '_blank');
+  },
+
+  async promptClearLogs() {
+    const res = await AppModal.showForm({
+      title: "Promazání systémových logů",
+      fields: [
+        {
+          id: "days",
+          name: "days",
+          label: "Smazat logy starší než:",
+          type: "select",
+          value: "30",
+          options: [
+            { value: "7", label: "Starší než 7 dní" },
+            { value: "30", label: "Starší než 30 dní" },
+            { value: "90", label: "Starší než 90 dní" },
+            { value: "0", label: "Smazat VŠECHNY záznamy" }
+          ]
+        }
+      ],
+      confirmText: "Promazat logy"
+    });
+    if (!res) return;
+
+    const days = parseInt(res.days, 10);
+    try {
+      const resp = await fetch(`/api/system/logs?days=${days}`, { method: 'DELETE' });
+      if (resp.ok) {
+        const data = await resp.json();
+        this.showToast(data.message || `Promazáno.`);
+        this.loadSystemLogs();
+      } else {
+        const err = await resp.json();
+        await AppModal.alert({ title: "Chyba", message: err.detail || "Nelze promazat logy." });
+      }
+    } catch (e) {
+      await AppModal.alert({ title: "Chyba komunikace", message: e.message });
+    }
   },
 
   // Per-user Zoom & Gesture settings

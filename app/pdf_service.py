@@ -736,12 +736,19 @@ def burn_annotations_to_pdf(
 
         # Render structured cards for each indexed note
         for n in indexed_notes:
-            comment_text = n["content"]
-            lines_est = max(1, math.ceil(len(comment_text) / 78))
-            has_snippet = bool(n.get("context_snippet"))
+            comment_text = _clean_unicode_str(n.get("content", ""))
             
-            card_h = 36.0 + (lines_est * 12.0) + (14.0 if has_snippet else 0.0)
-            card_h = max(42.0, min(140.0, card_h))
+            # Clean context snippet to a single clean line without newlines
+            raw_snippet = n.get("context_snippet") or ""
+            cleaned_snippet = " ".join(raw_snippet.replace("\r", " ").replace("\n", " ").split())
+            if len(cleaned_snippet) > 85:
+                cleaned_snippet = cleaned_snippet[:82] + "..."
+            has_snippet = bool(cleaned_snippet)
+
+            # Accurate height estimation based on lines and newlines
+            comm_lines = sum(max(1, math.ceil(len(line) / 72)) for line in comment_text.split("\n"))
+            card_h = 32.0 + (comm_lines * 13.0) + (16.0 if has_snippet else 0.0)
+            card_h = max(44.0, card_h)
 
             # Page overflow check
             if cur_y + card_h > first_page_rect.height - 40.0:
@@ -812,21 +819,22 @@ def burn_annotations_to_pdf(
                     "from": n["badge_rect_on_page"]
                 })
 
-            inner_y = cur_y + 25.0
+            inner_y = cur_y + 24.0
 
-            # Optional Context snippet
+            # Optional Context snippet on its own isolated line
             if has_snippet:
-                app_page.insert_text(
-                    pymupdf.Point(margin_x + 12, inner_y),
-                    f"Kontext: „{n['context_snippet']}“",
+                snippet_rect = pymupdf.Rect(margin_x + 12, inner_y, margin_x + content_w - 12, inner_y + 12.0)
+                app_page.insert_textbox(
+                    snippet_rect,
+                    f"Kontext: „{cleaned_snippet}“",
                     fontsize=7.6,
                     color=(0.40, 0.45, 0.52),
                     fontname=font_id
                 )
-                inner_y += 12.0
+                inner_y += 14.0
 
-            # Full comment text wrapped cleanly
-            text_rect = pymupdf.Rect(margin_x + 12, inner_y - 2, margin_x + content_w - 12, cur_y + card_h - 4)
+            # Full comment text wrapped cleanly without overlap
+            text_rect = pymupdf.Rect(margin_x + 12, inner_y, margin_x + content_w - 12, cur_y + card_h - 4)
             app_page.insert_textbox(
                 text_rect,
                 comment_text,

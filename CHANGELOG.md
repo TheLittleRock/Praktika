@@ -4,6 +4,44 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.18.0] - 2026-10-20
+
+### 🚀 Novinky a vylepšení ve verzi 2.18.0
+
+#### 📜 Systémové auditní logy a správa
+- **Auditní záznamy událostí**: Záznam všech důležitých operací v systému (přihlášení/odhlášení, nahrání, editace a smazání protokolů, uložení hodnocení, stažení/obnova/optimalizace databáze, AI analýzy a chat).
+- **Prohlížeč logů v Nastavení**: Přehledná tabulka s barevnými odznaky úrovní (INFO, WARNING, ERROR) a kategorií, fulltextovým vyhledáváním a stránkováním.
+- **Export do CSV a JSON**: Export záznamů do CSV s UTF-8 BOM pro bezchybné zobrazení české diakritiky v MS Excel, a do strukturovaného JSON.
+- **Promazávání logů**: Bezpečné promazávání auditních logů starších než 7, 30 nebo 90 dní (nebo kompletní výmaz) s automatickým auditním záznamem o promazání.
+
+#### ⚙️ Kompletní redesign okna Nastavení
+- **Dvousloupcový layout**: Přehledný levý panel se všemi 11 kategoriemi bez rušivých vnořených hlaviček: Můj profil, Vzhled & Ovládání, Změna hesla, Laboratorní úlohy, Časté chyby & Předvolby, AI Asistent, Uživatelé, Databáze & Zálohy, Systémové logy, Diagnostika & Stav, O aplikaci.
+- **Plná viditelnost pro administrátora**: Všechny administrátorské sekce (Uživatelé, Databáze, Logy, Diagnostika) jsou okamžitě přístupné pro přihlášeného správce.
+- **Funkční Changelog**: Spolehlivé načítání historie verzí v záložce *O aplikaci*.
+
+#### 🔍 Vyhledávání v PDF (Ctrl+F)
+- **Kompaktní plovoucí lišta bez zbytečných tlačítek**: Vyvolání klávesovou zkratkou `Ctrl+F` (nebo `Cmd+F`), která zabrání otevření nativního dialogu prohlížeče a otevře vyhledávač přímo v plátně Studia. Žádné zbytečné tlačítko v levé svislé nástrojové liště.
+- **Diakriticky necitlivé hledání v češtině**: Spolehlivě najde výrazy i bez ohledu na háčky a čárky (např. *mereni* najde *měření*).
+- **Interaktivní navigace a zvýraznění**: Počítadlo shod (`1/N`), navigace `Enter` / `Shift+Enter` (nebo šipkami) a zavření klávesou `Escape`.
+
+#### 📊 Řazení sloupců a výchozí filtr pro správce
+- **Seřazení protokolů na hlavní stránce**: Možnost řazení podle studenta, úlohy, termínu, stavu, hodnocení a vyučujícího s respektováním české abecedy (`localeCompare('cs')`).
+- **Ergonomické zarovnání indikátorů**: Jemné indikátory řazení (`▲`, `▼`, `⇅`) vycentrované vedle textu záhlaví bez vertikálního rozbití řádku.
+- **Výchozí filtr „Moje protokoly“ pro administrátora**: Po přihlášení správce se výchozí filtr hodnotitele automaticky nastaví na jeho vlastní protokoly (`evaluator_id = 'me'`).
+
+#### 🖥️ Režim na celou obrazovku (Fullscreen)
+- **Nativní Fullscreen API**: Jednoklikové tlačítko `⛶ Celá obrazovka` v záhlaví Studia s automatickou detekcí a přepínáním ikon, plně kompatibilní s klávesou `F11`.
+
+#### 🔬 Opravy AI chatu, ostrosti PDF a exportu příloh
+- **Ošetření LaTeX zpětných lomítek v AI (`Invalid \escape`)**: Zaveden `robust_json_loads` s automatickým ošetřením a escapováním zpětných lomítek u fyzikálních a matematických symbolů (`\sigma`, `\Delta`, `\frac`).
+- **Odolnost proti výpadkům 503 u Gemini**: Automatický retry a fallback napříč kandidátními modely při dočasném přetížení Google Gemini API.
+- **Přísně věcná kritika**: Eliminace prázdných pochval v sekčních komentářích a soustředění na věcné a fyzikální nedostatky.
+- **Nulový překryv textů v příloze PDF**: Sanitizace kontextových snippetů na jeden řádek a izolované obdélníky pro komentáře, čímž je zamezeno vzájemnému překrytí textů.
+- **Tmavé posuvníky pro studentský náhled**: Přidány dark mode styly pro posuvníky ve studentském náhledu.
+- **Konec skákání při zoomu**: Zafixováno kotvení pohledu na střed a přepočet souřadnic bez trhání plátna nahoru a dolů.
+- **Výběr řádků v tabulkách**: Seřazení textových elementů do vizuálního čtecího pořadí před vykreslením textové vrstvy umožňuje označit jednotlivé řádky tabulky bez nechtěných přeskoků.
+- **Oprava aktualizace srážek bodů**: Opraveno předávání identifikátorů polí v `AppModal.showForm`, úpravy textu i bodů se ihned projeví a přepočítají.
+
 ## [2.17.0] - 2026-10-19
 
 ### 🚀 Novinky a vylepšení ve verzi 2.17.0

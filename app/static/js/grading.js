@@ -157,6 +157,7 @@ const GradingEngine = {
         title: "Upravit srážku bodů",
         fields: [
           {
+            id: "pts",
             name: "pts",
             label: "Počet bodů k odečtení:",
             type: "select",
@@ -173,6 +174,7 @@ const GradingEngine = {
             ]
           },
           {
+            id: "reason",
             name: "reason",
             label: "Důvod srážky:",
             type: "textarea",
