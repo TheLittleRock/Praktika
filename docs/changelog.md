@@ -4,6 +4,42 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.18.0] - 2026-10-20
+
+### 🚀 Novinky a vylepšení ve verzi 2.18.0
+
+#### 📜 Systémové auditní logy a administrátorský prohlížeč v Nastavení
+- **Komplexní auditní tabulka `system_logs`**: Každá podstatná událost v systému (přihlášení, odhlášení, neúspěšné pokusy o přihlášení, nahrání, úprava a smazání protokolů, uložení hodnocení, autosave, AI analýza a chat, zálohování a obnova databáze) je spolehlivě zaznamenána do SQLite auditního logu.
+- **Administrátorské rozhraní v Nastavení**: Přehledná tabulka logů s barevnými badge úrovní (`INFO`, `ACTION`, `WARNING`, `ERROR`), kategoriemi (`auth`, `protocol`, `grading`, `ai`, `system`), fulltextovým filtrem v detailech událostí a volbou stránkování (50, 100, 250, 500 záznamů).
+- **Export logů**: Rychlý export do formátu CSV (s UTF-8 BOM pro bezchybné zobrazení v MS Excel) nebo formátu JSON.
+- **Bezpečné promazávání**: Možnost promazat staré logy se zadáním počtu dní (výchozí 30 dní nebo kompletní vyčištění).
+
+#### ⚙️ Moderní dvousloupcový redesign Nastavení aplikace
+- **Ergonomická postranní navigace**: Zrušeno nepřehledné vodorovné zalamování záložek. Nastavení má nově čistý dvousloupcový layout s vertikální navigací rozdělenou do 3 logických skupin:
+  - 👤 **Osobní**: Můj profil, Vzhled & Ovládání, Změna hesla.
+  - 📝 **Hodnocení**: Laboratorní úlohy, Časté chyby & Předvolby, AI Asistent.
+  - 🛠️ **Správa systému (pouze admin)**: Uživatelé, Databáze & Zálohy, Systémové logy, Diagnostika & Stav, O aplikaci.
+- **Responzivní adaptace**: Na mobilních zařízeních a menších displejích se panel plynule adaptuje bez horizontálního přetékání.
+
+#### 🔍 Rychlé vyhledávání textu v PDF dokumentu ve Studiu
+- **Plovoucí vyhledávací lišta (`Ctrl+F`)**: Okamžitě vyvolatelná klávesovou zkratkou `Ctrl+F` (nebo `Cmd+F`) a tlačítkem 🔍 v nástrojové liště Studia.
+- **Diakriticky i velikostně necitlivé vyhledávání v češtině**: Vyhledávání ignoruje velikost písmen i českou diakritiku (např. *mereni* najde *Měření*, *rezonanc* najde *rezonanční*).
+- **Vizuální zvýraznění na plátně**: Všechny výskyty jsou zřetelně označeny jemně žlutým podkladem přímo ve vektorové textové vrstvě PDF. Aktivní shoda je zvýrazněna pulzujícím oranžovým ohraničením.
+- **Okamžitá navigace**: Klávesa `Enter` (nebo tlačítko `▼`) posune na další shodu, `Shift+Enter` (nebo `▲`) na předchozí. Čítač přehledně zobrazuje aktuální pozici (např. `2 z 8`) a `Escape` vyhledávání uzavře.
+
+#### ↕️ Interaktivní řazení sloupců v seznamu protokolů
+- **Řazení na jedno kliknutí**: Kliknutím na záhlaví sloupců (Student / Soubor, Úloha, Termín, Stav, Hodnocení, Opravil) lze seznam protokolů okamžitě seřadit vzestupně i sestupně.
+- **Česká abeceda a číselné hodnoty**: Řazení plně respektuje specifika české abecedy (`localeCompare('cs')`), číselné hodnoty bodů i chronologii stavů protokolu.
+- **Trvalé uložení preference**: Zvolený způsob řazení se ukládá do `localStorage` a zůstává aktivní i při přepínání filtrů nebo opětovném načtení stránky.
+
+#### 👤 Výchozí zobrazení vlastních protokolů pro administrátora
+- **Okamžitý přehled pro správce**: Administrátorovi se při přihlášení a otevření přehledu protokolů výchozí filtr hodnotitele automaticky nastaví na **„Moje protokoly“** (`evaluator_id = 'me'`).
+- **Rychlý přístup ke všem protokolům**: Výběr lze kdykoliv přepnout na „Všichni hodnotitelé“ nebo na konkrétního asistenta.
+
+#### 🎯 Věcná kritika AI asistenta bez prázdných pochval
+- **Absolutní zákaz pochval**: Aktualizovaná metodika i systémový prompt zakazují prázdná konstatování typu *„zpracováno dobře“*, *„úkoly jsou v pořádku“*, *„teorie sedí“*, *„graf je hezký“*.
+- **Soustředění na konkrétní nedostatky a nápravu**: Všechny anotace i souhrnné komentáře sekcí (Úvod, Postup, Výsledky, Diskuze, Závěr) jdou přímo k věcné kritice: co chybí, jaké fyzikální rozbory student zanedbal, jak správně zaokrouhlit hodnoty a jaké opravy jsou požadovány. Pokud sekce chyby neobsahuje, AI ji nechválí a žádný souhrnný komentář k ní nevytváří.
+
 ## [2.17.0] - 2026-10-19
 
 ### 🚀 Novinky a vylepšení ve verzi 2.17.0

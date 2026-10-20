@@ -21,6 +21,12 @@ const PDFStudio = {
   _isCreatingNewAnnotation: null,
   _activeCommentBoxOrigState: null,
   _commentBoxEscHandler: null,
+  searchState: {
+    isOpen: false,
+    query: '',
+    matches: [],
+    currentIndex: -1
+  },
   highlightColor: '#ef4444',
   penColor: '#ef4444',
   highlightColors: [
@@ -202,6 +208,7 @@ const PDFStudio = {
     this.createTooltipBubble();
     this.setupZoomGestures();
     this.setupKeyboardShortcuts();
+    this.initSearch();
 
     if (this.container) {
       this.container.addEventListener('scroll', () => this.hideTooltip(), { passive: true });
@@ -270,6 +277,23 @@ const PDFStudio = {
 
   setupKeyboardShortcuts() {
     window.addEventListener('keydown', (e) => {
+      // Global Ctrl+F / Cmd+F shortcut inside Studio view
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        const studio = document.getElementById('view-studio');
+        if (studio && studio.style.display !== 'none') {
+          e.preventDefault();
+          this.toggleSearch();
+          return;
+        }
+      }
+
+      // Escape key to close search bar if open
+      if (e.key === 'Escape' && this.searchState && this.searchState.isOpen) {
+        e.preventDefault();
+        this.closeSearch();
+        return;
+      }
+
       if (e.target.matches('input, textarea, [contenteditable="true"]')) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         if (e.shiftKey) {
@@ -743,6 +767,7 @@ const PDFStudio = {
     this.activeSelectedAnnot = null;
     this.hideTooltip();
     this.closeCommentBox();
+    this.closeSearch();
 
     try {
       const loadingTask = window.pdfjsLib.getDocument({
@@ -1089,6 +1114,10 @@ const PDFStudio = {
     if (savedLoc) {
       this.restoreLocation(savedLoc);
     }
+
+    if (this.searchState && this.searchState.isOpen && this.searchState.query) {
+      this.performSearch(this.searchState.query, false);
+    }
   },
 
   scrollToPage(pageNum) {
@@ -1097,6 +1126,195 @@ const PDFStudio = {
       pageWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
       this.hideTooltip();
     }
+  },
+
+  // ==========================================
+  // PDF Text Search Subsystem
+  // ==========================================
+  initSearch() {
+    const input = document.getElementById('studio-search-input');
+    if (!input) return;
+
+    input.addEventListener('input', () => {
+      this.performSearch(input.value);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          this.searchPrev();
+        } else {
+          this.searchNext();
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        this.closeSearch();
+      }
+    });
+  },
+
+  toggleSearch() {
+    if (this.searchState && this.searchState.isOpen) {
+      this.closeSearch();
+    } else {
+      this.openSearch();
+    }
+  },
+
+  openSearch() {
+    const bar = document.getElementById('studio-search-bar');
+    const input = document.getElementById('studio-search-input');
+    if (!bar || !input) return;
+
+    this.searchState.isOpen = true;
+    bar.style.display = 'flex';
+    input.focus();
+    input.select();
+
+    if (input.value.trim().length > 0) {
+      this.performSearch(input.value, false);
+    }
+  },
+
+  closeSearch() {
+    const bar = document.getElementById('studio-search-bar');
+    if (bar) bar.style.display = 'none';
+
+    this.clearSearchHighlights();
+    this.searchState.isOpen = false;
+    this.searchState.matches = [];
+    this.searchState.currentIndex = -1;
+    this.searchState.query = '';
+
+    const countEl = document.getElementById('studio-search-count');
+    if (countEl) countEl.textContent = '0 z 0';
+  },
+
+  clearSearchHighlights() {
+    if (!this.container) return;
+    const spans = this.container.querySelectorAll('.textLayer span');
+    spans.forEach(span => {
+      if (span.dataset.origText !== undefined) {
+        span.textContent = span.dataset.origText;
+        delete span.dataset.origText;
+      }
+    });
+  },
+
+  stripDiacritics(str) {
+    return (str || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+  },
+
+  performSearch(query, resetIndex = true) {
+    this.clearSearchHighlights();
+    this.searchState.query = query;
+    this.searchState.matches = [];
+
+    const countEl = document.getElementById('studio-search-count');
+    const trimmed = (query || '').trim();
+    if (trimmed.length === 0) {
+      if (countEl) countEl.textContent = '0 z 0';
+      this.searchState.currentIndex = -1;
+      return;
+    }
+
+    const normQuery = this.stripDiacritics(trimmed);
+    const queryLen = trimmed.length;
+    let globalMatchIndex = 0;
+
+    for (let pageNum = 1; pageNum <= this.totalPages; pageNum++) {
+      const pageWrap = this.container.querySelector(`.pdf-page-container[data-page-number="${pageNum}"]`);
+      if (!pageWrap) continue;
+      const textLayer = pageWrap.querySelector('.textLayer');
+      if (!textLayer) continue;
+
+      const spans = textLayer.querySelectorAll('span');
+      spans.forEach(span => {
+        const origText = span.textContent;
+        const normText = this.stripDiacritics(origText);
+        if (!normText.includes(normQuery)) return;
+
+        span.dataset.origText = origText;
+
+        let html = '';
+        let lastIdx = 0;
+        let matchIdx = normText.indexOf(normQuery, lastIdx);
+
+        while (matchIdx !== -1) {
+          html += this.escape(origText.substring(lastIdx, matchIdx));
+
+          const matchedOrig = origText.substring(matchIdx, matchIdx + queryLen);
+          const thisMatchId = globalMatchIndex++;
+          html += `<mark class="pdf-search-match" data-search-idx="${thisMatchId}">${this.escape(matchedOrig)}</mark>`;
+
+          this.searchState.matches.push({
+            index: thisMatchId,
+            pageNum: pageNum,
+            span: span
+          });
+
+          lastIdx = matchIdx + queryLen;
+          matchIdx = normText.indexOf(normQuery, lastIdx);
+        }
+
+        html += this.escape(origText.substring(lastIdx));
+        span.innerHTML = html;
+      });
+    }
+
+    const totalMatches = this.searchState.matches.length;
+    if (totalMatches === 0) {
+      if (countEl) countEl.textContent = '0 z 0';
+      this.searchState.currentIndex = -1;
+      return;
+    }
+
+    if (resetIndex || this.searchState.currentIndex === -1 || this.searchState.currentIndex >= totalMatches) {
+      this.searchState.currentIndex = 0;
+    }
+    this.updateActiveMatch();
+  },
+
+  updateActiveMatch() {
+    const totalMatches = this.searchState.matches.length;
+    const countEl = document.getElementById('studio-search-count');
+    if (totalMatches === 0) {
+      if (countEl) countEl.textContent = '0 z 0';
+      return;
+    }
+
+    const cur = this.searchState.currentIndex;
+    if (countEl) {
+      countEl.textContent = `${cur + 1} z ${totalMatches}`;
+    }
+
+    if (this.container) {
+      this.container.querySelectorAll('mark.pdf-search-match.pdf-search-match-active').forEach(m => {
+        m.classList.remove('pdf-search-match-active');
+      });
+    }
+
+    const targetMark = this.container ? this.container.querySelector(`mark.pdf-search-match[data-search-idx="${cur}"]`) : null;
+    if (targetMark) {
+      targetMark.classList.add('pdf-search-match-active');
+      targetMark.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+    }
+  },
+
+  searchNext() {
+    if (!this.searchState || this.searchState.matches.length === 0) return;
+    this.searchState.currentIndex = (this.searchState.currentIndex + 1) % this.searchState.matches.length;
+    this.updateActiveMatch();
+  },
+
+  searchPrev() {
+    if (!this.searchState || this.searchState.matches.length === 0) return;
+    this.searchState.currentIndex = (this.searchState.currentIndex - 1 + this.searchState.matches.length) % this.searchState.matches.length;
+    this.updateActiveMatch();
   },
 
   async renderPageLinks(page, pageWrap, viewport) {
