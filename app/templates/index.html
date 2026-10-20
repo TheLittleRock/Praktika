@@ -327,38 +327,41 @@
 
         <!-- Studio Main Workspace -->
         <div class="studio-content" id="studio-content-area" style="position:relative;">
-          <!-- Floating PDF Search Bar (triggered by Ctrl+F) -->
-          <div id="studio-search-bar" class="studio-search-bar" style="display:none;">
-            <div class="search-bar-input-wrap">
-              <span class="search-bar-icon">🔍</span>
-              <input type="text" id="studio-search-input" class="search-bar-input" placeholder="Hledat v PDF textu..." autocomplete="off" spellcheck="false">
-              <span id="studio-search-count" class="search-bar-count">0/0</span>
+          <!-- Dedicated PDF workspace container that flex-shrinks and expands as side panels open/dock -->
+          <div class="studio-pdf-workspace" id="studio-pdf-workspace">
+            <!-- Floating PDF Search Bar (triggered by Ctrl+F) -->
+            <div id="studio-search-bar" class="studio-search-bar" style="display:none;">
+              <div class="search-bar-input-wrap">
+                <span class="search-bar-icon">🔍</span>
+                <input type="text" id="studio-search-input" class="search-bar-input" placeholder="Hledat v PDF textu..." autocomplete="off" spellcheck="false">
+                <span id="studio-search-count" class="search-bar-count">0/0</span>
+              </div>
+              <div class="search-bar-actions">
+                <button type="button" class="search-nav-btn" onclick="PDFStudio.searchPrev()" title="Předchozí výskyt (Shift+Enter)">▲</button>
+                <button type="button" class="search-nav-btn" onclick="PDFStudio.searchNext()" title="Další výskyt (Enter)">▼</button>
+                <button type="button" class="search-close-btn" onclick="PDFStudio.closeSearch()" title="Zavřít hledání (Esc)">✕</button>
+              </div>
             </div>
-            <div class="search-bar-actions">
-              <button type="button" class="search-nav-btn" onclick="PDFStudio.searchPrev()" title="Předchozí výskyt (Shift+Enter)">▲</button>
-              <button type="button" class="search-nav-btn" onclick="PDFStudio.searchNext()" title="Další výskyt (Enter)">▼</button>
-              <button type="button" class="search-close-btn" onclick="PDFStudio.closeSearch()" title="Zavřít hledání (Esc)">✕</button>
+
+            <!-- Floating Autosave Indicator in bottom-left corner of PDF workspace -->
+            <div id="autosave-indicator" class="autosave-badge" title="Stav automatického ukládání změn">
+              <span class="autosave-dot"></span>
+              <span class="autosave-text">Uloženo</span>
             </div>
-          </div>
 
-          <!-- Floating Autosave Indicator in bottom-left corner of PDF workspace -->
-          <div id="autosave-indicator" class="autosave-badge" title="Stav automatického ukládání změn">
-            <span class="autosave-dot"></span>
-            <span class="autosave-text">Uloženo</span>
-          </div>
+            <!-- Floating Fullscreen Toggle Button in bottom-right corner -->
+            <button type="button" class="btn-floating-fullscreen" id="btn-floating-fullscreen" onclick="PDFStudio.toggleBrowserFullscreen()" title="Celá obrazovka (F11)">
+              <span id="btn-fullscreen-icon">⛶</span>
+            </button>
 
-          <!-- Floating Fullscreen Toggle Button in bottom-right corner -->
-          <button type="button" class="btn-floating-fullscreen" id="btn-floating-fullscreen" onclick="PDFStudio.toggleBrowserFullscreen()" title="Celá obrazovka (F11)">
-            <span id="btn-fullscreen-icon">⛶</span>
-          </button>
+            <!-- Snap Guideline Previews for Windows-like edge docking (Left & Right) -->
+            <div class="dock-snap-preview" id="dock-snap-preview"></div>
+            <div class="dock-snap-preview-left" id="dock-snap-preview-left"></div>
 
-          <!-- Snap Guideline Previews for Windows-like edge docking (Left & Right) -->
-          <div class="dock-snap-preview" id="dock-snap-preview"></div>
-          <div class="dock-snap-preview-left" id="dock-snap-preview-left"></div>
-
-          <!-- PDF Canvas Viewer Pane -->
-          <div class="pdf-pane" id="pdf-render-pane">
-            <!-- Rendered by PDFStudio JS -->
+            <!-- PDF Canvas Viewer Pane -->
+            <div class="pdf-pane" id="pdf-render-pane">
+              <!-- Rendered by PDFStudio JS -->
+            </div>
           </div>
 
           <!-- Integrated AI Assistant Panel / Drawer -->
@@ -1093,6 +1096,7 @@
                 <option value="ai">AI Asistent (ai)</option>
                 <option value="database">Databáze (database)</option>
                 <option value="system">Systém (system)</option>
+                <option value="frontend">Frontend & JS (frontend)</option>
               </select>
             </div>
             <div>

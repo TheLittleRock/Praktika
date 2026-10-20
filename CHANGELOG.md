@@ -4,6 +4,22 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.18.2] - 2026-10-21
+
+### 🚀 Opravy a vylepšení ve verzi 2.18.2
+
+#### 📐 Zapouzdření ovladačů PDF a ochrana postranních panelů
+- **Kontejner `.studio-pdf-workspace`**: Plocha PDF byla zapouzdřena do samostatného flexibilního kontejneru. Vyhledávací lišta (`Ctrl+F`), plovoucí tlačítko na celou obrazovku v pravém dolním rohu i indikátor ukládání jsou ukotveny výhradně uvnitř tohoto kontejneru.
+- **Konec překrývání panelů AI a Bodování**: Při otevření, přikotvení nebo změně velikosti doku hodnocení či panelu AI se kontejner PDF automaticky přizpůsobí zbývajícímu prostoru. Ovladače zůstávají v rozích viditelné plochy PDF a nikdy nezasahují do postranních panelů.
+
+#### 🎨 100% solidní a neprůhledné okno Nastavení
+- **Oprava průhlednosti**: Odstraněna nedefinovaná proměnná a nastaveno plně neprůhledné pozadí `var(--card-bg)` s odpovídajícím stínováním a ohraničením. Text PDF protokolu na pozadí již neprosvítá skrze dialogové okno.
+
+#### 🛡️ Automatické zaznamenávání chyb v kódu (Backend & Frontend)
+- **Globální výjimkový handler v Pythonu (`@app.exception_handler`)**: Každá neošetřená serverová výjimka a HTTP 500 chyba se automaticky zapíše do databáze `system_logs` jako `ERROR` v kategorii `system` včetně typu výjimky, zprávy, tracebacku, uživatelského jména a IP adresy.
+- **Sběr klientských chyb v JavaScriptu (`/api/system/client-log`)**: Běhové chyby JS v prohlížeči (`window.onerror`, unhandled promise rejections) se automaticky přeposílají na server a ukládají do systémových logů v kategorii `frontend`.
+- **Kategorie `frontend` v prohlížeči logů**: Přidán filtr v okně Nastavení pro snadné zobrazení a analýzu chyb z klientského rozhraní.
+
 ## [2.18.1] - 2026-10-20
 
 ### 🚀 Opravy a vylepšení ve verzi 2.18.1

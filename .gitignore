@@ -52,6 +52,7 @@ exports/*
 !docs/images/*.pdf
 bodovani.txt
 praktika_old_backup.html
+Screenshot*.png
 
 # Operating system and IDE files
 .DS_Store

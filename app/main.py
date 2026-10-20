@@ -6,6 +6,7 @@ import json
 import re
 import time
 import secrets
+import traceback
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
@@ -16,7 +17,7 @@ except ImportError:
     import fitz as pymupdf
 
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status, Response, Request, BackgroundTasks, Query
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -63,6 +64,56 @@ app.add_middleware(
 static_dir = BASE_DIR / "app" / "static"
 static_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+# ==========================================
+# GLOBAL EXCEPTION HANDLER & SYSTEM ERROR LOGGING
+# ==========================================
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    # Pass-through for standard HTTP exceptions with status code < 500
+    if isinstance(exc, HTTPException):
+        if exc.status_code >= 500:
+            client_ip = request.client.host if request.client else None
+            log_event(
+                level="ERROR",
+                category="system",
+                action="server_exception",
+                details=f"{request.method} {request.url.path} -> HTTP {exc.status_code}: {exc.detail}",
+                ip_address=client_ip
+            )
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+    client_ip = request.client.host if request.client else None
+    tb = traceback.format_exc()
+    tb_lines = [line.strip() for line in tb.split("\n") if line.strip()]
+    short_tb = " | ".join(tb_lines[-3:]) if tb_lines else str(exc)
+
+    user_name = None
+    try:
+        token = request.cookies.get("access_token")
+        if token and token.startswith("Bearer "):
+            raw_token = token.split(" ")[1]
+            from jose import jwt
+            from app.config import SECRET_KEY, ALGORITHM
+            payload = jwt.decode(raw_token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_name = payload.get("sub")
+    except Exception:
+        pass
+
+    log_event(
+        level="ERROR",
+        category="system",
+        user_name=user_name,
+        action="server_exception",
+        details=f"{request.method} {request.url.path} -> {type(exc).__name__}: {str(exc)} [{short_tb[:240]}]",
+        ip_address=client_ip
+    )
+
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Interní chyba serveru: {type(exc).__name__} - {str(exc)}"}
+    )
 
 # ==========================================
 # AUTHENTICATION & USER MANAGEMENT
@@ -2713,6 +2764,44 @@ def clear_system_logs(
         "deleted_count": deleted_count,
         "message": f"Bylo smazáno {deleted_count} záznamů logů."
     }
+
+# Client-side JavaScript Error Logging Endpoint
+@app.post("/api/system/client-log")
+async def log_client_error(request: Request):
+    try:
+        data = await request.json()
+        client_ip = request.client.host if request.client else None
+        msg = data.get("message", "Neznámá JS chyba")
+        src = data.get("source", "")
+        line = data.get("lineno", 0)
+        col = data.get("colno", 0)
+
+        user_name = None
+        try:
+            token = request.cookies.get("access_token")
+            if token and token.startswith("Bearer "):
+                raw_token = token.split(" ")[1]
+                from jose import jwt
+                from app.config import SECRET_KEY, ALGORITHM
+                payload = jwt.decode(raw_token, SECRET_KEY, algorithms=[ALGORITHM])
+                user_name = payload.get("sub")
+        except Exception:
+            pass
+
+        loc = f" ({src}:{line}:{col})" if src else ""
+        details = f"{msg}{loc}"[:250]
+
+        log_event(
+            level="ERROR",
+            category="frontend",
+            user_name=user_name,
+            action="js_error",
+            details=details,
+            ip_address=client_ip
+        )
+        return {"status": "ok"}
+    except Exception:
+        return {"status": "error"}
 
 # ==========================================
 # PUBLIC STUDENT VIEW (SECURE SHARE TOKEN)

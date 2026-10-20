@@ -242,6 +242,7 @@ const App = {
     await this.loadInitialMetadata();
     await this.loadPresets();
     this.setupEventListeners();
+    this.setupClientErrorLogging();
     this.setupGradingDockDrag();
     this.setupAIDrawerDrag();
     this.setupAllPanelResizers();
@@ -4385,6 +4386,37 @@ const App = {
           menu.style.display = 'none';
         }
       }
+    });
+  },
+
+  setupClientErrorLogging() {
+    let errorCount = 0;
+    setInterval(() => { errorCount = 0; }, 60000);
+
+    const report = (msg, src, line, col, stack) => {
+      if (errorCount++ > 6) return;
+      const strMsg = String(msg || '');
+      if (strMsg.includes('ResizeObserver') || strMsg.includes('Extension') || strMsg.includes('favicon')) return;
+
+      fetch('/api/system/client-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: strMsg,
+          source: src || '',
+          lineno: line || 0,
+          colno: col || 0,
+          stack: (stack || '').slice(0, 500)
+        })
+      }).catch(() => {});
+    };
+
+    window.addEventListener('error', (e) => {
+      report(e.message, e.filename, e.lineno, e.colno, e.error?.stack);
+    });
+
+    window.addEventListener('unhandledrejection', (e) => {
+      report(e.reason?.message || String(e.reason), '', 0, 0, e.reason?.stack);
     });
   },
 
