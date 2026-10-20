@@ -4,6 +4,38 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.18.1] - 2026-10-20
+
+### 🚀 Opravy a vylepšení ve verzi 2.18.1
+
+#### ⚙️ Dvousloupcové nastavení a zamezení cachování
+- **Zamezení agresivnímu cachování v prohlížeči**: `serve_spa()` nyní vrací `Cache-Control: no-cache, no-store, must-revalidate` hlavičky a všechny skripty i styly používají verzovací řetězec `?v={{ version }}`. Tím je zaručeno okamžité načtení nejnovějšího 2-sloupcového layoutu i systémových auditních logů.
+- **Jasná struktura 11 kategorií**: Levý postranní panel s přehlednou vertikální navigací pro osobní, hodnotící i administrátorské kategorie.
+- **Řízení viditelnosti pro administrátora**: Administrátorské položky (Systémové logy, Uživatelé, Databáze, Diagnostika) jsou dostupné pouze přihlášenému správci.
+
+#### 🖥️ Plovoucí tlačítko Fullscreen v pravém dolním rohu
+- **Odstranění z levého panelu**: Tlačítko pro celou obrazovku bylo kompletně odstraněno z levé svislé nástrojové lišty Studia, aby nezabíralo místo hodnotícím funkcím.
+- **Plovoucí ovladač v rohu PDF plochy**: Umístěno jako diskrétní plovoucí tlačítko v pravém dolním rohu s obousměrnou synchronizací s klávesou `F11`.
+
+#### 🔍 Globální zachytávání Ctrl+F
+- **Capture-phase klávesový posluchač**: Stisk `Ctrl+F` (či `Cmd+F`) je ve Studiu zachycen v capture fázi dříve, než jej stihne zachytit prohlížeč. Otevírá plovoucí vyhledávač v PDF s automatickým výběrem textu a počítadlem výskytů.
+
+#### 📊 Výchozí zobrazení vlastních protokolů pro administrátora a řazení
+- **Výchozí filtr „Moje protokoly“**: Správce po přihlášení vidí výhradně své vlastní protokoly (`evaluator_id = me`). Všichni hodnotitelé jsou dostupní přes volbu `Všichni hodnotitelé`.
+- **Chronologické řazení termínů a česká abeceda**: Řazení termínů dnů v týdnu od pondělí do pátku s časem, české abecední řazení u jmen a číselné u skóre.
+
+#### 📋 Oprava mazání předvoleb a úprav srážek
+- **Mazání častých chyb**: Opraveno oprávnění a mazání předvoleb v Nastavení s potvrzovacím dialogem, ošetřením chyb a právy pro správce i asistenty.
+- **Okamžitý přepočet srážek**: Úprava bodové hodnoty i textu v hodnotícím doku okamžitě přepočítá body a promítne se do konceptu.
+
+#### 📝 Přesné označování textu v PDF
+- **Odstranění kolizního řazení v TextLayer**: Ponecháno přirozené čtení textu PDF.js bez umělého přehazování elementů, což eliminuje přeskakování na následující řádky při označování nadpisů a tabulek.
+- **Zpřesnění CSS řádků**: Nastaveno `line-height: normal;` a přesné ohraničení spanů.
+
+#### 🤖 AI Chat – historie per-protokol a multi-turn paměť
+- **Trvalá historie konverzace**: Zprávy jsou uloženy v SQLite sloupci `protocols.ai_chat_json` a automaticky se načítají při otevření protokolu.
+- **Konverzační kontext pro Gemini**: Model má k dispozici celou historii dosavadní diskuze a dokáže přirozeně navazovat na doplňující otázky vyučujícího s plnou podporou KaTeX matematiky.
+
 ## [2.18.0] - 2026-10-20
 
 ### 🚀 Novinky a vylepšení ve verzi 2.18.0

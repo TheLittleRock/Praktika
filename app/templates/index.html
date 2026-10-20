@@ -6,7 +6,7 @@
   <title>Praktika Evaluation Studio</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="stylesheet" href="/static/css/app.css?v={{ version }}">
   <!-- Offline KaTeX & Marked for Math & Markdown -->
   <link rel="stylesheet" href="/static/vendor/katex/katex.min.css">
   <script src="/static/vendor/katex/katex.min.js"></script>
@@ -131,8 +131,8 @@
           <select id="filter-slot-select" class="filter-select" onchange="App.loadProtocols()"></select>
           <select id="filter-measurement-select" class="filter-select" onchange="App.loadProtocols()"></select>
           <select id="filter-evaluator-select" class="filter-select" onchange="App.loadProtocols()">
-            <option value="">Všichni hodnotitelé</option>
-            <option value="me">Moje protokoly</option>
+            <option value="me" selected>Moje protokoly</option>
+            <option value="all">Všichni hodnotitelé</option>
             <option value="others">Ostatní asistenti</option>
             <option value="unassigned">Nepřiřazené</option>
           </select>
@@ -312,10 +312,6 @@
               <span id="btn-ai-drawer-text">AI Asistent</span>
             </button>
 
-            <button class="btn btn-secondary btn-sm" id="btn-toggle-fullscreen" onclick="PDFStudio.toggleBrowserFullscreen()" title="Celá obrazovka (F11)">
-              <span id="btn-fullscreen-icon">⛶</span>
-            </button>
-
             <button class="btn btn-secondary btn-sm" id="btn-toggle-dock" onclick="App.toggleGradingDock()" title="Zobrazit / skrýt plovoucí bodování">
               <span>✎ Bodování</span>
             </button>
@@ -350,6 +346,11 @@
             <span class="autosave-dot"></span>
             <span class="autosave-text">Uloženo</span>
           </div>
+
+          <!-- Floating Fullscreen Toggle Button in bottom-right corner -->
+          <button type="button" class="btn-floating-fullscreen" id="btn-floating-fullscreen" onclick="PDFStudio.toggleBrowserFullscreen()" title="Celá obrazovka (F11)">
+            <span id="btn-fullscreen-icon">⛶</span>
+          </button>
 
           <!-- Snap Guideline Previews for Windows-like edge docking (Left & Right) -->
           <div class="dock-snap-preview" id="dock-snap-preview"></div>
@@ -1579,8 +1580,8 @@
   </div>
 
   <!-- Application Scripts -->
-  <script src="/static/js/grading.js"></script>
-  <script src="/static/js/pdf_viewer.js"></script>
-  <script src="/static/js/app.js"></script>
+  <script src="/static/js/grading.js?v={{ version }}"></script>
+  <script src="/static/js/pdf_viewer.js?v={{ version }}"></script>
+  <script src="/static/js/app.js?v={{ version }}"></script>
 </body>
 </html>

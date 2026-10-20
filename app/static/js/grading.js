@@ -140,12 +140,18 @@ const GradingEngine = {
     });
     this.render();
     if (this.onStateChange) this.onStateChange();
+    if (window.App && typeof window.App.updateGradingDockScore === 'function') {
+      window.App.updateGradingDockScore();
+    }
   },
 
   removeDeduction(index) {
     this.state.deductions.splice(index, 1);
     this.render();
     if (this.onStateChange) this.onStateChange();
+    if (window.App && typeof window.App.updateGradingDockScore === 'function') {
+      window.App.updateGradingDockScore();
+    }
   },
 
   async editDeduction(index) {
@@ -185,10 +191,16 @@ const GradingEngine = {
         confirmText: "Uložit změny"
       });
       if (res && res.reason && res.reason.trim()) {
-        item.pts = Math.round(parseFloat(res.pts || item.pts) * 1000) / 1000;
+        const newPts = (res.pts !== undefined && res.pts !== null && res.pts !== '')
+          ? parseFloat(res.pts)
+          : item.pts;
+        item.pts = Math.round(newPts * 1000) / 1000;
         item.reason = res.reason.trim();
         this.render();
         if (this.onStateChange) this.onStateChange();
+        if (window.App && typeof window.App.updateGradingDockScore === 'function') {
+          window.App.updateGradingDockScore();
+        }
       }
     }
   },

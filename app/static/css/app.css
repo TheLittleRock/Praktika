@@ -1074,7 +1074,7 @@ tr:hover td {
   inset: 0;
   overflow: hidden;
   opacity: 1; /* Keep 1 so selection is vivid, crisp, and responsive with 0 lag */
-  line-height: 1;
+  line-height: normal;
   text-size-adjust: none;
   forced-color-adjust: none;
   transform-origin: 0 0;
@@ -1088,6 +1088,7 @@ tr:hover td {
   white-space: pre;
   cursor: text;
   transform-origin: 0% 0%;
+  box-sizing: border-box;
 }
 
 .textLayer span.markedContent {
@@ -1711,6 +1712,47 @@ tr:hover td {
 @keyframes pulseDot {
   0% { transform: scale(0.8); opacity: 0.6; }
   100% { transform: scale(1.3); opacity: 1; }
+}
+
+/* ========================================================
+   FLOATING FULLSCREEN BUTTON (Bottom-Right Studio Workspace)
+   ======================================================== */
+.btn-floating-fullscreen {
+  position: absolute !important;
+  bottom: 16px !important;
+  right: 24px !important;
+  z-index: 45 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 36px !important;
+  height: 36px !important;
+  background: var(--card-bg, #ffffff) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18) !important;
+  color: var(--text-main) !important;
+  font-size: 1.15rem !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
+}
+
+.btn-floating-fullscreen:hover {
+  transform: scale(1.08) !important;
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: var(--bg-hover, var(--bg)) !important;
+}
+
+.btn-floating-fullscreen:active {
+  transform: scale(0.95) !important;
+}
+
+.btn-floating-fullscreen.active {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  border-color: var(--primary) !important;
 }
 
 /* ========================================================

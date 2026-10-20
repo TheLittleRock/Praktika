@@ -330,6 +330,7 @@ const App = {
           <div class="user-switch-indicator" title="Změnit uživatele">⇄</div>
         </div>
       `;
+      this.updateSettingsAdminVisibility();
     }
   },
 
@@ -1097,7 +1098,11 @@ const App = {
     const evalFilter = document.getElementById('filter-evaluator-select');
     if (slotFilter && slotFilter.value) params.append('slot_id', slotFilter.value);
     if (measFilter && measFilter.value) params.append('measurement_id', measFilter.value);
-    if (evalFilter && evalFilter.value) params.append('evaluator_id', evalFilter.value);
+    if (evalFilter && evalFilter.value) {
+      params.append('evaluator_id', evalFilter.value);
+    } else {
+      params.append('evaluator_id', 'me');
+    }
     if (statusFilter && statusFilter.value) params.append('status_filter', statusFilter.value);
     if (searchInput && searchInput.value.trim()) params.append('search', searchInput.value.trim());
 
@@ -1162,9 +1167,11 @@ const App = {
           return factor * (a.measurement_name || '').localeCompare(b.measurement_name || '', 'cs');
         }
         case 'slot': {
-          const sA = `${a.day_of_week || ''} ${a.time_start || ''}`;
-          const sB = `${b.day_of_week || ''} ${b.time_start || ''}`;
-          return factor * sA.localeCompare(sB, 'cs');
+          const days = { 'Pondělí': 1, 'Úterý': 2, 'Středa': 3, 'Čtvrtek': 4, 'Pátek': 5, 'Sobota': 6, 'Neděle': 7 };
+          const dA = days[a.day_of_week] || 99;
+          const dB = days[b.day_of_week] || 99;
+          if (dA !== dB) return factor * (dA - dB);
+          return factor * (a.time_start || '').localeCompare(b.time_start || '');
         }
         case 'status': {
           const order = { new: 0, in_progress: 1, revision: 2, graded: 3 };
@@ -1188,21 +1195,17 @@ const App = {
   populateEvaluatorFilterOptions() {
     const sel = document.getElementById('filter-evaluator-select');
     if (!sel || !this.allUsers) return;
-    const curVal = sel.value;
+    const curVal = sel.value || 'me';
     sel.innerHTML = `
-      <option value="">Všichni hodnotitelé</option>
       <option value="me">Moje protokoly</option>
+      <option value="all">Všichni hodnotitelé</option>
       <option value="others">Ostatní asistenti</option>
       <option value="unassigned">Nepřiřazené</option>
       <optgroup label="Konkrétní asistent">
         ${this.allUsers.map(u => `<option value="${u.id}">${this.escape(u.full_name)} (@${u.username})</option>`).join('')}
       </optgroup>
     `;
-    if (curVal) {
-      sel.value = curVal;
-    } else if (this.currentUser && this.currentUser.role === 'admin') {
-      sel.value = 'me';
-    }
+    sel.value = curVal || 'me';
   },
 
   updateDashboardStats(protocols) {
@@ -1947,11 +1950,15 @@ const App = {
   },
 
   updateSettingsAdminVisibility() {
-    const isAdmin = (this.currentUser && this.currentUser.role === 'admin');
-    const adminTabs = ['users', 'database', 'logs', 'diagnostics'];
+    const isAdmin = !!(this.currentUser && this.currentUser.role === 'admin');
+    const adminTabs = ['logs', 'users', 'database', 'diagnostics'];
     for (const tab of adminTabs) {
       const btn = document.getElementById(`settings-tab-btn-${tab}`);
       if (btn) btn.style.display = isAdmin ? 'flex' : 'none';
+      const pane = document.getElementById(`settings-pane-${tab}`);
+      if (!isAdmin && pane && pane.style.display !== 'none') {
+        pane.style.display = 'none';
+      }
     }
   },
 
@@ -2647,7 +2654,7 @@ const App = {
             <span style="font-weight:700; color:var(--accent-red);">-${d.pts}b [${d.category}]:</span>
             <span>${this.escape(d.text)}</span>
           </div>
-          <button class="btn btn-danger btn-sm" onclick="App.deletePresetItem(${d.id})">✕</button>
+          <button type="button" class="btn btn-danger btn-sm" onclick="App.deletePresetItem(${d.id})" title="Smazat tuto předvolbu">✕</button>
         </div>
       `).join('');
     }
@@ -2657,7 +2664,7 @@ const App = {
       commList.innerHTML = comments.map(c => `
         <div style="display:flex; align-items:center; justify-content:space-between; background:var(--bg); border:1px solid var(--border); padding:6px 10px; border-radius:6px; margin-bottom:5px; font-size:0.83rem;">
           <div>${this.escape(c.text)}</div>
-          <button class="btn btn-danger btn-sm" onclick="App.deletePresetItem(${c.id})">✕</button>
+          <button type="button" class="btn btn-danger btn-sm" onclick="App.deletePresetItem(${c.id})" title="Smazat tuto předvolbu">✕</button>
         </div>
       `).join('');
     }
@@ -2698,10 +2705,33 @@ const App = {
   },
 
   async deletePresetItem(id) {
-    await fetch(`/api/presets/${id}`, { method: 'DELETE' });
-    this.showToast("Předvolba smazána.");
-    this.loadSettingsPresets();
-    this.loadPresets();
+    const ok = await AppModal.confirm({
+      title: "Smazat předvolbu",
+      message: "Opravdu si přejete smazat tuto předvolbu?",
+      confirmText: "Smazat",
+      danger: true
+    });
+    if (!ok) return;
+
+    try {
+      const resp = await fetch(`/api/presets/${id}`, { method: 'DELETE' });
+      if (resp.ok) {
+        this.showToast("Předvolba byla smazána.");
+        this.loadSettingsPresets();
+        this.loadPresets();
+      } else {
+        const err = await resp.json().catch(() => ({}));
+        await AppModal.alert({
+          title: "Nelze smazat předvolbu",
+          message: err.detail || "Chyba při mazání předvolby ze serveru."
+        });
+      }
+    } catch (e) {
+      await AppModal.alert({
+        title: "Chyba spojení",
+        message: "Nelze se spojit se serverem: " + e.message
+      });
+    }
   },
 
   // Settings: Users Management (Admin only)
@@ -4238,8 +4268,23 @@ const App = {
 
   setupEventListeners() {
     window.addEventListener('keydown', (e) => {
-      // ESC closes any modal or floating comment box
+      // Intercept Ctrl+F / Cmd+F in Studio view in capture phase before browser handles it
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+        if (this.currentView === 'studio') {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          if (window.PDFStudio) window.PDFStudio.openSearch();
+          return;
+        }
+      }
+
+      // ESC closes search bar, modal or floating comment box
       if (e.key === 'Escape') {
+        if (window.PDFStudio && window.PDFStudio.isSearchOpen) {
+          window.PDFStudio.closeSearch();
+          return;
+        }
         this.closeUploadModal();
         this.closeSettingsModal();
         this.closeEditMetadataModal();
@@ -4330,7 +4375,7 @@ const App = {
           }
         }
       }
-    });
+    }, true);
 
     document.addEventListener('click', (e) => {
       const menu = document.getElementById('ai-run-menu');

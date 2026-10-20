@@ -272,11 +272,12 @@ const PDFStudio = {
 
   setupKeyboardShortcuts() {
     window.addEventListener('keydown', (e) => {
-      // Intercept Ctrl+F / Cmd+F anywhere in Studio view
+      // Intercept Ctrl+F / Cmd+F anywhere in Studio view in capture phase
       if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
         if (window.App && window.App.currentView === 'studio') {
           e.preventDefault();
           e.stopPropagation();
+          e.stopImmediatePropagation();
           this.openSearch();
           return;
         }
@@ -295,7 +296,7 @@ const PDFStudio = {
         e.preventDefault();
         this.redo();
       }
-    });
+    }, true);
   },
 
   // ==========================================
@@ -316,7 +317,7 @@ const PDFStudio = {
     if (icon) {
       icon.textContent = isFull ? '✕' : '⛶';
     }
-    const btn = document.getElementById('btn-toggle-fullscreen');
+    const btn = document.getElementById('btn-floating-fullscreen') || document.getElementById('btn-toggle-fullscreen');
     if (btn) {
       btn.title = isFull ? 'Ukončit celou obrazovku (Esc)' : 'Celá obrazovka (F11)';
       btn.classList.toggle('active', isFull);
@@ -324,19 +325,23 @@ const PDFStudio = {
   },
 
   toggleBrowserFullscreen() {
-    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-      const el = document.documentElement;
-      if (el.requestFullscreen) {
-        el.requestFullscreen().catch(() => {});
-      } else if (el.webkitRequestFullscreen) {
-        el.webkitRequestFullscreen();
+    try {
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        const el = document.documentElement;
+        if (el.requestFullscreen) {
+          el.requestFullscreen().catch(() => {});
+        } else if (el.webkitRequestFullscreen) {
+          el.webkitRequestFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        }
       }
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
-      } else if (document.webkitExitFullscreen) {
-        document.webkitExitFullscreen();
-      }
+    } catch (e) {
+      console.warn("Fullscreen toggle error:", e);
     }
   },
 
@@ -1287,23 +1292,7 @@ const PDFStudio = {
       textLayerDiv.innerHTML = '';
       const textContent = await page.getTextContent();
 
-      // Sort items into visual reading order (top-to-bottom, left-to-right) so table row selection works smoothly
-      if (textContent && Array.isArray(textContent.items)) {
-        const items = [...textContent.items];
-        items.sort((a, b) => {
-          const yA = (a.transform && a.transform[5] !== undefined) ? a.transform[5] : 0;
-          const yB = (b.transform && b.transform[5] !== undefined) ? b.transform[5] : 0;
-          const xA = (a.transform && a.transform[4] !== undefined) ? a.transform[4] : 0;
-          const xB = (b.transform && b.transform[4] !== undefined) ? b.transform[4] : 0;
-          const yDiff = yB - yA;
-          if (Math.abs(yDiff) > 5) {
-            return yDiff; // Higher Y first
-          }
-          return xA - xB; // Left to right
-        });
-        textContent.items = items;
-      }
-
+      // Render native PDF.js TextLayer with true, precise text geometry
       const textTask = window.pdfjsLib.renderTextLayer({
         textContentSource: textContent,
         textContent: textContent,

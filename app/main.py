@@ -694,17 +694,28 @@ def create_preset(preset: PresetCreate, user: dict = Depends(get_current_user)):
 def delete_preset(preset_id: int, user: dict = Depends(get_current_user)):
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT user_id FROM presets WHERE id = ?", (preset_id,))
+    cur.execute("SELECT user_id, text FROM presets WHERE id = ?", (preset_id,))
     row = cur.fetchone()
     if not row:
         conn.close()
         raise HTTPException(status_code=404, detail="Předvolba nenalezena")
     if user["role"] != "admin" and row["user_id"] != user["id"]:
         conn.close()
-        raise HTTPException(status_code=403, detail="Nemáte oprávnění smazat tuto předvolbu.")
+        raise HTTPException(
+            status_code=403,
+            detail="Systémovou předvolbu může smazat pouze správce aplikace. Asistent smí mazat pouze své vlastní vytvořené předvolby."
+        )
     cur.execute("DELETE FROM presets WHERE id = ?", (preset_id,))
     conn.commit()
     conn.close()
+    log_event(
+        level="INFO",
+        category="system",
+        user_id=user["id"],
+        user_name=user["username"],
+        action="delete_preset",
+        details=f"Smazána předvolba #{preset_id}: {(row['text'] or '')[:60]}"
+    )
     return {"status": "ok", "message": "Předvolba byla smazána"}
 
 # ==========================================
@@ -755,8 +766,10 @@ def list_protocols(
             query += " AND (p.evaluator_id = ? OR p.evaluator_id IS NULL)"
             params.append(user["id"])
     else:
-        # Admin or other roles
-        if evaluator_id == "me":
+        # Admin or other roles - default to own protocols unless explicitly requested
+        if evaluator_id == "all":
+            pass  # Show all protocols from all assistants
+        elif evaluator_id == "me" or evaluator_id is None or evaluator_id == "":
             query += " AND p.evaluator_id = ?"
             params.append(user["id"])
         elif evaluator_id in ("others", "other"):
@@ -2879,5 +2892,13 @@ def serve_spa(request: Request, full_path: str):
     if template_path.exists():
         with open(template_path, "r", encoding="utf-8") as f:
             content = f.read()
-            return content.replace("{{ version }}", VERSION).replace("{{version}}", VERSION)
-    return "<h1>Aplikace se načítá...</h1>"
+            rendered = content.replace("{{ version }}", VERSION).replace("{{version}}", VERSION)
+            return HTMLResponse(
+                content=rendered,
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0"
+                }
+            )
+    return HTMLResponse("<h1>Aplikace se načítá...</h1>", status_code=503)
