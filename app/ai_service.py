@@ -6,7 +6,7 @@ import httpx
 import fitz
 from datetime import datetime
 from typing import Dict, Any, List, Optional
-from app.database import get_db
+from app.database import get_db, log_event
 from app.models import AIAnalysisResult, AIDeductionSuggestion, AIAnnotationSuggestion, AIChatMessage, AIChatResponse
 
 DEFAULT_PHYSICS_GUIDELINES = """
@@ -148,11 +148,21 @@ def robust_json_loads(text: str) -> dict:
         raise ValueError(f"Nelze analyzovat JSON z odpovědi AI modelu: {ex}")
 
 def get_candidate_models(preferred: Optional[str] = None) -> List[str]:
-    pref = (preferred or get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.5-flash")).strip()
+    pref = (preferred or get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.6-flash")).strip()
     candidates = []
     if pref:
         candidates.append(pref)
-    for m in ["gemini-3.5-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest"]:
+    for m in [
+        "gemini-3.6-flash",
+        "gemini-3.8-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3-flash",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-flash-latest",
+        "gemini-flash-lite-latest"
+    ]:
         if m not in candidates:
             candidates.append(m)
     return candidates
@@ -487,7 +497,7 @@ ZÁVAZNÁ PRAVIDLA:
         }
     }
 
-    preferred_model = (custom_model or get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.5-flash-lite")).strip()
+    preferred_model = (custom_model or get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.6-flash")).strip()
     models_to_try = get_candidate_models(custom_model)
     last_error = None
     fallback_note = None
@@ -514,6 +524,13 @@ ZÁVAZNÁ PRAVIDLA:
                         if model_name != preferred_model and last_error:
                             fallback_note = f"Požadovaný model '{preferred_model}' vrátil {last_error}. Byla použita záloha '{model_name}'."
 
+                        log_event(
+                            level="INFO",
+                            category="ai",
+                            action="ai_analysis_success",
+                            details=f"Úspěšná AI analýza protokolu #{proto_id} modelem {model_name} ({len(parsed.get('annotations', []))} anotací, {len(parsed.get('deductions', []))} srážek)."
+                        )
+
                         return build_resolved_result(
                             proto_id, 
                             parsed, 
@@ -523,17 +540,28 @@ ZÁVAZNÁ PRAVIDLA:
                             fallback_note=fallback_note
                         )
                     elif resp.status_code in [503, 429]:
-                        last_error = f"chybu {resp.status_code} (přetížení / vyčerpaný limit kvóty)"
+                        err_msg = ""
+                        try:
+                            err_msg = resp.json().get("error", {}).get("message", "")
+                        except Exception:
+                            err_msg = resp.text[:200]
+                        last_error = f"HTTP {resp.status_code} ({err_msg or 'přetížení / vyčerpaný limit kvóty'})"
                         if attempt == 0:
                             import asyncio
                             await asyncio.sleep(1.2)
                             continue
+                        break
                     else:
-                        last_error = f"chybu {resp.status_code}: {resp.text[:80]}"
+                        err_msg = ""
+                        try:
+                            err_msg = resp.json().get("error", {}).get("message", "")
+                        except Exception:
+                            err_msg = resp.text[:300]
+                        last_error = f"HTTP {resp.status_code}: {err_msg}"
                         break
             except Exception as e:
                 err_msg = str(e) or type(e).__name__
-                last_error = f"chybu spojení ({err_msg})"
+                last_error = f"chyba spojení ({err_msg})"
                 print(f"Exception connecting to {model_name} (attempt {attempt+1}):", err_msg)
                 if attempt == 0:
                     import asyncio
@@ -541,7 +569,14 @@ ZÁVAZNÁ PRAVIDLA:
                     continue
                 break
 
-    raise RuntimeError(f"AI asistent nemohl protokol vyhodnotit. Všechny dostupné Gemini modely selhaly: {last_error or 'Chyba připojení nebo vyčerpaná kvóta'}. Zkontrolujte připojení k internetu a platnost API klíče.")
+    err_final = f"AI asistent nemohl protokol vyhodnotit. Modely ({', '.join(models_to_try)}) selhaly: {last_error or 'Chyba připojení nebo vyčerpaná kvóta'}."
+    log_event(
+        level="ERROR",
+        category="ai",
+        action="ai_analysis_failed",
+        details=f"Selhání AI analýzy protokolu #{proto_id}: {err_final}"
+    )
+    raise RuntimeError(err_final)
 
 def resolve_single_annotation(a: dict, doc: fitz.Document, idx: int, proto_id: int, proposal_id: Optional[str] = None) -> AIAnnotationSuggestion:
     try:
@@ -897,6 +932,7 @@ ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
     models_to_try = get_candidate_models(custom_model)
     raw_response = None
     last_error = None
+    successful_model = None
 
     for model_name in models_to_try:
         gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
@@ -915,19 +951,31 @@ ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
                         data = resp.json()
                         raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
                         raw_response = robust_json_loads(raw_text)
+                        successful_model = model_name
                         break
                     elif resp.status_code in [503, 429]:
-                        last_error = f"Model {model_name} vrátil HTTP {resp.status_code} (dočasné přetížení)"
+                        err_msg = ""
+                        try:
+                            err_msg = resp.json().get("error", {}).get("message", "")
+                        except Exception:
+                            err_msg = resp.text[:200]
+                        last_error = f"Model {model_name} vrátil HTTP {resp.status_code} ({err_msg or 'přetížení / vyčerpaný limit kvóty'})"
                         if attempt == 0:
                             import asyncio
                             await asyncio.sleep(1.0)
                             continue
                         break
                     else:
-                        last_error = f"HTTP {resp.status_code}: {resp.text[:80]}"
+                        err_msg = ""
+                        try:
+                            err_msg = resp.json().get("error", {}).get("message", "")
+                        except Exception:
+                            err_msg = resp.text[:300]
+                        last_error = f"Model {model_name} vrátil HTTP {resp.status_code}: {err_msg}"
                         break
             except Exception as e:
-                last_error = str(e)
+                err_msg = str(e) or type(e).__name__
+                last_error = f"Model {model_name} selhal na chybě spojení ({err_msg})"
                 if attempt == 0:
                     import asyncio
                     await asyncio.sleep(0.8)
@@ -938,7 +986,14 @@ ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
 
     if not raw_response or not isinstance(raw_response, dict):
         conn.close()
-        raise RuntimeError(f"AI asistent neodpověděl: {last_error or 'Neznámá chyba'}")
+        err_final = f"AI asistent neodpověděl. Zkoušené modely ({', '.join(models_to_try)}) selhaly: {last_error or 'Neznámá chyba'}"
+        log_event(
+            level="ERROR",
+            category="ai",
+            action="ai_chat_failed",
+            details=f"Selhání AI chatu pro protokol #{proto_id}: {err_final}"
+        )
+        raise RuntimeError(err_final)
 
     reply_text = str(raw_response.get("reply", "")).strip()
     raw_annots = raw_response.get("annotations", [])
@@ -951,6 +1006,13 @@ ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
         prop_id = f"chat_{proto_id}_{ts}_{i+1}"
         resolved = resolve_single_annotation(a, doc, i, proto_id, proposal_id=prop_id)
         resolved_annots.append(resolved)
+
+    log_event(
+        level="INFO",
+        category="ai",
+        action="ai_chat_response",
+        details=f"Odpověď z modelu {successful_model} pro protokol #{proto_id}: {reply_text[:140]} (návrhů anotací: {len(resolved_annots)})"
+    )
 
     # Append to chat history
     now_iso = datetime.now().isoformat()

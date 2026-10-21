@@ -1143,34 +1143,16 @@ const PDFStudio = {
     if (!pId && !prop) return;
     if (!pId && prop) pId = prop.proposal_id;
 
-    // Instant local application to canvas
+    // Immediately remove proposal overlay box from canvas
+    const canvasEl = document.querySelector(`.ai-canvas-proposal[data-proposal-id="${pId}"]`);
+    if (canvasEl) canvasEl.remove();
+
     const idx = prop ? this.aiProposals.indexOf(prop) : this.aiProposals.findIndex(p => p.proposal_id === pId);
-    let approvedItem = prop;
     if (idx !== -1) {
-      approvedItem = this.aiProposals.splice(idx, 1)[0];
-    }
-    if (approvedItem) {
-      const pageNum = parseInt(approvedItem.page, 10) || 1;
-      const rawR = approvedItem.rect || (approvedItem.point ? [approvedItem.point[0] - 10, approvedItem.point[1] - 8, approvedItem.point[0] + 120, approvedItem.point[1] + 14] : [80, 80, 240, 100]);
-      const normR = this.normalizeRect(rawR);
-      const newAnnot = {
-        id: `annot_${this.protocolId || 0}_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-        page: pageNum,
-        type: 'highlight',
-        rect: normR,
-        rects: [normR],
-        point: approvedItem.point || [normR[0], normR[1]],
-        content: approvedItem.comment || '',
-        author: this.getAuthorName(),
-        color: '#ef4444',
-        created_at: new Date().toISOString()
-      };
-      this.addAnnotation(newAnnot);
-      this.redrawPageAnnotations(pageNum);
-      const canvasEl = document.querySelector(`.ai-canvas-proposal[data-proposal-id="${pId}"]`);
-      if (canvasEl) canvasEl.remove();
+      this.aiProposals.splice(idx, 1);
     }
 
+    // Execute atomic action: backend creates annotation and frontend adds it exactly ONCE
     if (window.App && window.App.executeAIProposalAction) {
       window.App.executeAIProposalAction('approve_annotation', pId);
     }
@@ -1241,12 +1223,16 @@ const PDFStudio = {
     if (!this.pdfDoc) return;
     const savedLoc = overrideLoc || (preservePosition ? this.getCurrentVisibleLocation() : null);
 
-    // Target DPR: devicePixelRatio tuned to high quality text smoothing and crisp vector edges
-    const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1), 3.0);
+    // Device Pixel Ratio with supersampling: at least 2.0x for Retina-crisp vector font anti-aliasing
+    const baseDpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(Math.max(baseDpr * 1.5, 2.0), 3.0);
 
     for (let pageNum = 1; pageNum <= this.totalPages; pageNum++) {
       const page = await this.pdfDoc.getPage(pageNum);
       const viewport = page.getViewport({ scale: this.scale });
+
+      const displayWidth = Math.round(viewport.width);
+      const displayHeight = Math.round(viewport.height);
 
       let pageWrap = this.container.querySelector(`.pdf-page-container[data-page-number="${pageNum}"]`);
       let canvas, textLayerDiv, svgOverlay;
@@ -1292,19 +1278,22 @@ const PDFStudio = {
       // Render to offscreen canvas first to prevent white flash during re-render
       const nextCanvas = document.createElement('canvas');
       nextCanvas.className = 'pdf-canvas';
-      nextCanvas.width = Math.ceil(viewport.width * dpr);
-      nextCanvas.height = Math.ceil(viewport.height * dpr);
-      nextCanvas.style.width = `${Math.floor(viewport.width)}px`;
-      nextCanvas.style.height = `${Math.floor(viewport.height)}px`;
+      nextCanvas.width = Math.round(displayWidth * dpr);
+      nextCanvas.height = Math.round(displayHeight * dpr);
+      nextCanvas.style.width = `${displayWidth}px`;
+      nextCanvas.style.height = `${displayHeight}px`;
 
       const ctx = nextCanvas.getContext('2d', { alpha: false });
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
 
+      const scaleX = nextCanvas.width / viewport.width;
+      const scaleY = nextCanvas.height / viewport.height;
+
       const renderCtx = {
         canvasContext: ctx,
         viewport: viewport,
-        transform: [dpr, 0, 0, dpr, 0, 0]
+        transform: [scaleX, 0, 0, scaleY, 0, 0]
       };
       await page.render(renderCtx).promise;
 
@@ -1316,12 +1305,12 @@ const PDFStudio = {
       }
       pageWrap.style.transform = '';
       pageWrap.style.marginBottom = '20px';
-      pageWrap.style.width = `${Math.floor(viewport.width)}px`;
-      pageWrap.style.height = `${Math.floor(viewport.height)}px`;
+      pageWrap.style.width = `${displayWidth}px`;
+      pageWrap.style.height = `${displayHeight}px`;
 
       // Update TextLayer
-      textLayerDiv.style.width = `${Math.floor(viewport.width)}px`;
-      textLayerDiv.style.height = `${Math.floor(viewport.height)}px`;
+      textLayerDiv.style.width = `${displayWidth}px`;
+      textLayerDiv.style.height = `${displayHeight}px`;
       textLayerDiv.style.setProperty('--scale-factor', viewport.scale);
       textLayerDiv.innerHTML = '';
       const textContent = await page.getTextContent();
@@ -1342,7 +1331,8 @@ const PDFStudio = {
       await this.renderPageLinks(page, pageWrap, viewport);
 
       // Update SVG Overlay
-      svgOverlay.setAttribute('width', Math.floor(viewport.width));
+      svgOverlay.setAttribute('width', displayWidth);
+      svgOverlay.setAttribute('height', displayHeight);
       svgOverlay.setAttribute('height', Math.floor(viewport.height));
       if (this.activeTool === 'pan' || this.activeTool === 'highlight' || this.activeTool === 'strikeout') {
         svgOverlay.style.pointerEvents = 'none';
@@ -1383,11 +1373,13 @@ const PDFStudio = {
 
   toggleThumbnails() {
     const drawer = document.getElementById('studio-thumbnails-drawer');
-    const btn = document.getElementById('btn-toggle-thumbnails');
+    const floatingBtn = document.getElementById('btn-floating-thumbnails');
+    const toolBtn = document.getElementById('btn-toggle-thumbnails');
     if (!drawer) return;
     this.isThumbnailsOpen = (drawer.style.display === 'none' || !drawer.style.display);
     drawer.style.display = this.isThumbnailsOpen ? 'flex' : 'none';
-    if (btn) btn.classList.toggle('active', this.isThumbnailsOpen);
+    if (floatingBtn) floatingBtn.classList.toggle('active', this.isThumbnailsOpen);
+    if (toolBtn) toolBtn.classList.toggle('active', this.isThumbnailsOpen);
 
     if (this.isThumbnailsOpen) {
       this.renderThumbnails();
@@ -1425,9 +1417,23 @@ const PDFStudio = {
   async renderSingleThumbnail(pageNum, canvas) {
     try {
       const page = await this.pdfDoc.getPage(pageNum);
-      const viewport = page.getViewport({ scale: 0.16 });
-      canvas.width = Math.floor(viewport.width);
-      canvas.height = Math.floor(viewport.height);
+      const unscaled = page.getViewport({ scale: 1.0 });
+      // Fit entire page inside 125x175 bounding box preserving exact aspect ratio
+      const maxW = 125;
+      const maxH = 175;
+      const fitScale = Math.min(maxW / unscaled.width, maxH / unscaled.height);
+      const displayW = Math.round(unscaled.width * fitScale);
+      const displayH = Math.round(unscaled.height * fitScale);
+
+      // Render with 2x supersampling for high sharpness on Retina/HiDPI screens
+      const dpr = Math.max(window.devicePixelRatio || 1, 2);
+      const viewport = page.getViewport({ scale: fitScale * dpr });
+
+      canvas.width = Math.round(displayW * dpr);
+      canvas.height = Math.round(displayH * dpr);
+      canvas.style.width = `${displayW}px`;
+      canvas.style.height = `${displayH}px`;
+
       const ctx = canvas.getContext('2d', { alpha: false });
       await page.render({ canvasContext: ctx, viewport: viewport }).promise;
     } catch (e) {
@@ -1477,16 +1483,14 @@ const PDFStudio = {
           linkEl.rel = 'noopener noreferrer';
           linkEl.title = `Otevřít odkaz: ${a.url}`;
           linkEl.addEventListener('click', (e) => {
-            if (this.activeTool !== 'pan') {
-              e.preventDefault();
-            }
+            e.stopPropagation();
           });
         } else if (a.dest) {
           linkEl.href = '#';
           linkEl.title = 'Přejít na odkaz v dokumentu';
           linkEl.addEventListener('click', async (e) => {
             e.preventDefault();
-            if (this.activeTool !== 'pan') return;
+            e.stopPropagation();
             try {
               let dest = a.dest;
               if (typeof dest === 'string') {
@@ -2244,6 +2248,22 @@ const PDFStudio = {
     if (!this.annotations.includes(annot)) {
       if (annot.id && this.annotations.some(existing => existing.id === annot.id)) {
         return;
+      }
+      // Content & geometry duplicate guard: prevent adding duplicate overlapping annotation with identical text on same page
+      if (annot.content && annot.page) {
+        const isDuplicate = this.annotations.some(existing => {
+          if (existing.page !== annot.page || existing.type !== annot.type || existing.content !== annot.content) return false;
+          if (annot.rect && existing.rect) {
+            const dx = Math.abs(existing.rect[0] - annot.rect[0]);
+            const dy = Math.abs(existing.rect[1] - annot.rect[1]);
+            return dx < 6 && dy < 6;
+          }
+          return false;
+        });
+        if (isDuplicate) {
+          console.warn("Skipping duplicate annotation:", annot);
+          return;
+        }
       }
       if (!annot.id) {
         annot.id = `annot_${this.protocolId || 0}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;

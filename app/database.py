@@ -287,9 +287,9 @@ def init_db():
 
         cur.execute("SELECT value FROM app_settings WHERE key = 'gemini_model'")
         mrow = cur.fetchone()
-        if not mrow or not mrow[0] or '1.5' in mrow[0] or '2.5' in mrow[0]:
-            cur.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('gemini_model', 'gemini-3.5-flash')")
-            cur.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('ai_model', 'gemini-3.5-flash')")
+        if not mrow or not mrow[0] or '1.5' in mrow[0] or '2.5' in mrow[0] or mrow[0] == 'gemini-3.5-flash':
+            cur.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('gemini_model', 'gemini-3.6-flash')")
+            cur.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('ai_model', 'gemini-3.6-flash')")
     except Exception:
         pass
 

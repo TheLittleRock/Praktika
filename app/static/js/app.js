@@ -226,7 +226,7 @@ const App = {
   toolbarPos: localStorage.getItem('praktika_toolbar_pos') || 'vertical',
   theme: localStorage.getItem('praktika_theme') || 'light',
   gradingDockSide: localStorage.getItem('praktika_grading_dock_side') || 'right',
-  aiDrawerDockSide: localStorage.getItem('praktika_ai_dock_side') || 'right',
+  aiDrawerDockSide: localStorage.getItem('praktika_ai_dock_side') || 'left',
   aiDrawerFloating: localStorage.getItem('praktika_ai_floating') === 'true',
   allowBothPanelsSameSide: localStorage.getItem('praktika_allow_both_panels_same_side') === 'true',
   currentAutodetectPromise: null,
@@ -251,6 +251,13 @@ const App = {
     this.setupAIDrawerDrag();
     this.setupAllPanelResizers();
     this.setupAIChatInputAutoGrow();
+
+    // Ensure docking sides default to opposite sides if not allowed on same side
+    if (!this.allowBothPanelsSameSide && this.gradingDockSide === this.aiDrawerDockSide) {
+      this.aiDrawerDockSide = (this.gradingDockSide === 'right') ? 'left' : 'right';
+      localStorage.setItem('praktika_ai_dock_side', this.aiDrawerDockSide);
+    }
+    this.ensureOppositePanels('init');
     this.updateGradingDockSideButton();
     this.updateAIDockSideButton();
     this.checkAIKeyStatus();
@@ -646,14 +653,7 @@ const App = {
 
     if (isOpening) {
       this.updateGradingDockSideButton();
-      if (!this.allowBothPanelsSameSide) {
-        const aiDrawer = document.getElementById('studio-ai-drawer');
-        if (aiDrawer && aiDrawer.style.display !== 'none' && !aiDrawer.classList.contains('floating-mode') && !dock.classList.contains('floating-mode')) {
-          if (this.gradingDockSide === this.aiDrawerDockSide) {
-            this.setAIDrawerSide(this.gradingDockSide === 'right' ? 'left' : 'right', false);
-          }
-        }
-      }
+      this.ensureOppositePanels('grading');
     }
   },
 
@@ -683,7 +683,7 @@ const App = {
 
     if (triggerOther && !this.allowBothPanelsSameSide) {
       const aiDrawer = document.getElementById('studio-ai-drawer');
-      if (aiDrawer && aiDrawer.style.display !== 'none' && !aiDrawer.classList.contains('floating-mode')) {
+      if (aiDrawer && !aiDrawer.classList.contains('floating-mode')) {
         if (this.aiDrawerDockSide === side) {
           this.setAIDrawerSide(side === 'right' ? 'left' : 'right', false);
         }
@@ -693,6 +693,35 @@ const App = {
 
   toggleGradingDockSide() {
     this.setGradingDockSide(this.gradingDockSide === 'right' ? 'left' : 'right', true);
+  },
+
+  ensureOppositePanels(trigger = 'ai') {
+    if (this.allowBothPanelsSameSide) return;
+    const aiDrawer = document.getElementById('studio-ai-drawer');
+    const gradingDock = document.getElementById('studio-grading-dock');
+    if (!aiDrawer || !gradingDock) return;
+
+    if (aiDrawer.classList.contains('floating-mode') || gradingDock.classList.contains('floating-mode')) return;
+
+    if (this.gradingDockSide === this.aiDrawerDockSide) {
+      if (trigger === 'grading') {
+        this.setAIDrawerSide(this.gradingDockSide === 'right' ? 'left' : 'right', false);
+      } else {
+        if (this.gradingDockSide === 'right') {
+          this.setAIDrawerSide('left', false);
+        } else {
+          this.setGradingDockSide('right', false);
+          this.setAIDrawerSide('left', false);
+        }
+      }
+    } else {
+      aiDrawer.classList.remove('docked-left', 'docked-right');
+      aiDrawer.classList.add(this.aiDrawerDockSide === 'left' ? 'docked-left' : 'docked-right');
+      gradingDock.classList.remove('docked-left', 'docked-right');
+      gradingDock.classList.add(this.gradingDockSide === 'left' ? 'docked-left' : 'docked-right');
+      this.updateAIDockSideButton();
+      this.updateGradingDockSideButton();
+    }
   },
 
   toggleDockFloatingMode() {
@@ -816,7 +845,7 @@ const App = {
 
     if (triggerOther && !this.allowBothPanelsSameSide) {
       const dock = document.getElementById('studio-grading-dock');
-      if (dock && dock.style.display !== 'none' && !dock.classList.contains('floating-mode')) {
+      if (dock && !dock.classList.contains('floating-mode')) {
         if (this.gradingDockSide === side) {
           this.setGradingDockSide(side === 'right' ? 'left' : 'right', false);
         }
@@ -1350,7 +1379,7 @@ const App = {
 
   async copyStudentLink(token) {
     if (!token) return;
-    const url = `${window.location.origin}/student/${token}`;
+    const url = `${window.location.origin}/v/${token}`;
     try {
       await navigator.clipboard.writeText(url);
       this.showToast("Odkaz pro studenta byl zkopírován do schránky!");
@@ -1430,6 +1459,7 @@ const App = {
       this.updateGradingDockScore();
 
       this.showView('studio');
+      this.ensureOppositePanels('open');
       this.switchAITab('proposals');
       this.loadAIChatHistory(protoId);
     } catch(e) {
@@ -2248,6 +2278,9 @@ const App = {
   handleAllowBothPanelsSameSideChange(checked) {
     this.allowBothPanelsSameSide = !!checked;
     localStorage.setItem('praktika_allow_both_panels_same_side', this.allowBothPanelsSameSide ? 'true' : 'false');
+    if (!this.allowBothPanelsSameSide) {
+      this.ensureOppositePanels('ai');
+    }
     this.showToast(this.allowBothPanelsSameSide ? "Povoleno dokování obou panelů na stejné straně." : "Zapnuto oddělování postranních panelů na protější strany.");
   },
 
@@ -3566,6 +3599,7 @@ const App = {
         }
         const drawer = document.getElementById('studio-ai-drawer');
         if (drawer) drawer.style.display = 'flex';
+        this.ensureOppositePanels('ai');
         this.showToast(mode === 'replace' ? "AI analýza byla kompletně přegenerována!" : "Nové návrhy AI byly přidány k protokolu!");
       } else {
         const err = await resp.json();
@@ -3596,14 +3630,7 @@ const App = {
     if (isHidden) {
       this.updateAIDockSideButton();
       this.updateAIDrawerLists();
-      if (!this.allowBothPanelsSameSide) {
-        const gradingDock = document.getElementById('studio-grading-dock');
-        if (gradingDock && gradingDock.style.display !== 'none' && !gradingDock.classList.contains('floating-mode') && !drawer.classList.contains('floating-mode')) {
-          if (this.aiDrawerDockSide === this.gradingDockSide) {
-            this.setGradingDockSide(this.aiDrawerDockSide === 'right' ? 'left' : 'right', false);
-          }
-        }
-      }
+      this.ensureOppositePanels('ai');
     }
   },
 
@@ -3611,6 +3638,8 @@ const App = {
     const drawer = document.getElementById('studio-ai-drawer');
     if (drawer && (drawer.style.display === 'none' || !drawer.style.display)) {
       this.toggleAIDrawer();
+    } else {
+      this.ensureOppositePanels('ai');
     }
     document.querySelectorAll('.ai-proposal-item').forEach(el => el.classList.remove('ai-item-active'));
     const sideCard = document.querySelector(`.ai-proposal-item[data-proposal-id="${proposalId}"]`);
@@ -4133,7 +4162,8 @@ const App = {
       if (!resp.ok) {
         let err;
         try { err = await resp.json(); } catch(e) { err = { detail: resp.statusText }; }
-        throw new Error(err.detail || "Chyba při komunikaci s AI");
+        const errMsg = err && (err.detail || err.message) ? (err.detail || err.message) : `Chyba serveru HTTP ${resp.status}`;
+        throw new Error(errMsg);
       }
 
       const resData = await resp.json();
@@ -4182,8 +4212,16 @@ const App = {
         const errEl = document.createElement('div');
         errEl.className = 'ai-chat-msg assistant';
         errEl.innerHTML = `
-          <div class="ai-chat-bubble" style="border-color:var(--accent-red); color:var(--accent-red);">
-            ⚠️ Chyba: ${this.escape(e.message)}
+          <div class="ai-chat-bubble" style="border-color:var(--accent-red); color:var(--text-main); background:rgba(239,68,68,0.06); padding:10px 12px; font-size:0.83rem; line-height:1.45;">
+            <div style="font-weight:700; color:var(--accent-red); margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+              <span>⚠️</span> <span>Chyba při komunikaci s AI:</span>
+            </div>
+            <div style="margin-bottom:6px; word-break:break-word;">
+              ${this.escape(e.message)}
+            </div>
+            <div style="font-size:0.75rem; color:var(--text-muted); border-top:1px dashed var(--border); padding-top:4px; margin-top:6px;">
+              💡 Kompletní diagnostika chyby je zaznamenána v <strong>Nastavení ➔ Systémové logy</strong> (kategorie AI).
+            </div>
           </div>
         `;
         container.appendChild(errEl);

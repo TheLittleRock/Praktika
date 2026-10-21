@@ -12,7 +12,7 @@ sequenceDiagram
     participant Client as Frontend (app.js)
     participant API as FastAPI Router
     participant Service as ai_service.py
-    participant Gemini as Google Gemini 2.5 API
+    participant Gemini as Google Gemini API
     participant DB as SQLite Databáze
 
     Client->>API: POST /api/protocols/{id}/ai-analyze?mode=merge

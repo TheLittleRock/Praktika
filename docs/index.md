@@ -139,7 +139,7 @@ graph LR
 
     subgraph Backend ["FastAPI Core"]
         D[REST API Router] --- E[PyMuPDF Service]
-        D --- F[Gemini 2.5 Service]
+        D --- F[Google Gemini Service]
         D --- G[SQLite WAL Database]
     end
 

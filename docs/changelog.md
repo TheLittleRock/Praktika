@@ -4,6 +4,44 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.19.1] - 2026-10-21
+
+### 🚀 Opravy a vylepšení ve verzi 2.19.1
+
+#### 🔗 Spolehlivé zobrazení tlačítka odkazu pro studenta
+- **Doplnění `p.share_token` do SQL dotazu**: Opraven endpoint `/api/protocols`, kde v SQL dotazu chyběl sloupec `p.share_token`, kvůli čemuž se tlačítko `🔗` v tabulce nezobrazovalo.
+- **Rychlé kopírování i alias `/student/{token}`**: Tlačítko `🔗` v tabulce protokolů je nyní viditelné u všech protokolů. Přidáno přesměrování z `/student/{token}` na kanonické `/v/{token}`.
+
+#### 🪟 Striktní oddělování panelů Bodování a AI na protilehlé strany
+- **Odstranění kolizí na jedné straně**: Bodování i AI asistent nyní mají výchozí dokování na protilehlých stranách (Bodování vpravo, AI vlevo).
+- **Univerzální kontrola `ensureOppositePanels()`**: Zajišťuje automatické rozdělení stran při inicializaci, otevření Studia, spuštění analýzy i přepínání dokování jednotlivých panelů.
+
+#### 📑 Plovoucí tlačítko miniatur v rohu PDF a zobrazení celé stránky
+- **Přemístění tlačítka miniatur**: Tlačítko miniatur bylo odebráno z přeplněného levého panelu nástrojů a umístěno jako čisté plovoucí tlačítko do pravého horního rohu PDF pracovní plochy.
+- **Přizpůsobení vyhledávací lišty**: Plovoucí vyhledávací lišta (`Ctrl+F`) se nyní automaticky odsazuje od pravého okraje (`right: 66px`), aby nekolidovala s tlačítkem miniatur.
+- **Nedeformované miniatury s plným poměrem stran**: Miniatury nyní zobrazují celou stránku se zachováním přesného poměru stran (A4, na šířku apod.) a s 2x supersamplingem pro vysokou ostrost.
+
+#### 🔍 Křišťálově ostré PDF písmo a subpixelové vyhlazení
+- **Eliminace subpixelového rozostření**: Odstraněn nesoulad mezi CSS rozměry a rozměry plátna. Zaveden jednotný celočíselný poměr plátna `[nextCanvas.width / viewport.width, 0, 0, nextCanvas.height / viewport.height, 0, 0]`.
+- **Retina supersampling**: Zvýšeno minimální měřítko DPR na 2.0x–3.0x a doplněna CSS direktiva `image-rendering: -webkit-optimize-contrast;` pro perfektní ostrost vektorového textu při všech úrovních přiblížení.
+
+#### 🛡️ Odstranění duplicit schválených AI komentářů
+- **Konec dvojitého vkládání**: `PDFStudio.approveAIProposal` již nevkládá dočasnou klientskou anotaci navíc před backendovým zpracováním, čímž byla odstraněna duplikace a ztmavnutí komentářů.
+- **Geometrická kontrola duplicit v plátně**: Do `addAnnotation()` byla přidána pojistka kontrolující shodu strany, textu a pozice existujících anotací.
+
+#### 🌐 Klikací odkazy v PDF funkční ve všech nástrojích
+- **Konec omezení na nástroj výběru**: Odkazy na web i interní reference v PDF dokumentu nyní fungují ve všech nástrojích Studia bez nutnosti přepínat na nástroj Výběr.
+- **Priorita vrstvy odkazů (`z-index: 15`)**: Odkazy přijímají kliknutí nad vrstvou anotací a zabraňují nechtěnému spuštění kreslení.
+
+#### 📊 Detailní logování AI a srozumitelné chybové hlášky
+- **Kategorie `ai` v systémových logách**: Veškeré požadavky, odpovědi a nezpracované chybové zprávy z Gemini API se zaznamenávají do `system_logs`.
+- **Detailní chybová bublina v chatu**: V případě selhání AI (např. vyčerpání kvóty, neplatný klíč) chatovací bublina zobrazí přesnou příčinu chyby s odkazem na systémové logy.
+
+#### 🤖 Podpora modelů Gemini 3.6 Flash & Free Tier
+- **Výchozí model Gemini 3.6 Flash**: Výchozím modelem pro analýzu i chat je nyní `gemini-3.6-flash`, dostupný v bezplatném tarifu Google AI Studio.
+- **Kompletní výběr modelů v Nastavení**: Přidány modely `gemini-3.6-flash`, `gemini-3.8-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`, `gemini-3-flash`, `gemini-2.5-flash` a `gemini-2.5-flash-lite`.
+- **Aktualizace dokumentace a README**: Odstraněny zastaralé zmínky o Gemini 2.5 a sjednocena dokumentace.
+
 ## [2.19.0] - 2026-10-21
 
 ### 🚀 Novinky a vylepšení ve verzi 2.19.0

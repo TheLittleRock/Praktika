@@ -3,14 +3,14 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![PyMuPDF](https://img.shields.io/badge/PyMuPDF-1.24%2B-orange.svg)](https://pymupdf.readthedocs.io/)
-[![Google Gemini](https://img.shields.io/badge/AI-Google%20Gemini%202.5-4285F4.svg?logo=google&logoColor=white)](https://ai.google.dev/)
+[![Google Gemini](https://img.shields.io/badge/AI-Google%20Gemini%20(3.6%20Flash)-4285F4.svg?logo=google&logoColor=white)](https://ai.google.dev/)
 [![Docker](https://img.shields.io/badge/Docker-GHCR-2496ED.svg?logo=docker&logoColor=white)](https://github.com/TheLittleRock/Praktika/pkgs/container/praktika)
 [![Documentation](https://img.shields.io/badge/Docs-Material%20for%20MkDocs-526cfe.svg?logo=materialformkdocs&logoColor=white)](https://thelittlerock.github.io/Praktika/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Praktika** je webová aplikace pro vyučující a asistenty fyzikálních praktik, určená k efektivní, objektivní a detailní revizi studentských protokolů v PDF formátu.
 
-Nabízí interaktivní korekční studio s vektorovými kreslícími nástroji (zvýrazňovač, pero, tvary, šipky, poznámky kompatibilní s Adobe Acrobatem), asistenci jazykového modelu **Google Gemini 2.5 Flash** s českými fyzikálními rubrikami a export hodnocení připravený pro LMS Moodle.
+Nabízí interaktivní korekční studio s vektorovými kreslícími nástroji (zvýrazňovač, pero, tvary, šipky, poznámky kompatibilní s Adobe Acrobatem), asistenci jazykových modelů **Google Gemini (3.6 Flash / 3.8 Flash / 3.5 Flash-Lite)** s českými fyzikálními rubrikami a export hodnocení připravený pro LMS Moodle.
 
 📖 **Kompletní dokumentace projektu:** [https://thelittlerock.github.io/Praktika/](https://thelittlerock.github.io/Praktika/)
 

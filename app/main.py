@@ -18,7 +18,7 @@ except ImportError:
     import fitz as pymupdf
 
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status, Response, Request, BackgroundTasks, Query
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -853,7 +853,7 @@ def list_protocols(
     SELECT 
         p.id, p.semester_id, p.slot_id, p.measurement_id, p.student_name,
         p.status, p.source_filename, p.corrected_filename, p.total_points, p.grade,
-        p.evaluator_id, p.graded_at, p.created_at, p.updated_at,
+        p.evaluator_id, p.share_token, p.graded_at, p.created_at, p.updated_at,
         s.code as semester_code, s.name as semester_name,
         sl.name as slot_name, sl.day_of_week, sl.time_start, sl.time_end, sl.room as slot_room,
         m.code as measurement_code, m.number as measurement_number, m.name as measurement_name,
@@ -2200,6 +2200,14 @@ async def ai_chat_endpoint(
     try:
         custom_key = user.get("custom_gemini_api_key")
         custom_model = user.get("custom_gemini_model")
+        log_event(
+            level="INFO",
+            category="ai",
+            user_id=user["id"],
+            user_name=user["username"],
+            action="ai_chat_query",
+            details=f"Dotaz v chatu pro protokol #{proto_id}: {req.message[:120]}"
+        )
         resp = await chat_with_ai(
             proto_id,
             user_message=req.message,
@@ -2207,17 +2215,18 @@ async def ai_chat_endpoint(
             custom_model=custom_model,
             language=req.language
         )
-        log_event(
-            level="INFO",
-            category="ai",
-            user_id=user["id"],
-            user_name=user["username"],
-            action="ai_chat",
-            details=f"Dotaz v chatu pro protokol #{proto_id}: {req.message[:80]}"
-        )
         return resp
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        err_msg = str(e)
+        log_event(
+            level="ERROR",
+            category="ai",
+            user_id=user.get("id"),
+            user_name=user.get("username"),
+            action="ai_chat_error",
+            details=f"Chyba AI chatu pro protokol #{proto_id}: {err_msg}"
+        )
+        raise HTTPException(status_code=500, detail=err_msg)
 
 @app.get("/api/protocols/{proto_id}/ai/chat", response_model=List[AIChatMessage])
 def get_ai_chat_endpoint(
@@ -2958,6 +2967,11 @@ async def log_client_error(request: Request):
 # ==========================================
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "app" / "templates"))
+
+@app.get("/student/{share_token}")
+def redirect_student_protocol(share_token: str):
+    """Redirect alternative /student/{share_token} URL to the canonical /v/{share_token} public view."""
+    return RedirectResponse(url=f"/v/{share_token}", status_code=307)
 
 @app.get("/v/{share_token}", response_class=HTMLResponse)
 def view_student_protocol(share_token: str, request: Request):
