@@ -11,6 +11,7 @@ import unicodedata
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
+import httpx
 
 try:
     import pymupdf
@@ -37,12 +38,14 @@ from app.models import (
     UserAdminUpdateRequest, AutodetectResponse, AIProposalActionRequest,
     AIChatMessage, AIChatRequest, AIChatResponse,
     StudentHeartbeatRequest, ProtocolViewsResponse, StudentViewSession,
-    MoodleConfig, MoodleCourseStructureResponse, MoodleDownloadRequest, MoodleUploadRequest
+    MoodleConfig, MoodleCourseStructureResponse, MoodleDownloadRequest, MoodleUploadRequest,
+    MoodlePendingSubmissionItem, MoodleDownloadSelectedRequest, MoodleGradableProtocolItem
 )
 from app.moodle_service import (
     get_moodle_config, save_moodle_setting, check_moodle_session_validity,
-    fetch_course_structure, download_moodle_assignment_zip, extract_submissions_from_zip,
-    build_moodle_feedback_zip, MoodleAuthError, MoodleServiceError
+    fetch_course_structure, fetch_pending_submissions, submit_moodle_grade, calculate_cvut_grade,
+    fetch_course_user_groups_map, download_moodle_assignment_zip, extract_submissions_from_zip,
+    build_moodle_feedback_zip, parse_moodle_submission_filename, MoodleAuthError, MoodleServiceError
 )
 from app.storage import save_source_file, save_corrected_file, save_bodovani_file, slugify, format_slot_folder, format_semester_folder
 from app.pdf_service import extract_pdf_annotations, burn_annotations_to_pdf, format_points, calculate_grade_letter
@@ -3290,6 +3293,7 @@ async def get_moodle_course_structure_endpoint(user: dict = Depends(get_current_
         return MoodleCourseStructureResponse(
             course_id=data["course_id"],
             course_title=data.get("course_title", ""),
+            sesskey=data.get("sesskey", ""),
             assignments=data.get("assignments", []),
             groups=data.get("groups", [])
         )
@@ -3297,6 +3301,251 @@ async def get_moodle_course_structure_endpoint(user: dict = Depends(get_current_
         raise HTTPException(status_code=401, detail=str(ae))
     except Exception as ex:
         raise HTTPException(status_code=500, detail=f"Chyba při načítání kurzu: {str(ex)}")
+
+
+@app.get("/api/moodle/pending-submissions", response_model=List[MoodlePendingSubmissionItem])
+async def get_moodle_pending_submissions_endpoint(
+    cmid: Optional[str] = None,
+    group: Optional[str] = None,
+    user: dict = Depends(get_current_user)
+):
+    try:
+        items = await fetch_pending_submissions(cmid=cmid, group=group)
+        return [MoodlePendingSubmissionItem(**it) for it in items]
+    except MoodleAuthError as ae:
+        raise HTTPException(status_code=401, detail=str(ae))
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=f"Chyba při vyhledávání neohodnocených prací: {str(ex)}")
+
+
+@app.post("/api/moodle/download-selected")
+async def download_selected_moodle_submissions_endpoint(
+    req: MoodleDownloadSelectedRequest,
+    user: dict = Depends(get_current_user)
+):
+    cfg = get_moodle_config()
+    s_cookie = cfg.get("moodle_session", "")
+    if not s_cookie:
+        raise HTTPException(status_code=401, detail="Chybí cookie MoodleSession.")
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("SELECT id, code, name FROM semesters WHERE is_active = 1 LIMIT 1")
+    sem_row = cur.fetchone()
+    if not sem_row:
+        cur.execute("SELECT id, code, name FROM semesters ORDER BY id DESC LIMIT 1")
+        sem_row = cur.fetchone()
+    if not sem_row:
+        conn.close()
+        raise HTTPException(status_code=400, detail="V aplikaci neexistuje žádný aktivní semestr.")
+
+    active_semester_id = sem_row["id"]
+    active_semester_code = sem_row["code"]
+
+    imported_items = []
+    cookies = {"MoodleSession": s_cookie}
+    headers = {"User-Agent": "Mozilla/5.0"}
+
+    async with httpx.AsyncClient(timeout=60.0, follow_redirects=True, cookies=cookies) as client:
+        for it in req.items:
+            # 1. Resolve slot
+            slot_id = it.slot_id
+            if (not slot_id or it.auto_create_slot) and it.group_name:
+                cur.execute("SELECT id FROM slots WHERE semester_id = ? AND name = ?", (active_semester_id, it.group_name))
+                existing_slot = cur.fetchone()
+                if existing_slot:
+                    slot_id = existing_slot["id"]
+                else:
+                    # Auto-create slot
+                    day_guess = "Středa"
+                    for d in ["Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek"]:
+                        if d.lower() in it.group_name.lower():
+                            day_guess = d
+                            break
+                    time_guess = "08:00"
+                    t_m = re.search(r'(\d{1,2}[:.]\d{2})', it.group_name)
+                    if t_m:
+                        time_guess = t_m.group(1).replace(".", ":")
+                    cur.execute("""
+                    INSERT INTO slots (semester_id, name, day_of_week, time_start, time_end, room, course_code, created_at)
+                    VALUES (?, ?, ?, ?, ?, '', 'FPRA1', datetime('now'))
+                    """, (active_semester_id, it.group_name, day_guess, time_guess, "12:00"))
+                    slot_id = cur.lastrowid
+                    conn.commit()
+
+            if not slot_id:
+                cur.execute("SELECT id FROM slots WHERE semester_id = ? LIMIT 1", (active_semester_id,))
+                first_s = cur.fetchone()
+                slot_id = first_s["id"] if first_s else None
+
+            if not slot_id:
+                continue
+
+            # Get slot details
+            cur.execute("SELECT name, day_of_week, time_start, room FROM slots WHERE id = ?", (slot_id,))
+            s_row = cur.fetchone()
+            slot_folder = format_slot_folder(
+                day_of_week=s_row["day_of_week"] if s_row else "Termin",
+                time_start=s_row["time_start"] if s_row else "08:00",
+                room=s_row["room"] if s_row else "",
+                raw_name=s_row["name"] if s_row else it.group_name
+            )
+
+            # Get measurement details
+            cur.execute("SELECT code, number, name FROM measurements WHERE id = ?", (it.measurement_id,))
+            m_row = cur.fetchone()
+            meas_code = m_row["code"] if m_row else "01"
+
+            # Download file from Moodle
+            try:
+                resp = await client.get(it.file_url)
+                if resp.status_code != 200:
+                    continue
+                file_bytes = resp.content
+            except Exception:
+                continue
+
+            clean_fn = Path(it.filename).name
+            saved_path = save_source_file(
+                file_bytes=file_bytes,
+                filename=clean_fn,
+                semester_code=active_semester_code,
+                slot_name=slot_folder,
+                measurement_code=meas_code,
+                student_name=it.student_name
+            )
+
+            now_iso = datetime.now().isoformat()
+            share_tok = secrets.token_urlsafe(16)
+
+            cur.execute("""
+            SELECT id FROM protocols 
+            WHERE semester_id = ? AND measurement_id = ? AND student_name = ?
+            """, (active_semester_id, it.measurement_id, it.student_name))
+            existing_p = cur.fetchone()
+
+            if existing_p:
+                proto_id = existing_p[0]
+                cur.execute("""
+                UPDATE protocols SET 
+                    slot_id = ?, source_filename = ?, source_path = ?, updated_at = ?
+                WHERE id = ?
+                """, (slot_id, clean_fn, str(saved_path), now_iso, proto_id))
+            else:
+                cur.execute("""
+                INSERT INTO protocols (
+                    semester_id, slot_id, measurement_id, student_name, status,
+                    source_filename, source_path, evaluator_id, share_token, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?)
+                """, (
+                    active_semester_id, slot_id, it.measurement_id, it.student_name,
+                    clean_fn, str(saved_path), user["id"], share_tok, now_iso, now_iso
+                ))
+                proto_id = cur.lastrowid
+
+            imported_items.append({
+                "protocol_id": proto_id,
+                "student_name": it.student_name,
+                "filename": clean_fn,
+                "task_name": m_row["name"] if m_row else ""
+            })
+
+    conn.commit()
+    conn.close()
+
+    log_event(
+        level="INFO",
+        category="moodle",
+        user_id=user["id"],
+        user_name=user["username"],
+        action="moodle_submissions_imported",
+        details=f"Přímo staženo a naimportováno {len(imported_items)} neohodnocených prací z Moodle."
+    )
+
+    return {
+        "status": "ok",
+        "imported_count": len(imported_items),
+        "items": imported_items,
+        "message": f"Úspěšně staženo a naimportováno {len(imported_items)} protokolů."
+    }
+
+
+@app.get("/api/moodle/gradable-protocols", response_model=List[MoodleGradableProtocolItem])
+async def get_moodle_gradable_protocols_endpoint(
+    cmid: Optional[str] = None,
+    group: Optional[str] = None,
+    user: dict = Depends(get_current_user)
+):
+    cfg = get_moodle_config()
+    m_url = cfg["moodle_url"]
+    c_id = cfg["course_id"]
+    s_cookie = cfg["moodle_session"]
+
+    user_maps = {"by_name": {}, "by_id": {}}
+    if s_cookie:
+        try:
+            user_maps = await fetch_course_user_groups_map(m_url, c_id, s_cookie)
+        except Exception:
+            user_maps = {"by_name": {}, "by_id": {}}
+    by_name = user_maps.get("by_name", {})
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT p.id as protocol_id, p.student_name, p.status, p.corrected_path,
+           m.name as task_name, m.number as task_number,
+           s.name as slot_name,
+           e.total_points, e.general_comment, e.raw_output_2
+    FROM protocols p
+    JOIN measurements m ON p.measurement_id = m.id
+    LEFT JOIN slots s ON p.slot_id = s.id
+    LEFT JOIN evaluations e ON p.id = e.protocol_id
+    WHERE p.status IN ('reviewed', 'evaluated', 'completed')
+    ORDER BY p.student_name ASC
+    """)
+    rows = cur.fetchall()
+    conn.close()
+
+    items = []
+    for r in rows:
+        s_name = r["student_name"]
+        norm_key = s_name.strip().lower()
+        m_info = by_name.get(norm_key)
+        if not m_info:
+            tokens_key = " ".join(sorted(norm_key.split()))
+            m_info = by_name.get(tokens_key)
+
+        moodle_uid = m_info["moodle_user_id"] if m_info else None
+        student_grp = m_info["group"] if m_info else ""
+
+        if group and group != "all" and student_grp != group:
+            continue
+
+        tot_pts = float(r["total_points"]) if r["total_points"] is not None else 0.0
+        max_pts = 10.0
+
+        calc_letter, _ = calculate_cvut_grade(tot_pts, max_pts)
+        comment_text = r["general_comment"] or r["raw_output_2"] or f"Hodnocení: {tot_pts}/{max_pts} b."
+
+        items.append(MoodleGradableProtocolItem(
+            protocol_id=r["protocol_id"],
+            student_name=s_name,
+            task_name=r["task_name"],
+            slot_name=r["slot_name"] or student_grp or "",
+            points=tot_pts,
+            max_points=max_pts,
+            grade_letter=calc_letter,
+            comment=comment_text,
+            moodle_user_id=moodle_uid,
+            in_moodle=bool(moodle_uid),
+            upload_pdf=True,
+            upload_grade=True,
+            upload_comment=True
+        ))
+
+    return items
 
 
 @app.post("/api/moodle/download-submissions")
@@ -3315,7 +3564,6 @@ async def download_moodle_submissions_endpoint(req: MoodleDownloadRequest, user:
     conn = get_db()
     cur = conn.cursor()
 
-    # Get slot and measurement info
     cur.execute("SELECT s.name, s.day_of_week, s.time_start, s.room, sem.code as semester_code FROM slots s JOIN semesters sem ON s.semester_id = sem.id WHERE s.id = ?", (req.slot_id,))
     srow = cur.fetchone()
     cur.execute("SELECT code, number, name, course_code FROM measurements WHERE id = ?", (req.measurement_id,))
@@ -3401,15 +3649,33 @@ async def download_moodle_submissions_endpoint(req: MoodleDownloadRequest, user:
 
 @app.post("/api/moodle/upload-feedback")
 async def upload_moodle_feedback_endpoint(req: MoodleUploadRequest, user: dict = Depends(get_current_user)):
+    cfg = get_moodle_config()
+    m_url = cfg["moodle_url"]
+    c_id = cfg["course_id"]
+    s_cookie = cfg["moodle_session"]
+
+    if not s_cookie:
+        raise HTTPException(status_code=401, detail="Chybí cookie MoodleSession.")
+
+    user_maps = {"by_name": {}, "by_id": {}}
+    try:
+        user_maps = await fetch_course_user_groups_map(m_url, c_id, s_cookie)
+    except Exception:
+        user_maps = {"by_name": {}, "by_id": {}}
+    by_name = user_maps.get("by_name", {})
+
     conn = get_db()
     cur = conn.cursor()
 
     feedback_items = []
+    grade_submission_results = []
+
     for item in req.students:
         cur.execute("""
         SELECT p.id, p.student_name, p.corrected_filename, p.corrected_path, p.source_filename,
-               e.total_points, e.grade, e.general_comment, e.raw_output_2
+               e.total_points, e.general_comment, e.raw_output_2
         FROM protocols p
+        JOIN measurements m ON p.measurement_id = m.id
         LEFT JOIN evaluations e ON p.id = e.protocol_id
         WHERE p.id = ?
         """, (item.protocol_id,))
@@ -3417,22 +3683,54 @@ async def upload_moodle_feedback_endpoint(req: MoodleUploadRequest, user: dict =
         if not row:
             continue
 
+        s_name = row["student_name"]
+        norm_key = s_name.strip().lower()
+        m_info = by_name.get(norm_key)
+        if not m_info:
+            tokens_key = " ".join(sorted(norm_key.split()))
+            m_info = by_name.get(tokens_key)
+
+        moodle_uid = m_info["moodle_user_id"] if m_info else None
+        if not moodle_uid:
+            parsed = parse_moodle_submission_filename(row["source_filename"] or "")
+            if parsed.get("moodle_user_id"):
+                moodle_uid = int(parsed["moodle_user_id"])
+
         c_path = row["corrected_path"]
         pdf_bytes = None
-        if item.upload_pdf and c_path and Path(c_path).exists():
+        if (req.upload_pdf or item.upload_pdf) and c_path and Path(c_path).exists():
             pdf_bytes = Path(c_path).read_bytes()
 
-        parsed = parse_moodle_submission_filename(row["source_filename"] or "")
+        tot_pts = float(row["total_points"]) if row["total_points"] is not None else 0.0
+        max_pts = 10.0
+        auto_letter, _ = calculate_cvut_grade(tot_pts, max_pts)
+        grade_letter = item.grade_letter or auto_letter
+
+        comment_text = item.comment or row["general_comment"] or row["raw_output_2"] or f"Hodnocení: {tot_pts}/{max_pts} b."
+
+        # Submit grade and comment via AJAX if requested and student found
+        grade_success = False
+        if (req.upload_grade or req.upload_comment) and moodle_uid:
+            try:
+                await submit_moodle_grade(
+                    cmid=req.cmid,
+                    userid=moodle_uid,
+                    grade_letter=grade_letter if req.upload_grade else "",
+                    comment_text=comment_text if req.upload_comment else "",
+                    send_notifications=False
+                )
+                grade_success = True
+            except Exception as e:
+                print(f"Warning: could not submit grade for {s_name} (uid={moodle_uid}):", e)
 
         feedback_items.append({
             "protocol_id": row["id"],
-            "student_name": row["student_name"],
-            "moodle_user_id": parsed.get("moodle_user_id", ""),
-            "filename": row["corrected_filename"] or f"{row['student_name']}_opraveno.pdf",
+            "student_name": s_name,
+            "moodle_user_id": str(moodle_uid) if moodle_uid else "",
+            "filename": row["corrected_filename"] or f"{s_name}_opraveno.pdf",
             "pdf_bytes": pdf_bytes,
-            "total_points": row["total_points"],
-            "grade": row["grade"],
-            "comment": row["general_comment"] or row["raw_output_2"] or ""
+            "grade_letter": grade_letter,
+            "grade_submitted": grade_success
         })
 
     conn.close()
@@ -3440,29 +3738,31 @@ async def upload_moodle_feedback_endpoint(req: MoodleUploadRequest, user: dict =
     if not feedback_items:
         raise HTTPException(status_code=400, detail="Nebyly vybrány žádné platné protokoly k nahrání.")
 
-    feedback_zip = build_moodle_feedback_zip(feedback_items)
-
-    export_dir = PROTOCOLS_DIR / "_moodle_exports"
-    export_dir.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    zip_path = export_dir / f"moodle_feedback_cmid_{req.cmid}_{ts}.zip"
-    zip_path.write_bytes(feedback_zip)
+    # Build feedback ZIP and save archive
+    zip_path = None
+    if req.upload_pdf:
+        feedback_zip = build_moodle_feedback_zip(feedback_items)
+        export_dir = PROTOCOLS_DIR / "_moodle_exports"
+        export_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        zip_path = export_dir / f"moodle_feedback_cmid_{req.cmid}_{ts}.zip"
+        zip_path.write_bytes(feedback_zip)
 
     log_event(
         level="INFO",
         category="moodle",
         user_id=user["id"],
         user_name=user["username"],
-        action="moodle_feedback_generated",
-        details=f"Vygenerován balík zpětné vazby pro Moodle (cmid={req.cmid}, {len(feedback_items)} studentů, velikost: {len(feedback_zip)} B)."
+        action="moodle_feedback_uploaded",
+        details=f"Odesláno hodnocení do Moodle (cmid={req.cmid}, {len(feedback_items)} studentů, známky odeslány: {req.upload_grade}, PDF: {req.upload_pdf})."
     )
 
     return {
         "status": "ok",
         "uploaded_count": len(feedback_items),
-        "zip_size_bytes": len(feedback_zip),
-        "archive_path": str(zip_path.name),
-        "message": f"Připraveno a zpracováno {len(feedback_items)} hodnocení pro Moodle."
+        "archive_path": str(zip_path.name) if zip_path else "",
+        "students": feedback_items,
+        "message": f"Úspěšně zpracováno {len(feedback_items)} hodnocení pro Moodle."
     }
 
 # ==========================================

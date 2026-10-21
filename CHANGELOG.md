@@ -4,6 +4,24 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.20.1] - 2026-10-21
+
+### 🚀 Opravy a vylepšení ve verzi 2.20.1
+
+#### 🎓 Plná podpora ČVUT Moodle (formát Tiles, detekce skupin a synchronizace hodnocení)
+- **Kompatibilita s Tiles (dlaždicovým) uspořádáním kurzu**: Seznam úloh se nově načítá z Moodle rozhraní `/mod/assign/index.php?id={course_id}`, které spolehlivě vrací všech 41 úloh včetně sekcí a témat (`01 - Vzduchová dráha...`, `02 - Dynamika...`), počtu odevzdaných prací a počtu čekajících na hodnocení.
+- **Detekce studijních skupin a kroužků**: Skupiny (`Středa 8:00`, `Středa 12:00`, `Středa 16:00`, `Tuesday 10AM`, `Pátek 10:00`) jsou dynamicky extrahovány z `/user/index.php?id={course_id}` společně s přiřazením studentů.
+- **Přehledné filtrování a seznam neohodnocených prací**: Dialog Moodle obsahuje nahoře filtry pro výběr konkrétní úlohy i skupiny a pod nimi přehlednou interaktivní tabulku odevzdaných neohodnocených prací.
+- **Inteligentní automatické párování (Auto-match)**:
+  - Automatické spárování úloh `P1`–`P12` na lokální úlohy v Praktiku (`measurements`).
+  - Automatické spárování skupin na termíny (`slots`).
+  - Možnost automatického vytvoření chybějícího termínu v aktivním semestru na jedno kliknutí.
+- **Zápis známek A–F dle ČVUT stupnice a slovních komentářů**:
+  - Implementováno odesílání hodnocení do Moodle přes interní službu `mod_assign_submit_grading_form`.
+  - Automatický přepočet bodů na známku ECTS (A >= 90%, B >= 80%, C >= 70%, D >= 60%, E >= 50%, F < 50%) s možností ruční úpravy učitelem před odesláním.
+  - Zápis slovního pedagogického komentáře a nahrání opraveného PDF.
+- **Oprava formátování dialogu nápovědy cookie**: V `AppModal.alert` přidána podpora `isHtml: true`, takže se instrukce pro získání cookie MoodleSession zobrazují s funkčními odkazy a zvýrazněným textem místo surových HTML tagů.
+
 ## [2.20.0] - 2026-10-21
 
 ### 🚀 Novinky a vylepšení ve verzi 2.20.0

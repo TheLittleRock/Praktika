@@ -1745,107 +1745,165 @@
   </div>
 
   <!-- Modal: Moodle Synchronizace (ČVUT kurz 16880) -->
+  <!-- Moodle Sync Modal -->
   <div class="modal-backdrop" id="modal-moodle-sync" style="display:none; z-index:9990;">
-    <div class="modal-box" style="max-width:620px; max-height:90vh; display:flex; flex-direction:column;">
+    <div class="modal-box" style="max-width:860px; width:95%; max-height:92vh; display:flex; flex-direction:column;">
       <div class="modal-header">
         <h3 style="display:flex; align-items:center; gap:8px;">
           <span>🎓</span>
-          <span>Moodle ČVUT (kurz 16880)</span>
+          <span id="moodle-modal-title">Moodle ČVUT</span>
         </h3>
         <button type="button" class="btn btn-secondary btn-sm" onclick="App.closeMoodleModal()">✕</button>
       </div>
 
-      <div style="display:flex; gap:8px; border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom:14px;">
-        <button type="button" class="btn btn-primary btn-sm" id="btn-moodle-tab-download" onclick="App.switchMoodleTab('download')">📥 Stáhnout protokoly</button>
+      <div style="display:flex; gap:8px; border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom:12px;">
+        <button type="button" class="btn btn-primary btn-sm" id="btn-moodle-tab-download" onclick="App.switchMoodleTab('download')">📥 Stáhnout nové protokoly</button>
         <button type="button" class="btn btn-secondary btn-sm" id="btn-moodle-tab-upload" onclick="App.switchMoodleTab('upload')">📤 Nahrát hodnocení do Moodle</button>
       </div>
 
-      <!-- Tab 1: Download from Moodle -->
-      <div id="moodle-tab-download-content" style="display:block;">
-        <form onsubmit="App.handleMoodleDownload(event)" style="display:flex; flex-direction:column; gap:12px;">
-          <div class="form-group">
-            <label class="form-label">1. Vyberte úlohu v Moodle (Assignment):</label>
-            <select id="moodle-assign-select" class="form-control" onchange="App.handleMoodleAssignChange(this.value)" required>
-              <option value="">Načítám úlohy z Moodle...</option>
+      <!-- Tab 1: Download Pending Submissions from Moodle -->
+      <div id="moodle-tab-download-content" style="display:flex; flex-direction:column; gap:12px; flex:1; min-height:0; overflow:hidden;">
+        <!-- Top Filters -->
+        <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:10px; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px;">
+          <div>
+            <label class="form-label" style="font-size:0.75rem; font-weight:700;">1. Filtrovat úlohu v Moodle:</label>
+            <select id="moodle-assign-select" class="form-control" onchange="App.handleMoodleFilterChange()">
+              <option value="all">Všechny úlohy s neohodnocenými pracemi</option>
             </select>
           </div>
-
-          <div class="form-group">
-            <label class="form-label">2. Vyberte termín / skupinu v Moodle:</label>
-            <select id="moodle-group-select" class="form-control">
-              <option value="0">Všichni účastníci (bez filtrování)</option>
+          <div>
+            <label class="form-label" style="font-size:0.75rem; font-weight:700;">2. Filtrovat skupinu / termín v Moodle:</label>
+            <select id="moodle-group-select" class="form-control" onchange="App.handleMoodleFilterChange()">
+              <option value="all">Všechny skupiny</option>
             </select>
           </div>
+        </div>
 
-          <div style="background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px;">
-            <div style="font-weight:700; font-size:0.8rem; margin-bottom:8px;">3. Cílové zařazení v Praktiku:</div>
-            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
-              <div>
-                <label class="form-label" style="font-size:0.75rem;">Semestr:</label>
-                <select id="moodle-target-semester" class="form-control" required></select>
-              </div>
-              <div>
-                <label class="form-label" style="font-size:0.75rem;">Termín (Kroužek):</label>
-                <select id="moodle-target-slot" class="form-control" required></select>
-              </div>
-              <div>
-                <label class="form-label" style="font-size:0.75rem;">Úloha v Praktiku:</label>
-                <select id="moodle-target-measurement" class="form-control" required></select>
-              </div>
+        <!-- Pending Submissions Table Section -->
+        <div style="display:flex; flex-direction:column; flex:1; min-height:220px; border:1px solid var(--border); border-radius:6px; background:var(--card-bg); overflow:hidden;">
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:var(--bg); border-bottom:1px solid var(--border);">
+            <div style="font-weight:700; font-size:0.82rem; display:flex; align-items:center; gap:8px;">
+              <span>Nalezené neohodnocené protokoly k importu:</span>
+              <span class="badge" id="moodle-pending-count-badge" style="background:var(--primary); color:#fff; font-size:0.75rem; padding:2px 8px; border-radius:10px;">0</span>
             </div>
+            <label style="font-size:0.78rem; display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="moodle-pending-select-all" checked onchange="App.toggleSelectAllMoodlePending(this.checked)">
+              <span>Vybrat vše</span>
+            </label>
           </div>
 
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
-            <button type="button" class="btn btn-secondary btn-sm" onclick="App.refreshMoodleStructure()">↻ Obnovit z Moodle</button>
-            <button type="submit" class="btn btn-primary btn-sm" id="btn-moodle-start-download">📥 Stáhnout a importovat práce</button>
+          <div id="moodle-pending-table-container" style="flex:1; overflow-y:auto; padding:0;">
+            <table class="table" style="width:100%; font-size:0.8rem; margin:0; border-collapse:collapse;" id="moodle-pending-table">
+              <thead>
+                <tr style="position:sticky; top:0; background:var(--bg); z-index:2; border-bottom:1px solid var(--border);">
+                  <th style="width:36px; text-align:center;"></th>
+                  <th>Student</th>
+                  <th>Skupina</th>
+                  <th>Úloha v Moodle</th>
+                  <th>Soubor</th>
+                  <th>Cílový termín</th>
+                  <th>Cílová úloha</th>
+                  <th>Stav</th>
+                </tr>
+              </thead>
+              <tbody id="moodle-pending-tbody">
+                <tr>
+                  <td colspan="8" style="text-align:center; padding:24px; color:var(--text-muted);">
+                    Načítám neohodnocené protokoly z Moodle...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-        </form>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; padding-top:4px;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="App.refreshMoodleStructure()">↻ Obnovit z Moodle</button>
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="App.closeMoodleModal()">Zavřít</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-moodle-start-download" onclick="App.handleMoodleDownloadSelected()">
+              📥 Stáhnout a importovat vybrané (<span id="moodle-selected-count">0</span>)
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Tab 2: Upload Feedback to Moodle -->
-      <div id="moodle-tab-upload-content" style="display:none; flex-direction:column; gap:12px;">
-        <div style="font-size:0.83rem; color:var(--text-muted);">
-          Vyberte opravené studenty, jejichž hodnocení si přejete synchronizovat do Moodle.
-        </div>
-
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+      <div id="moodle-tab-upload-content" style="display:none; flex-direction:column; gap:12px; flex:1; min-height:0; overflow:hidden;">
+        <!-- Top Filters -->
+        <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:10px; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px;">
           <div>
-            <label class="form-label" style="font-size:0.75rem;">Cílová úloha v Moodle:</label>
-            <select id="moodle-upload-assign-select" class="form-control" required></select>
+            <label class="form-label" style="font-size:0.75rem; font-weight:700;">1. Cílová úloha v Moodle:</label>
+            <select id="moodle-upload-assign-select" class="form-control" onchange="App.loadMoodleUploadStudents()">
+              <option value="">Vyberte úlohu v Moodle...</option>
+            </select>
           </div>
           <div>
-            <label class="form-label" style="font-size:0.75rem;">Filtrovat studenty z termínu:</label>
-            <select id="moodle-upload-slot-select" class="form-control" onchange="App.loadMoodleUploadStudents()"></select>
+            <label class="form-label" style="font-size:0.75rem; font-weight:700;">2. Filtrovat skupinu / termín:</label>
+            <select id="moodle-upload-group-select" class="form-control" onchange="App.loadMoodleUploadStudents()">
+              <option value="all">Všechny skupiny</option>
+            </select>
           </div>
         </div>
 
-        <div style="background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-            <div style="font-weight:700; font-size:0.8rem;">Studenti k nahrání:</div>
-            <label style="font-size:0.75rem; display:flex; align-items:center; gap:4px; cursor:pointer;">
+        <!-- Gradable Protocols Table Section -->
+        <div style="display:flex; flex-direction:column; flex:1; min-height:220px; border:1px solid var(--border); border-radius:6px; background:var(--card-bg); overflow:hidden;">
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:var(--bg); border-bottom:1px solid var(--border);">
+            <div style="font-weight:700; font-size:0.82rem; display:flex; align-items:center; gap:8px;">
+              <span>Opravené práce studentů připravené k odeslání:</span>
+              <span class="badge" id="moodle-upload-count-badge" style="background:var(--success); color:#fff; font-size:0.75rem; padding:2px 8px; border-radius:10px;">0</span>
+            </div>
+            <label style="font-size:0.78rem; display:flex; align-items:center; gap:6px; cursor:pointer;">
               <input type="checkbox" id="moodle-upload-select-all" checked onchange="App.toggleSelectAllMoodleStudents(this.checked)">
               <span>Vybrat vše</span>
             </label>
           </div>
-          <div id="moodle-upload-students-list" style="max-height:180px; overflow-y:auto; border:1px solid var(--border); border-radius:4px; background:var(--card-bg);">
-            <!-- Rendered by JS -->
+
+          <div id="moodle-upload-table-container" style="flex:1; overflow-y:auto; padding:0;">
+            <table class="table" style="width:100%; font-size:0.8rem; margin:0; border-collapse:collapse;" id="moodle-upload-table">
+              <thead>
+                <tr style="position:sticky; top:0; background:var(--bg); z-index:2; border-bottom:1px solid var(--border);">
+                  <th style="width:36px; text-align:center;"></th>
+                  <th>Student</th>
+                  <th>Termín</th>
+                  <th>Body</th>
+                  <th>Známka (ČVUT)</th>
+                  <th>Náhled komentáře</th>
+                  <th>Moodle párování</th>
+                </tr>
+              </thead>
+              <tbody id="moodle-upload-tbody">
+                <tr>
+                  <td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">
+                    Načítám opravené protokoly...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
-        <div style="display:flex; gap:14px; font-size:0.82rem;">
+        <!-- Upload Options -->
+        <div style="display:flex; flex-wrap:wrap; gap:16px; font-size:0.82rem; background:var(--bg); padding:8px 12px; border-radius:6px; border:1px solid var(--border);">
           <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
             <input type="checkbox" id="moodle-opt-upload-pdf" checked>
-            <span>Nahrát opravené PDF se zpětnou vazbou</span>
+            <span>📄 Nahrát opravené PDF</span>
           </label>
           <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
             <input type="checkbox" id="moodle-opt-upload-grade" checked>
-            <span>Zapsat body a komentář do známky</span>
+            <span>🎖️ Zapsat známku (A–F)</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" id="moodle-opt-upload-comment" checked>
+            <span>💬 Zapsat slovní komentář</span>
           </label>
         </div>
 
-        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
-          <button type="button" class="btn btn-secondary btn-sm" onclick="App.closeMoodleModal()">Zrušit</button>
-          <button type="button" class="btn btn-primary btn-sm" id="btn-moodle-start-upload" onclick="App.executeMoodleUpload()">📤 Odeslat do Moodle</button>
+        <div style="display:flex; justify-content:flex-end; gap:8px; padding-top:4px;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="App.closeMoodleModal()">Zavřít</button>
+          <button type="button" class="btn btn-primary btn-sm" id="btn-moodle-start-upload" onclick="App.executeMoodleUpload()">
+            📤 Odeslat hodnocení do Moodle (<span id="moodle-upload-selected-count">0</span>)
+          </button>
         </div>
       </div>
 

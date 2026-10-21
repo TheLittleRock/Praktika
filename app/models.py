@@ -302,17 +302,52 @@ class MoodleAssignmentItem(BaseModel):
     cmid: str
     title: str
     section: Optional[str] = ""
-    submissions_count: Optional[int] = 0
+    short_name: Optional[str] = ""
+    task_number: Optional[int] = None
+    submitted_count: Optional[int] = 0
+    needs_grading_count: Optional[int] = 0
+    is_protocol: bool = True
 
 class MoodleGroupItem(BaseModel):
     id: str
     name: str
+    count: Optional[int] = 0
 
 class MoodleCourseStructureResponse(BaseModel):
     course_id: str
     course_title: Optional[str] = ""
+    sesskey: Optional[str] = ""
     assignments: List[MoodleAssignmentItem] = []
     groups: List[MoodleGroupItem] = []
+
+class MoodlePendingSubmissionItem(BaseModel):
+    cmid: str
+    task_title: str
+    student_name: str
+    moodle_user_id: Optional[int] = None
+    student_group: Optional[str] = ""
+    filename: str
+    file_url: str
+    status_text: Optional[str] = ""
+    matched_task_id: Optional[int] = None
+    matched_task_name: Optional[str] = ""
+    matched_slot_id: Optional[int] = None
+    matched_slot_name: Optional[str] = ""
+    can_auto_create_slot: bool = False
+    already_in_db: bool = False
+
+class MoodleDownloadItem(BaseModel):
+    cmid: str
+    student_name: str
+    file_url: str
+    filename: str
+    measurement_id: int
+    slot_id: Optional[int] = None
+    group_name: Optional[str] = ""
+    auto_create_slot: bool = False
+
+class MoodleDownloadSelectedRequest(BaseModel):
+    items: List[MoodleDownloadItem]
 
 class MoodleDownloadRequest(BaseModel):
     cmid: str
@@ -321,14 +356,34 @@ class MoodleDownloadRequest(BaseModel):
     slot_id: int
     measurement_id: int
 
+class MoodleGradableProtocolItem(BaseModel):
+    protocol_id: int
+    student_name: str
+    task_name: str
+    slot_name: str
+    points: float
+    max_points: float
+    grade_letter: str = "A"
+    comment: str = ""
+    moodle_user_id: Optional[int] = None
+    in_moodle: bool = False
+    upload_pdf: bool = True
+    upload_grade: bool = True
+    upload_comment: bool = True
+
 class MoodleUploadStudentItem(BaseModel):
     protocol_id: int
     upload_pdf: bool = True
     upload_grade: bool = True
+    grade_letter: Optional[str] = None
+    comment: Optional[str] = None
 
 class MoodleUploadRequest(BaseModel):
     cmid: str
     group_id: Optional[str] = "0"
+    upload_pdf: bool = True
+    upload_grade: bool = True
+    upload_comment: bool = True
     students: List[MoodleUploadStudentItem]
 
 

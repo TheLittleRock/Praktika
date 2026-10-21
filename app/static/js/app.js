@@ -12,7 +12,7 @@ const AppModal = {
       .replace(/'/g, "&#39;");
   },
 
-  alert({ title = "Upozornění", message = "", confirmText = "Rozumím" } = {}) {
+  alert({ title = "Upozornění", message = "", confirmText = "Rozumím", isHtml = false } = {}) {
     return new Promise((resolve) => {
       this.activeResolver = () => resolve(true);
       const backdrop = document.getElementById('app-modal-backdrop');
@@ -24,7 +24,7 @@ const AppModal = {
       }
 
       titleEl.textContent = title;
-      bodyEl.innerHTML = `<p style="margin:0; font-size:0.9rem; line-height:1.5; color:var(--text-main);">${this._esc(message)}</p>`;
+      bodyEl.innerHTML = `<div style="margin:0; font-size:0.9rem; line-height:1.5; color:var(--text-main);">${isHtml ? message : this._esc(message)}</div>`;
       actionsEl.innerHTML = `
         <button type="button" class="btn btn-primary btn-sm" id="app-modal-ok-btn">${this._esc(confirmText)}</button>
       `;
@@ -4885,6 +4885,7 @@ const App = {
   showMoodleLoginInstructions() {
     AppModal.alert({
       title: "Jak získat cookie MoodleSession",
+      isHtml: true,
       message: `
         1. V běžném prohlížeči (Chrome, Firefox, Edge) se přihlaste na <a href="https://moodle-vyuka.cvut.cz" target="_blank" style="color:var(--primary); font-weight:700;">moodle-vyuka.cvut.cz</a>.<br><br>
         2. Stiskněte klávesu <strong>F12</strong> (Vývojářské nástroje).<br><br>
@@ -4917,7 +4918,7 @@ const App = {
     if (tab === 'download') {
       if (btnDl) btnDl.className = 'btn btn-primary btn-sm';
       if (btnUl) btnUl.className = 'btn btn-secondary btn-sm';
-      if (contDl) contDl.style.display = 'block';
+      if (contDl) contDl.style.display = 'flex';
       if (contUl) contUl.style.display = 'none';
     } else {
       if (btnDl) btnDl.className = 'btn btn-secondary btn-sm';
@@ -4929,34 +4930,19 @@ const App = {
   },
 
   async refreshMoodleStructure() {
+    const titleEl = document.getElementById('moodle-modal-title');
     const assignSel = document.getElementById('moodle-assign-select');
     const uploadAssignSel = document.getElementById('moodle-upload-assign-select');
     const groupSel = document.getElementById('moodle-group-select');
-    const targetSem = document.getElementById('moodle-target-semester');
-    const targetSlot = document.getElementById('moodle-target-slot');
-    const targetMeas = document.getElementById('moodle-target-measurement');
+    const uploadGroupSel = document.getElementById('moodle-upload-group-select');
 
-    if (targetSem && this.semesters) {
-      targetSem.innerHTML = this.semesters.map(s => `<option value="${s.id}" ${s.is_active ? 'selected' : ''}>${this.escape(s.name)} (${s.code})</option>`).join('');
-    }
-    if (targetSlot && this.slots) {
-      targetSlot.innerHTML = this.slots.map(sl => `<option value="${sl.id}">${this.escape(sl.day_of_week)} ${this.escape(sl.time_start)} - ${this.escape(sl.name)}</option>`).join('');
-    }
-    if (targetMeas && this.measurements) {
-      targetMeas.innerHTML = this.measurements.map(m => `<option value="${m.id}">Úloha ${m.number}: ${this.escape(m.name)}</option>`).join('');
-    }
-
-    const uploadSlotSel = document.getElementById('moodle-upload-slot-select');
-    if (uploadSlotSel && this.slots) {
-      uploadSlotSel.innerHTML = `<option value="">Všechny termíny</option>` + this.slots.map(sl => `<option value="${sl.id}">${this.escape(sl.day_of_week)} ${this.escape(sl.time_start)} - ${this.escape(sl.name)}</option>`).join('');
-    }
-
-    if (assignSel) assignSel.innerHTML = '<option value="">Načítám úlohy z Moodle...</option>';
+    if (assignSel) assignSel.innerHTML = '<option value="all">Načítám úlohy z Moodle...</option>';
+    if (groupSel) groupSel.innerHTML = '<option value="all">Načítám skupiny z Moodle...</option>';
 
     try {
       const resp = await fetch('/api/moodle/course-structure');
       if (resp.status === 401) {
-        if (assignSel) assignSel.innerHTML = '<option value="">⚠️ Neplatná relace MoodleSession</option>';
+        if (assignSel) assignSel.innerHTML = '<option value="all">⚠️ Neplatná relace MoodleSession</option>';
         await AppModal.alert({
           title: "Moodle relace vypršela",
           message: "Platnost vaší MoodleSession cookie vypršela. Přejděte do Nastavení ➔ Moodle integrace a vložte novou cookie."
@@ -4968,96 +4954,214 @@ const App = {
       const data = await resp.json();
       this.moodleCourseStructure = data;
 
-      if (assignSel) {
-        if (!data.assignments || data.assignments.length === 0) {
-          assignSel.innerHTML = '<option value="">V kurzu nebyly nalezeny žádné úlohy</option>';
-        } else {
-          assignSel.innerHTML = data.assignments.map(a => `<option value="${a.cmid}">${this.escape(a.title)}</option>`).join('');
-        }
+      if (titleEl && data.course_title) {
+        titleEl.textContent = `Moodle: ${data.course_title}`;
+      }
+
+      // Populate assignment selects
+      if (assignSel && data.assignments) {
+        let assignOpts = `<option value="all">🌟 Všechny úlohy s neohodnocenými pracemi</option>`;
+        assignOpts += data.assignments.map(a => {
+          const badge = a.needs_grading_count > 0 ? ` (${a.needs_grading_count} k hodnocení)` : (a.submitted_count > 0 ? ` (${a.submitted_count} odevzdáno)` : '');
+          return `<option value="${a.cmid}">${this.escape(a.title)}${badge}</option>`;
+        }).join('');
+        assignSel.innerHTML = assignOpts;
       }
 
       if (uploadAssignSel && data.assignments) {
-        uploadAssignSel.innerHTML = data.assignments.map(a => `<option value="${a.cmid}">${this.escape(a.title)}</option>`).join('');
+        uploadAssignSel.innerHTML = `<option value="">Vyberte úlohu v Moodle...</option>` + 
+          data.assignments.map(a => `<option value="${a.cmid}">${this.escape(a.title)}</option>`).join('');
       }
 
-      if (groupSel) {
-        if (!data.groups || data.groups.length === 0) {
-          groupSel.innerHTML = '<option value="0">Všichni účastníci (bez filtrování)</option>';
-        } else {
-          groupSel.innerHTML = data.groups.map(g => `<option value="${g.id}">${this.escape(g.name)}</option>`).join('');
-        }
+      // Populate group selects
+      if (data.groups) {
+        let grpOpts = `<option value="all">Všechny skupiny</option>`;
+        grpOpts += data.groups.filter(g => g.id !== 'all').map(g => {
+          const cnt = g.count ? ` (${g.count} studentů)` : '';
+          return `<option value="${g.id}">${this.escape(g.name)}${cnt}</option>`;
+        }).join('');
+
+        if (groupSel) groupSel.innerHTML = grpOpts;
+        if (uploadGroupSel) uploadGroupSel.innerHTML = grpOpts;
       }
 
-      this.autoMatchMoodleAssignment();
+      await this.loadMoodlePendingSubmissions();
     } catch(err) {
-      if (assignSel) assignSel.innerHTML = `<option value="">Chyba: ${this.escape(err.message)}</option>`;
+      if (assignSel) assignSel.innerHTML = `<option value="all">Chyba: ${this.escape(err.message)}</option>`;
     }
   },
 
-  handleMoodleAssignChange(cmid) {
-    this.autoMatchMoodleAssignment();
+  handleMoodleFilterChange() {
+    this.loadMoodlePendingSubmissions();
   },
 
-  autoMatchMoodleAssignment() {
-    const assignSel = document.getElementById('moodle-assign-select');
-    const targetMeas = document.getElementById('moodle-target-measurement');
-    if (!assignSel || !targetMeas || !this.moodleCourseStructure || !this.measurements) return;
+  async loadMoodlePendingSubmissions() {
+    const tbody = document.getElementById('moodle-pending-tbody');
+    const countBadge = document.getElementById('moodle-pending-count-badge');
+    const selectedCountEl = document.getElementById('moodle-selected-count');
+    const cmid = document.getElementById('moodle-assign-select')?.value || 'all';
+    const group = document.getElementById('moodle-group-select')?.value || 'all';
 
-    const selectedCmid = assignSel.value;
-    const assign = (this.moodleCourseStructure.assignments || []).find(a => a.cmid === selectedCmid);
-    if (!assign) return;
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:24px; color:var(--text-muted);">Hledám neohodnocené protokoly v Moodle...</td></tr>`;
+    }
 
-    const numMatch = assign.title.match(/(?:úloha|uloha|č\.|task)\s*0?(\d+)/i);
-    if (numMatch) {
-      const taskNum = parseInt(numMatch[1], 10);
-      const matchMeas = this.measurements.find(m => m.number === taskNum);
-      if (matchMeas) {
-        targetMeas.value = matchMeas.id;
+    try {
+      const q = new URLSearchParams();
+      if (cmid && cmid !== 'all') q.set('cmid', cmid);
+      if (group && group !== 'all') q.set('group', group);
+
+      const resp = await fetch(`/api/moodle/pending-submissions?${q.toString()}`);
+      if (!resp.ok) {
+        const err = await resp.json();
+        throw new Error(err.detail || "Chyba při vyhledávání.");
+      }
+
+      const items = await resp.json();
+      this.moodlePendingItems = items;
+
+      if (countBadge) countBadge.textContent = String(items.length);
+      if (selectedCountEl) selectedCountEl.textContent = String(items.length);
+
+      if (items.length === 0) {
+        if (tbody) {
+          tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:28px; color:var(--text-muted);">
+            Pro vybraný filtr nebyly nalezeny žádné neohodnocené odevzdané protokoly.
+          </td></tr>`;
+        }
+        return;
+      }
+
+      // Build rows
+      const slotsList = this.slots || [];
+      const measList = this.measurements || [];
+
+      tbody.innerHTML = items.map((it, idx) => {
+        // Build Slot options
+        let slotOptions = '';
+        if (it.can_auto_create_slot && it.student_group) {
+          slotOptions += `<option value="create_new" selected>✨ Vytvořit termín '${this.escape(it.student_group)}'</option>`;
+        }
+        slotOptions += slotsList.map(s => {
+          const isSelected = (!it.can_auto_create_slot && it.matched_slot_id === s.id);
+          return `<option value="${s.id}" ${isSelected ? 'selected' : ''}>${this.escape(s.day_of_week)} ${this.escape(s.time_start)} - ${this.escape(s.name)}</option>`;
+        }).join('');
+
+        // Build Measurement options
+        let measOptions = measList.map(m => {
+          const isSelected = (it.matched_task_id === m.id);
+          return `<option value="${m.id}" ${isSelected ? 'selected' : ''}>Úloha ${m.number}: ${this.escape(m.name)}</option>`;
+        }).join('');
+
+        const statusBadge = it.already_in_db 
+          ? `<span class="moodle-tag exists" title="Protokol v databázi existuje a bude aktualizován">V databázi</span>`
+          : `<span class="moodle-tag new">Nový</span>`;
+
+        return `
+          <tr data-index="${idx}">
+            <td style="text-align:center;">
+              <input type="checkbox" class="moodle-pending-cb" data-index="${idx}" checked onchange="App.updateMoodlePendingSelectedCount()">
+            </td>
+            <td>
+              <strong>${this.escape(it.student_name)}</strong>
+              ${it.moodle_user_id ? `<span style="font-size:0.72rem; color:var(--text-muted); display:block;">ID: ${it.moodle_user_id}</span>` : ''}
+            </td>
+            <td>
+              <span class="moodle-tag matched">${this.escape(it.student_group || 'Bez skupiny')}</span>
+            </td>
+            <td>
+              <span style="font-size:0.75rem; font-weight:600;">${this.escape(it.task_title)}</span>
+            </td>
+            <td>
+              <a href="${it.file_url}" target="_blank" style="color:var(--primary); font-size:0.75rem; word-break:break-all;" title="Stáhnout náhled">${this.escape(it.filename)}</a>
+            </td>
+            <td>
+              <select class="moodle-select-sm" id="moodle-pending-slot-${idx}">
+                ${slotOptions}
+              </select>
+            </td>
+            <td>
+              <select class="moodle-select-sm" id="moodle-pending-meas-${idx}">
+                ${measOptions}
+              </select>
+            </td>
+            <td>
+              ${statusBadge}
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+    } catch(err) {
+      if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:24px; color:var(--danger);">Chyba: ${this.escape(err.message)}</td></tr>`;
       }
     }
   },
 
-  async handleMoodleDownload(e) {
-    if (e) e.preventDefault();
-    const cmid = document.getElementById('moodle-assign-select')?.value;
-    const groupId = document.getElementById('moodle-group-select')?.value || '0';
-    const semId = parseInt(document.getElementById('moodle-target-semester')?.value, 10);
-    const slotId = parseInt(document.getElementById('moodle-target-slot')?.value, 10);
-    const measId = parseInt(document.getElementById('moodle-target-measurement')?.value, 10);
+  toggleSelectAllMoodlePending(checked) {
+    document.querySelectorAll('.moodle-pending-cb').forEach(cb => cb.checked = checked);
+    this.updateMoodlePendingSelectedCount();
+  },
 
-    if (!cmid) {
-      await AppModal.alert({ title: "Chyba", message: "Vyberte prosím úlohu v Moodle." });
+  updateMoodlePendingSelectedCount() {
+    const sel = document.querySelectorAll('.moodle-pending-cb:checked').length;
+    const el = document.getElementById('moodle-selected-count');
+    if (el) el.textContent = String(sel);
+  },
+
+  async handleMoodleDownloadSelected() {
+    if (!this.moodlePendingItems || this.moodlePendingItems.length === 0) return;
+
+    const checkedBoxes = Array.from(document.querySelectorAll('.moodle-pending-cb:checked'));
+    if (checkedBoxes.length === 0) {
+      await AppModal.alert({ title: "Upozornění", message: "Vyberte alespoň jeden protokol k importu." });
       return;
     }
 
+    const itemsToDownload = checkedBoxes.map(cb => {
+      const idx = parseInt(cb.dataset.index, 10);
+      const it = this.moodlePendingItems[idx];
+      const slotVal = document.getElementById(`moodle-pending-slot-${idx}`)?.value;
+      const measVal = parseInt(document.getElementById(`moodle-pending-meas-${idx}`)?.value, 10);
+
+      const autoCreate = (slotVal === 'create_new');
+      const slotId = autoCreate ? null : parseInt(slotVal, 10);
+
+      return {
+        cmid: it.cmid,
+        student_name: it.student_name,
+        file_url: it.file_url,
+        filename: it.filename,
+        measurement_id: measVal,
+        slot_id: slotId,
+        group_name: it.student_group || '',
+        auto_create_slot: autoCreate
+      };
+    });
+
     const btn = document.getElementById('btn-moodle-start-download');
-    const origText = btn ? btn.textContent : '📥 Stáhnout a importovat práce';
-    if (btn) { btn.disabled = true; btn.textContent = 'Stahuji z Moodle...'; }
+    const origText = btn ? btn.textContent : '📥 Stáhnout a importovat';
+    if (btn) { btn.disabled = true; btn.textContent = 'Stahuji a zakládám protokoly...'; }
 
     try {
-      const resp = await fetch('/api/moodle/download-submissions', {
+      const resp = await fetch('/api/moodle/download-selected', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cmid: cmid,
-          group_id: groupId,
-          semester_id: semId,
-          slot_id: slotId,
-          measurement_id: measId
-        })
+        body: JSON.stringify({ items: itemsToDownload })
       });
 
       const data = await resp.json();
       if (resp.ok) {
         this.closeMoodleModal();
         await AppModal.alert({
-          title: "Import z Moodle dokončen!",
+          title: "Import protokolů z Moodle dokončen",
           message: `Úspěšně staženo a importováno ${data.imported_count} protokolů.`
         });
         await this.loadProtocols();
       } else {
         await AppModal.alert({
-          title: "Chyba při stahování",
+          title: "Chyba při importu",
           message: data.detail || "Chyba při stahování prací z Moodle."
         });
       }
@@ -5068,62 +5172,129 @@ const App = {
     }
   },
 
-  loadMoodleUploadStudents() {
-    const listEl = document.getElementById('moodle-upload-students-list');
-    const slotSel = document.getElementById('moodle-upload-slot-select');
-    if (!listEl) return;
+  async loadMoodleUploadStudents() {
+    const tbody = document.getElementById('moodle-upload-tbody');
+    const countBadge = document.getElementById('moodle-upload-count-badge');
+    const selectedCountEl = document.getElementById('moodle-upload-selected-count');
+    const cmid = document.getElementById('moodle-upload-assign-select')?.value;
+    const group = document.getElementById('moodle-upload-group-select')?.value || 'all';
 
-    let protos = this.loadedProtocols || [];
-    if (slotSel && slotSel.value) {
-      protos = protos.filter(p => p.slot_id === parseInt(slotSel.value, 10));
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">Načítám opravené protokoly...</td></tr>`;
     }
 
-    if (protos.length === 0) {
-      listEl.innerHTML = `<div style="padding:16px; text-align:center; color:var(--text-muted); font-size:0.8rem;">Žádné protokoly k nahrání.</div>`;
-      return;
-    }
+    try {
+      const q = new URLSearchParams();
+      if (cmid) q.set('cmid', cmid);
+      if (group && group !== 'all') q.set('group', group);
 
-    listEl.innerHTML = protos.map(p => `
-      <div class="moodle-student-item">
-        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-          <input type="checkbox" class="moodle-upload-student-cb" value="${p.id}" checked>
-          <div>
-            <strong>${this.escape(p.student_name)}</strong>
-            <span style="font-size:0.75rem; color:var(--text-muted); margin-left:6px;">(${this.escape(p.measurement_code || '')})</span>
-          </div>
-        </label>
-        <div style="font-size:0.78rem;">
-          ${p.status === 'graded' ? `<span style="color:var(--accent-green); font-weight:700;">${p.total_points} b (${p.grade})</span>` : `<span style="color:var(--text-muted);">${p.status}</span>`}
-        </div>
-      </div>
-    `).join('');
+      const resp = await fetch(`/api/moodle/gradable-protocols?${q.toString()}`);
+      if (!resp.ok) throw new Error("Chyba při načítání opravených prací.");
+
+      const items = await resp.json();
+      this.moodleGradableItems = items;
+
+      if (countBadge) countBadge.textContent = String(items.length);
+      if (selectedCountEl) selectedCountEl.textContent = String(items.length);
+
+      if (items.length === 0) {
+        if (tbody) {
+          tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:28px; color:var(--text-muted);">
+            V aplikaci nebyly nalezeny žádné dokončené/opravené protokoly pro vybraný filtr.
+          </td></tr>`;
+        }
+        return;
+      }
+
+      tbody.innerHTML = items.map((it, idx) => {
+        const inMoodleBadge = it.in_moodle 
+          ? `<span class="moodle-tag matched" title="Student nalezen v Moodle">Spárováno (${it.moodle_user_id})</span>`
+          : `<span class="moodle-tag unmatched" title="Student nebyl v kurzu Moodle jednoznačně nalezen">Nespárováno</span>`;
+
+        const gradeOptions = ['A', 'B', 'C', 'D', 'E', 'F'].map(g => 
+          `<option value="${g}" ${it.grade_letter === g ? 'selected' : ''}>${g}</option>`
+        ).join('');
+
+        return `
+          <tr data-index="${idx}">
+            <td style="text-align:center;">
+              <input type="checkbox" class="moodle-upload-cb" data-index="${idx}" checked onchange="App.updateMoodleUploadSelectedCount()">
+            </td>
+            <td>
+              <strong>${this.escape(it.student_name)}</strong>
+              <div style="font-size:0.72rem; color:var(--text-muted);">${this.escape(it.task_name)}</div>
+            </td>
+            <td>
+              <span class="moodle-tag matched">${this.escape(it.slot_name || '—')}</span>
+            </td>
+            <td>
+              <strong style="color:var(--primary); font-size:0.85rem;">${it.points} / ${it.max_points} b</strong>
+            </td>
+            <td>
+              <select class="moodle-select-sm" id="moodle-upload-grade-${idx}" style="font-weight:700; width:64px;">
+                ${gradeOptions}
+              </select>
+            </td>
+            <td>
+              <div style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:0.75rem; color:var(--text-muted);" title="${this.escape(it.comment)}">
+                ${this.escape(it.comment)}
+              </div>
+            </td>
+            <td>
+              ${inMoodleBadge}
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+    } catch(err) {
+      if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--danger);">Chyba: ${this.escape(err.message)}</td></tr>`;
+      }
+    }
   },
 
   toggleSelectAllMoodleStudents(checked) {
-    document.querySelectorAll('.moodle-upload-student-cb').forEach(cb => cb.checked = checked);
+    document.querySelectorAll('.moodle-upload-cb').forEach(cb => cb.checked = checked);
+    this.updateMoodleUploadSelectedCount();
+  },
+
+  updateMoodleUploadSelectedCount() {
+    const sel = document.querySelectorAll('.moodle-upload-cb:checked').length;
+    const el = document.getElementById('moodle-upload-selected-count');
+    if (el) el.textContent = String(sel);
   },
 
   async executeMoodleUpload() {
     const cmid = document.getElementById('moodle-upload-assign-select')?.value;
     const uploadPdf = document.getElementById('moodle-opt-upload-pdf')?.checked ?? true;
     const uploadGrade = document.getElementById('moodle-opt-upload-grade')?.checked ?? true;
+    const uploadComment = document.getElementById('moodle-opt-upload-comment')?.checked ?? true;
 
     if (!cmid) {
       await AppModal.alert({ title: "Chyba", message: "Vyberte prosím cílovou úlohu v Moodle." });
       return;
     }
 
-    const selectedCbs = Array.from(document.querySelectorAll('.moodle-upload-student-cb:checked'));
-    if (selectedCbs.length === 0) {
-      await AppModal.alert({ title: "Upozornění", message: "Vyberte alespoň jednoho studenta k nahrání." });
+    const checkedBoxes = Array.from(document.querySelectorAll('.moodle-upload-cb:checked'));
+    if (checkedBoxes.length === 0) {
+      await AppModal.alert({ title: "Upozornění", message: "Vyberte alespoň jednoho studenta k odeslání." });
       return;
     }
 
-    const students = selectedCbs.map(cb => ({
-      protocol_id: parseInt(cb.value, 10),
-      upload_pdf: uploadPdf,
-      upload_grade: uploadGrade
-    }));
+    const students = checkedBoxes.map(cb => {
+      const idx = parseInt(cb.dataset.index, 10);
+      const it = this.moodleGradableItems[idx];
+      const gradeLetter = document.getElementById(`moodle-upload-grade-${idx}`)?.value || it.grade_letter;
+
+      return {
+        protocol_id: it.protocol_id,
+        upload_pdf: uploadPdf,
+        upload_grade: uploadGrade,
+        grade_letter: gradeLetter,
+        comment: it.comment
+      };
+    });
 
     const ok = await AppModal.confirm({
       title: "Potvrzení odeslání do Moodle",
@@ -5132,7 +5303,7 @@ const App = {
     if (!ok) return;
 
     const btn = document.getElementById('btn-moodle-start-upload');
-    const origText = btn ? btn.textContent : '📤 Odeslat do Moodle';
+    const origText = btn ? btn.textContent : '📤 Odeslat hodnocení do Moodle';
     if (btn) { btn.disabled = true; btn.textContent = 'Odesílám do Moodle...'; }
 
     try {
@@ -5142,6 +5313,9 @@ const App = {
         body: JSON.stringify({
           cmid: cmid,
           group_id: '0',
+          upload_pdf: uploadPdf,
+          upload_grade: uploadGrade,
+          upload_comment: uploadComment,
           students: students
         })
       });
@@ -5150,8 +5324,8 @@ const App = {
       if (resp.ok) {
         this.closeMoodleModal();
         await AppModal.alert({
-          title: "Odeslání dokončeno!",
-          message: `Balík zpětné vazby pro ${data.uploaded_count} studentů byl úspěšně připraven a zpracován pro Moodle.`
+          title: "Odeslání dokončeno",
+          message: `Hodnocení pro ${data.uploaded_count} studentů bylo úspěšně odesláno a zpracováno v Moodle.`
         });
       } else {
         await AppModal.alert({
