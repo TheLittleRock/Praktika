@@ -4,6 +4,45 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.19.0] - 2026-10-21
+
+### 🚀 Novinky a vylepšení ve verzi 2.19.0
+
+#### 📂 Drag & Drop import protokolů na domovské obrazovce
+- **Celostránková plocha pro přetažení souborů**: Přetažením PDF souborů myší na domovskou obrazovku se okamžitě zobrazí animovaný overlay s rozostřeným pozadím (`backdrop-filter: blur(10px)`).
+- **Hromadné vhození a automatická detekce**: Po puštění souborů se otevře importní okno, soubory se automaticky předvyplní a spustí se autodetekce údajů bez nutnosti klikat na tlačítko výběru.
+
+#### 🔤 TeX / LaTeX normalizace diakritiky a asynchronní sync
+- **Podpora pro LaTeXem generovaná PDF**: Vyřešeno selhání detekce jména (např. v protokolu úlohy 6), kde TeX ukládá diakritiku jako samostatné akcenty (`jm´eno: Jakub Petrˇz´ılek`). Funkce `normalize_latex_pdf_text` nyní skládá všechny TeX akcenty (`´`, `ˇ`, `˚`, `¨`, dotless `ı`) do standardního NFC kódování Unicode.
+- **Asynchronní sync při rychlém odeslání**: Pokud uživatel ihned po výběru souboru stiskne `Enter`, aplikace počká na běžící promise autodetekce na pozadí a automaticky doplní detekované jméno i úlohu bez nutnosti ručního vypisování.
+
+#### 🏷️ Standardizované pojmenování exportovaných PDF
+- **Jednotný název souboru**: Formát `{Předmět}_Uloha_{číslo}_{Příjmení}_{Jméno}_opraveno.pdf` (např. `FPRA1_Uloha_06_Petrzilek_Jakub_opraveno.pdf`).
+- **Implementováno ve všech exportech**: Jednotné názvy se používají při přímém stažení opraveného PDF, při vypálení hodnocení i při hromadném ZIP exportu protokolů.
+
+#### ⌨️ Univerzální klávesové zkratky dialogů a Studia
+- **Potvrzení klávesou `Enter`**: Ve všech kontextových a modálních oknech (import protokolu, úprava metadat, hromadné úpravy, přepnutí uživatele, přihlášení, informační okna) potvrdí klávesa `Enter` formulář.
+- **Zrušení klávesou `Escape`**: Klávesa `Escape` spolehlivě zavře jakékoli otevřené kontextové okno, vyhledávací lištu nebo zruší rozpracovaný koncept komentáře v PDF.
+- **Zkratky v plovoucí kartě komentáře**: `Enter` (bez Shiftu) odešle a uloží poznámku s případnou bodovou srážkou, `Escape` kartu zavře a zahodí dočasné zvýraznění.
+- **Klávesy `Delete` / `Backspace`**: Okamžité smazání aktivně vybrané anotace na plátně PDF.
+
+#### 🪟 Inteligentní oddělování postranních panelů Studia
+- **Automatické rozdělení stran (Left vs. Right)**: Otevření obou panelů (AI asistent i Bodování) je automaticky rozmístí na protější strany (jeden vlevo, druhý vpravo), čímž zůstává PDF vycentrováno uprostřed a panely se nepřekrývají ani nedělí nevzhledně o jednu stranu.
+- **Volitelné nastavení v Vzhledu**: Přidána volba v Nastavení -> Vzhled: *„Povolit dokování obou postranních panelů na stejné straně“* pro uživatele, kteří preferují mít oba panely na jedné straně.
+
+#### 📑 Vysouvací lišta miniatur stránek (Thumbnails Drawer)
+- **Rychlá navigace po stránkách protokolu**: Nové tlačítko v nástrojové liště i klávesová zkratka `M` otevře levý panel s náhledy jednotlivých stránek PDF a okamžitým skokem na vybranou stránku.
+
+#### 🔗 Rychlé kopírování odkazu pro studenta
+- **Tlačítko v tabulce protokolů**: Kliknutím na ikonku `🔗` v řádku protokolu se studentský odkaz na opravený protokol s tokenem okamžitě zkopíruje do schránky s notifikací toastu.
+
+#### 🔠 Vyhledávání nezávislé na diakritice (Unaccent)
+- **SQLite funkce `unaccent()`**: Hledání v protokolech i filtrování jmen studentů na hlavní stránce nyní funguje bez ohledu na háčky a čárky (např. zadání „petrzilek“ bez problémů najde studenta „Jakub Petržílek“).
+
+#### 🎨 Vizuální opravy loga a semestru v postranním panelu
+- **Zamezení lámání loga Praktika**: Zajištěn jednořádkový nerozdělený text „Praktika Studio“.
+- **Kompaktní kód semestru**: Výběrové pole aktivního semestru v postranním panelu zobrazuje pouze čistý kód semestru (např. `2026ZS`), takže se text pohodlně vejde do rámečku bez ořezání.
+
 ## [2.18.2] - 2026-10-21
 
 ### 🚀 Opravy a vylepšení ve verzi 2.18.2

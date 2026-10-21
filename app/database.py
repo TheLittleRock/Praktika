@@ -89,9 +89,17 @@ INITIAL_COMMENT_PRESETS = [
     {"type": "comment", "category": "obecne", "pts": 0.0, "text": "Texty v grafu jsou moc malé a je v rastrové grafice."}
 ]
 
+def remove_accents(text: Any) -> str:
+    if text is None:
+        return ""
+    import unicodedata
+    nfkd = unicodedata.normalize('NFKD', str(text))
+    return "".join(c for c in nfkd if not unicodedata.combining(c)).lower()
+
 def get_db():
     conn = sqlite3.connect(DB_PATH, timeout=30.0)
     conn.row_factory = sqlite3.Row
+    conn.create_function("unaccent", 1, remove_accents)
     conn.execute("PRAGMA journal_mode = WAL;")
     conn.execute("PRAGMA busy_timeout = 30000;")
     conn.execute("PRAGMA synchronous = NORMAL;")

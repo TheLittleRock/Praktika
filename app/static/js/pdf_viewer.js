@@ -191,6 +191,8 @@ const PDFStudio = {
     return 'Vyučující';
   },
 
+  _initialized: false,
+
   init(containerEl, onNoteCreatedCallback, currentUser) {
     this.container = containerEl;
     this.onNoteCreated = onNoteCreatedCallback;
@@ -200,6 +202,10 @@ const PDFStudio = {
     }
     this.createFloatingCommentCard();
     this.createTooltipBubble();
+
+    if (this._initialized) return;
+    this._initialized = true;
+
     this.setupZoomGestures();
     this.setupKeyboardShortcuts();
     this.setupSearch();
@@ -284,6 +290,21 @@ const PDFStudio = {
       }
 
       if (e.target.matches('input, textarea, [contenteditable="true"]')) return;
+
+      // Delete selected annotation with Delete or Backspace
+      if ((e.key === 'Delete' || e.key === 'Backspace') && this.activeSelectedAnnot) {
+        e.preventDefault();
+        this.deleteSelectedAnnotation();
+        return;
+      }
+
+      // 'm' or 'M' toggles thumbnails drawer
+      if ((e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        this.toggleThumbnails();
+        return;
+      }
+
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         if (e.shiftKey) {
           e.preventDefault();
@@ -967,6 +988,9 @@ const PDFStudio = {
   async loadPDF(url, protoId, existingAnnotations = [], aiProposals = null) {
     this.protocolId = protoId;
     this.annotations = existingAnnotations ? [...existingAnnotations] : [];
+    this.historyStack = [];
+    this.redoStack = [];
+    this.updateUndoRedoButtons();
     this.aiProposals = (aiProposals && aiProposals.annotations) ? [...aiProposals.annotations] : [];
     this.aiProposals.forEach((p, i) => {
       p.page = parseInt(p.page, 10) || 1;
@@ -975,6 +999,13 @@ const PDFStudio = {
     this.activeSelectedAnnot = null;
     this.hideTooltip();
     this.closeCommentBox();
+
+    // Clean container completely to prevent old pages/ghost renders from previous documents
+    if (this.container) {
+      this.container.innerHTML = '';
+      this.container.scrollTop = 0;
+      this.container.scrollLeft = 0;
+    }
 
     try {
       const loadingTask = window.pdfjsLib.getDocument({
@@ -986,6 +1017,9 @@ const PDFStudio = {
       this.totalPages = this.pdfDoc.numPages;
       this.updateZoomBadge();
       await this.renderAllPages(false);
+      if (this.isThumbnailsOpen) {
+        this.renderThumbnails();
+      }
     } catch(err) {
       console.error("PDF load error:", err);
       if (window.AppModal) {
@@ -1335,6 +1369,69 @@ const PDFStudio = {
     if (pageWrap) {
       pageWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
       this.hideTooltip();
+    }
+    // Update active highlight in thumbnails drawer if open
+    const listEl = document.getElementById('studio-thumbnails-list');
+    if (listEl) {
+      listEl.querySelectorAll('.thumbnail-card').forEach(c => {
+        c.classList.toggle('active', parseInt(c.dataset.page, 10) === parseInt(pageNum, 10));
+      });
+    }
+  },
+
+  isThumbnailsOpen: false,
+
+  toggleThumbnails() {
+    const drawer = document.getElementById('studio-thumbnails-drawer');
+    const btn = document.getElementById('btn-toggle-thumbnails');
+    if (!drawer) return;
+    this.isThumbnailsOpen = (drawer.style.display === 'none' || !drawer.style.display);
+    drawer.style.display = this.isThumbnailsOpen ? 'flex' : 'none';
+    if (btn) btn.classList.toggle('active', this.isThumbnailsOpen);
+
+    if (this.isThumbnailsOpen) {
+      this.renderThumbnails();
+    }
+  },
+
+  async renderThumbnails() {
+    const listEl = document.getElementById('studio-thumbnails-list');
+    if (!listEl || !this.pdfDoc) return;
+    listEl.innerHTML = '';
+
+    for (let p = 1; p <= this.totalPages; p++) {
+      const card = document.createElement('div');
+      card.className = 'thumbnail-card';
+      card.dataset.page = p;
+      card.title = `Stránka ${p}`;
+
+      const canvas = document.createElement('canvas');
+      card.appendChild(canvas);
+
+      const numBadge = document.createElement('span');
+      numBadge.className = 'thumbnail-card-number';
+      numBadge.textContent = p;
+      card.appendChild(numBadge);
+
+      card.onclick = () => {
+        this.scrollToPage(p);
+      };
+
+      listEl.appendChild(card);
+      this.renderSingleThumbnail(p, canvas);
+    }
+  },
+
+  async renderSingleThumbnail(pageNum, canvas) {
+    try {
+      const page = await this.pdfDoc.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 0.16 });
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      const ctx = canvas.getContext('2d', { alpha: false });
+      await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+    } catch (e) {
+      console.warn(`Error rendering thumbnail for page ${pageNum}:`, e);
     }
   },
 

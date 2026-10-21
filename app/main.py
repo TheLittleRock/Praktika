@@ -7,6 +7,7 @@ import re
 import time
 import secrets
 import traceback
+import unicodedata
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
@@ -64,6 +65,68 @@ app.add_middleware(
 static_dir = BASE_DIR / "app" / "static"
 static_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+# ==========================================
+# STRING & FILENAME NORMALIZATION HELPERS
+# ==========================================
+
+def normalize_latex_pdf_text(text: str) -> str:
+    """
+    Normalizes standalone TeX/LaTeX diacritical marks with adjacent base characters.
+    Handles acute accent (´, \u00b4), caron/háček (ˇ, \u02c7), diaeresis (¨, \u00a8),
+    ring (˚, \u02da), and dotless i (ı, \u0131).
+    Converts to composed NFC unicode string.
+    """
+    if not text:
+        return ""
+    # Dotless i with acute
+    text = text.replace('´ı', 'í').replace('ı´', 'í').replace('ı', 'i')
+    # Acute accent (´)
+    text = re.sub(r'´([aeiouyAEIOUY])', lambda m: m.group(1) + '\u0301', text)
+    text = re.sub(r'([aeiouyAEIOUY])´', lambda m: m.group(1) + '\u0301', text)
+    # Caron / háček (ˇ)
+    text = re.sub(r'ˇ([cdenrstzCDENRSTZ])', lambda m: m.group(1) + '\u030c', text)
+    text = re.sub(r'([cdenrstzCDENRSTZ])ˇ', lambda m: m.group(1) + '\u030c', text)
+    # Ring (˚)
+    text = re.sub(r'˚([uU])', lambda m: m.group(1) + '\u030a', text)
+    text = re.sub(r'([uU])˚', lambda m: m.group(1) + '\u030a', text)
+    # Diaeresis (¨)
+    text = re.sub(r'¨([aeiouAEIOU])', lambda m: m.group(1) + '\u0308', text)
+    text = re.sub(r'([aeiouAEIOU])¨', lambda m: m.group(1) + '\u0308', text)
+    # Normalize to NFC
+    return unicodedata.normalize('NFC', text)
+
+def remove_accents(text: str) -> str:
+    """Strips combining diacritical marks for ASCII-safe filenames and search matching."""
+    if not text:
+        return ""
+    nfkd = unicodedata.normalize('NFKD', str(text))
+    return "".join(c for c in nfkd if not unicodedata.combining(c))
+
+def build_standard_export_filename(course_code: Optional[str], meas_num: Optional[int], student_name: Optional[str]) -> str:
+    """
+    Generates standardized filename:
+    {Předmět}_Uloha_{číslo}_{Příjmení}_{Jméno}_opraveno.pdf
+    e.g. FPRA1_Uloha_06_Petrzilek_Jakub_opraveno.pdf
+    """
+    course = (course_code or "FPRA1").strip().upper()
+    num_str = f"{int(meas_num):02d}" if meas_num is not None else "01"
+    
+    clean_name = (student_name or "Student").strip()
+    clean_name = normalize_latex_pdf_text(clean_name)
+    parts = clean_name.split()
+    if len(parts) >= 2:
+        surname_raw = parts[-1]
+        firstname_raw = "_".join(parts[:-1])
+        surname = re.sub(r'[^a-zA-Z0-9]', '', remove_accents(surname_raw)).capitalize()
+        firstname = re.sub(r'[^a-zA-Z0-9_]', '', remove_accents(firstname_raw)).capitalize()
+        name_part = f"{surname}_{firstname}" if surname and firstname else (surname or firstname or "Student")
+    elif len(parts) == 1:
+        name_part = re.sub(r'[^a-zA-Z0-9]', '', remove_accents(parts[0])).capitalize() or "Student"
+    else:
+        name_part = "Student"
+        
+    return f"{course}_Uloha_{num_str}_{name_part}_opraveno.pdf"
 
 # ==========================================
 # GLOBAL EXCEPTION HANDLER & SYSTEM ERROR LOGGING
@@ -845,8 +908,9 @@ def list_protocols(
         query += " AND p.status = ?"
         params.append(status_filter)
     if search:
-        query += " AND (p.student_name LIKE ? OR p.source_filename LIKE ?)"
-        params.extend([f"%{search}%", f"%{search}%"])
+        search_clean = remove_accents(search.strip()).lower()
+        query += " AND (unaccent(p.student_name) LIKE ? OR unaccent(p.source_filename) LIKE ?)"
+        params.extend([f"%{search_clean}%", f"%{search_clean}%"])
 
     query += " ORDER BY p.id DESC"
     cur.execute(query, params)
@@ -860,7 +924,7 @@ async def upload_protocol(
     file: UploadFile = File(...),
     semester_id: int = Form(...),
     slot_id: int = Form(...),
-    measurement_id: int = Form(...),
+    measurement_id: Optional[int] = Form(0),
     student_name: Optional[str] = Form(None),
     user: dict = Depends(get_current_user)
 ):
@@ -873,39 +937,94 @@ async def upload_protocol(
     sem_row = cur.fetchone()
     cur.execute("SELECT name, day_of_week, time_start, room FROM slots WHERE id = ?", (slot_id,))
     slot_row = cur.fetchone()
-    cur.execute("SELECT code, number FROM measurements WHERE id = ?", (measurement_id,))
-    meas_row = cur.fetchone()
 
-    if not sem_row or not slot_row or not meas_row:
+    if not sem_row or not slot_row:
         conn.close()
-        raise HTTPException(status_code=400, detail="Neplatný semestr, termín nebo úloha")
+        raise HTTPException(status_code=400, detail="Neplatný semestr nebo termín")
 
     content = await file.read()
 
+    # Extract first page text with LaTeX normalization for name & task autodetect
+    first_page_text = ""
+    try:
+        doc = pymupdf.open(stream=content, filetype="pdf")
+        first_page_text = doc[0].get_text() if len(doc) > 0 else ""
+        doc.close()
+        first_page_text = normalize_latex_pdf_text(first_page_text)
+    except Exception as ex:
+        print("PDF stream text extraction warning:", ex)
+
+    # 1. Resolve Measurement (Autodetect if measurement_id is 0 or invalid)
+    meas_row = None
+    if measurement_id and measurement_id > 0:
+        cur.execute("SELECT id, code, number, course_code FROM measurements WHERE id = ?", (measurement_id,))
+        meas_row = cur.fetchone()
+
+    if not meas_row:
+        cur.execute("SELECT id, code, number, name, course_code FROM measurements ORDER BY number")
+        all_meas = cur.fetchall()
+
+        # Check filename first
+        m_fn = re.search(r'(?:FPRA[12]|ZFM2)[_\s]+(\d{1,2})(?:[_\s\-.]|$)', file.filename, re.I)
+        if not m_fn:
+            m_fn = re.search(r'(?:uloha|meranie)[_\s]*(\d{1,2})(?:[_\s\-.]|$)', file.filename, re.I)
+        if not m_fn:
+            m_fn = re.search(r'^(\d{1,2})[_\s\-.]', file.filename)
+
+        fn_num = int(m_fn.group(1)) if m_fn else None
+        if fn_num:
+            for m in all_meas:
+                if m["number"] == fn_num:
+                    meas_row = m
+                    break
+
+        # If not found in filename, check first page text
+        if not meas_row and first_page_text:
+            m_task = re.search(r'(?:Úloha|Meranie|Uloha|číslo úlohy)\s*[:=]?\s*(?:č\.?)?\s*(\d+)', first_page_text, re.I)
+            if m_task:
+                t_num = int(m_task.group(1))
+                for m in all_meas:
+                    if m["number"] == t_num:
+                        meas_row = m
+                        break
+            if not meas_row:
+                for m in all_meas:
+                    words = [w.lower() for w in re.split(r'[\s\-,\.]+', m["name"]) if len(w) >= 5]
+                    if any(w in first_page_text[:1000].lower() for w in words):
+                        meas_row = m
+                        break
+
+        # Fallback to first measurement if still not detected
+        if not meas_row and all_meas:
+            meas_row = all_meas[0]
+
+    if not meas_row:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Nepodařilo se určit úlohu pro protokol")
+
+    measurement_id = meas_row["id"]
+
+    # 2. Resolve Student Name
     actual_student_name = student_name.strip() if student_name and student_name.strip() else ""
     if not actual_student_name or actual_student_name.lower() in ("student", "protokol", "null", "undefined"):
-        # Auto-detect from PDF text content
-        try:
-            doc = pymupdf.open(stream=content, filetype="pdf")
-            first_page_text = doc[0].get_text() if len(doc) > 0 else ""
-            doc.close()
+        if first_page_text:
             m_name = re.search(r'(?:Jm[ée]no(?:\s+a\s+\S+)?|Meno(?:\s+a\s+\S+)?|Vypracoval(?:a)?|Autor(?:ka)?|Student(?:ka)?)\s*[:=]\s*([^\n\r,]+)', first_page_text, re.I)
             if not m_name:
                 m_name = re.search(r'(?:Jm[ée]no(?:\s+a\s+\S+)?|Meno(?:\s+a\s+\S+)?|Vypracoval(?:a)?|Autor(?:ka)?|Student(?:ka)?)\s*[:=]?\s*\n\s*([^\n\r,]+)', first_page_text, re.I)
             if m_name and m_name.group(1).strip():
                 detected = m_name.group(1).strip()
                 detected = re.sub(r'[\(\[\{].*?[\)\]\}]', '', detected).strip()
-                if len(detected) >= 3 and not any(k in detected.lower() for k in ["úloha", "datum", "skupina", "obor", "mereni"]):
+                detected = re.sub(r'\s+(?:datum|krou[zž]ek|skupina|obor|ro[cč]n[ií]k|spolupr[aá]ce|kolega).*$', '', detected, flags=re.I).strip()
+                if len(detected) >= 3 and not any(k in detected.lower() for k in ["úloha", "datum", "skupina", "obor", "mereni", "meranie"]):
                     actual_student_name = detected
-        except Exception as ex:
-            print("PDF stream name autodetect warning:", ex)
 
     if not actual_student_name:
         clean = Path(file.filename).stem
-        clean = clean.replace("_opravene", "").replace("_opraveno", "").replace("-opravene", "")
-        parts = clean.split("_")
-        if len(parts) >= 2 and any(p.lower().startswith("uloha") or p.lower().startswith("u") for p in parts):
-            actual_student_name = parts[1] if len(parts) > 2 else parts[0]
+        for s in ['_opravene', '_opraveno', '-opravene', 'FPRA1_', 'FPRA2_', 'ZFM2_', 'FPRA_']:
+            clean = clean.replace(s, '')
+        parts = [p for p in clean.split('_') if not any(k in p.lower() for k in ["uloha", "meranie", "opraven", "fpra", "zfm"])]
+        if parts:
+            actual_student_name = parts[-1].capitalize()
         else:
             actual_student_name = clean.replace("_", " ")
 
@@ -1118,17 +1237,32 @@ def get_source_pdf(proto_id: int):
 def get_corrected_pdf(proto_id: int):
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT corrected_path, corrected_filename FROM protocols WHERE id = ?", (proto_id,))
+    cur.execute("""
+    SELECT p.corrected_path, p.corrected_filename, p.student_name,
+           m.code as measurement_code, m.number as meas_num, m.course_code as meas_course_code,
+           s.code as semester_code
+    FROM protocols p
+    LEFT JOIN measurements m ON p.measurement_id = m.id
+    LEFT JOIN semesters s ON p.semester_id = s.id
+    WHERE p.id = ?
+    """, (proto_id,))
     row = cur.fetchone()
     conn.close()
 
     if not row or not row["corrected_path"] or not Path(row["corrected_path"]).exists():
         raise HTTPException(status_code=404, detail="Opravené PDF dosud nebylo vytvořeno")
 
+    std_filename = build_standard_export_filename(
+        course_code=row["meas_course_code"] or row["semester_code"] or "FPRA1",
+        meas_num=row["meas_num"],
+        student_name=row["student_name"]
+    )
+
     return FileResponse(
         path=row["corrected_path"],
         media_type="application/pdf",
-        filename=row["corrected_filename"] or "opravene.pdf"
+        filename=std_filename,
+        headers={"Content-Disposition": f'attachment; filename="{std_filename}"'}
     )
 
 @app.get("/api/protocols/{proto_id}/export/bodovani.txt")
@@ -1185,7 +1319,8 @@ def save_evaluation(proto_id: int, req: EvaluationSaveRequest, request: Request,
     conn = get_db()
     cur = conn.cursor()
     cur.execute("""
-    SELECT p.*, s.code as semester_code, sl.name as slot_name, sl.day_of_week, sl.time_start, sl.room as slot_room, m.code as measurement_code
+    SELECT p.*, s.code as semester_code, sl.name as slot_name, sl.day_of_week, sl.time_start, sl.room as slot_room,
+           m.code as measurement_code, m.number as meas_num, m.course_code as meas_course_code
     FROM protocols p
     JOIN semesters s ON p.semester_id = s.id
     JOIN slots sl ON p.slot_id = sl.id
@@ -1240,7 +1375,12 @@ def save_evaluation(proto_id: int, req: EvaluationSaveRequest, request: Request,
         student_name=proto["student_name"]
     )
 
-    corrected_filename = Path(proto["source_filename"]).stem + "_opravene.pdf"
+    std_filename = build_standard_export_filename(
+        course_code=proto.get("meas_course_code") or proto.get("semester_code") or "FPRA1",
+        meas_num=proto.get("meas_num"),
+        student_name=proto.get("student_name")
+    )
+    corrected_filename = std_filename
     corrected_path_str = None
 
     if req.annotations is not None:
@@ -1628,6 +1768,7 @@ async def autodetect_protocol_metadata(file: UploadFile = File(...), user: dict 
         raise HTTPException(status_code=400, detail=f"Nelze otevřít PDF soubor: {str(e)}")
 
     page_text = doc[0].get_text() if len(doc) > 0 else ""
+    page_text = normalize_latex_pdf_text(page_text)
     preview = page_text[:1200]
     filename = file.filename
 
@@ -1648,13 +1789,17 @@ async def autodetect_protocol_metadata(file: UploadFile = File(...), user: dict 
     m_name = re.search(r'(?:Jm[ée]no(?:\s+a\s+\S+)?|Meno(?:\s+a\s+\S+)?|Vypracoval(?:a)?|Autor(?:ka)?|Student(?:ka)?)\s*[:=]\s*([^\n\r,]+)', page_text, re.I)
     if not m_name:
         m_name = re.search(r'(?:Jm[ée]no(?:\s+a\s+\S+)?|Meno(?:\s+a\s+\S+)?|Vypracoval(?:a)?|Autor(?:ka)?|Student(?:ka)?)\s*[:=]?\s*\n\s*([^\n\r,]+)', page_text, re.I)
-    if m_name:
-        student_name = m_name.group(1).strip()
-    else:
+    if m_name and m_name.group(1).strip():
+        detected = m_name.group(1).strip()
+        detected = re.sub(r'[\(\[\{].*?[\)\]\}]', '', detected).strip()
+        detected = re.sub(r'\s+(?:datum|krou[zž]ek|skupina|obor|ro[cč]n[ií]k|spolupr[aá]ce|kolega).*$', '', detected, flags=re.I).strip()
+        if len(detected) >= 3 and not any(k in detected.lower() for k in ["úloha", "datum", "skupina", "obor", "mereni", "meranie"]):
+            student_name = detected
+    if not student_name:
         clean = Path(filename).stem
-        for s in ['_opravene', '_opraveno', '-opravene', 'FPRA1_', 'FPRA2_', 'ZFM2_']:
+        for s in ['_opravene', '_opraveno', '-opravene', 'FPRA1_', 'FPRA2_', 'ZFM2_', 'FPRA_']:
             clean = clean.replace(s, '')
-        parts = clean.split('_')
+        parts = [p for p in clean.split('_') if not any(k in p.lower() for k in ["uloha", "meranie", "opraven", "fpra", "zfm"])]
         student_name = parts[-1].capitalize() if parts else "Student"
 
     # 3. Task Number & Measurement ID
@@ -1690,7 +1835,7 @@ async def autodetect_protocol_metadata(file: UploadFile = File(...), user: dict 
 
     # If still not found, check regex in text
     if task_number is None:
-        m_task = re.search(r'(?:Úloha|Meranie|Uloha)\s*(?:č\.?)?\s*(\d+)', page_text, re.I)
+        m_task = re.search(r'(?:Úloha|Meranie|Uloha|číslo\s*úlohy)\s*[:=]?\s*(?:č\.?)?\s*(\d+)', page_text, re.I)
         if m_task:
             task_number = int(m_task.group(1))
         else:
@@ -2226,7 +2371,12 @@ def export_protocols_zip(
             
             # 1. Corrected PDF if available
             if r["corrected_path"] and os.path.isfile(r["corrected_path"]):
-                c_fname = r["corrected_filename"] or f"{prefix}_opravene.pdf"
+                std_c_fname = build_standard_export_filename(
+                    course_code="FPRA1",
+                    meas_num=r["measurement_number"],
+                    student_name=r["student_name"]
+                )
+                c_fname = std_c_fname
                 arc = f"{prefix}/{c_fname}"
                 if arc in added_arcnames:
                     arc = f"{prefix}_{r['id']}/{c_fname}"

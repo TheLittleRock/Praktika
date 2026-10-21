@@ -16,6 +16,16 @@
 </head>
 <body>
 <div class="app-layout" id="app-layout">
+  <!-- Fullscreen Drag and Drop Overlay for Dashboard Import -->
+  <div id="home-drag-drop-overlay" class="drag-drop-overlay" style="display:none;">
+    <div class="drag-drop-card">
+      <div class="drag-drop-icon">📂</div>
+      <h3 class="drag-drop-title">Přetáhněte sem protokoly k importu</h3>
+      <p class="drag-drop-subtitle">Pusťte soubory pro okamžité načtení a autodetekci (podporován je i vícenásobný výběr PDF)</p>
+      <div class="drag-drop-badge">✨ Autodetekce jména i čísla úlohy</div>
+    </div>
+  </div>
+
   <!-- Left Sidebar Navigation -->
   <aside class="app-sidebar" id="app-sidebar">
     <div class="sidebar-brand" onclick="App.showView('dashboard')" style="cursor:pointer;">
@@ -291,6 +301,10 @@
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
               <span>Vpřed</span>
             </button>
+            <button class="tool-btn" id="btn-toggle-thumbnails" onclick="PDFStudio.toggleThumbnails()" title="Zobrazit / skrýt miniatury stránek (klávesa M)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+              <span>Miniatury</span>
+            </button>
           </div>
 
           <!-- View controls and save actions -->
@@ -357,6 +371,17 @@
             <!-- Snap Guideline Previews for Windows-like edge docking (Left & Right) -->
             <div class="dock-snap-preview" id="dock-snap-preview"></div>
             <div class="dock-snap-preview-left" id="dock-snap-preview-left"></div>
+
+            <!-- Collapsible Thumbnails Drawer inside PDF Workspace -->
+            <aside class="studio-thumbnails-drawer" id="studio-thumbnails-drawer" style="display:none;">
+              <div class="thumbnails-drawer-header">
+                <span class="thumbnails-drawer-title">📑 Miniatury</span>
+                <button type="button" class="thumbnails-close-btn" onclick="PDFStudio.toggleThumbnails()" title="Zavřít miniatury (M)">✕</button>
+              </div>
+              <div class="thumbnails-list" id="studio-thumbnails-list">
+                <!-- Dynamically populated by PDFStudio.renderThumbnails() -->
+              </div>
+            </aside>
 
             <!-- PDF Canvas Viewer Pane -->
             <div class="pdf-pane" id="pdf-render-pane">
@@ -568,7 +593,7 @@
         <h3>Nahrát nový protokol k opravě</h3>
         <button class="btn btn-secondary btn-sm" onclick="App.closeUploadModal()">✕</button>
       </div>
-      <form onsubmit="App.handleProtocolUpload(event)" style="display:flex; flex-direction:column; gap:14px;">
+      <form id="upload-form" onsubmit="App.handleProtocolUpload(event)" style="display:flex; flex-direction:column; gap:14px;">
         <div class="form-group">
           <label class="form-label">Soubor(y) PDF protokolu:</label>
           <input type="file" id="upload-file-input" accept=".pdf" class="form-control" multiple required onchange="App.handleUploadFileSelect(this)">
@@ -751,6 +776,17 @@
                 </select>
               </div>
             </div>
+          </div>
+
+          <div style="background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:14px;">
+            <h4 style="font-size:0.95rem; font-weight:700; margin-bottom:6px;">Dokování postranních panelů v PDF Studiu</h4>
+            <p style="font-size:0.83rem; color:var(--text-muted); margin-bottom:12px;">
+              Ve výchozím stavu se panel AI asistenta a panel Bodování při současném otevření automaticky rozdělí na protilehlé strany (jeden vlevo, druhý vpravo), aby plocha PDF zůstala bezpečně uprostřed.
+            </p>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.86rem; color:var(--text-main); user-select:none;">
+              <input type="checkbox" id="setting-allow-both-panels-same-side" onchange="App.handleAllowBothPanelsSameSideChange(this.checked)">
+              <span>Povolit dokování obou panelů na stejné straně (vedle sebe)</span>
+            </label>
           </div>
         </div>
       </div>

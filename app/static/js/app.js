@@ -228,6 +228,9 @@ const App = {
   gradingDockSide: localStorage.getItem('praktika_grading_dock_side') || 'right',
   aiDrawerDockSide: localStorage.getItem('praktika_ai_dock_side') || 'right',
   aiDrawerFloating: localStorage.getItem('praktika_ai_floating') === 'true',
+  allowBothPanelsSameSide: localStorage.getItem('praktika_allow_both_panels_same_side') === 'true',
+  currentAutodetectPromise: null,
+  currentAutodetectPending: false,
   selectedProtocolIds: new Set(),
   currentSort: { column: 'student', dir: 'asc' },
 
@@ -242,6 +245,7 @@ const App = {
     await this.loadInitialMetadata();
     await this.loadPresets();
     this.setupEventListeners();
+    this.setupDragAndDrop();
     this.setupClientErrorLogging();
     this.setupGradingDockDrag();
     this.setupAIDrawerDrag();
@@ -505,22 +509,25 @@ const App = {
     const filterSelect = document.getElementById('filter-semester-select');
     const uploadSelect = document.getElementById('upload-semester-select');
 
-    const options = this.semesters.map(s => `
+    const globalOptions = this.semesters.map(s => `
+      <option value="${s.id}" ${s.id === this.activeSemesterId ? 'selected' : ''}>${s.code}</option>
+    `).join('');
+    const fullOptions = this.semesters.map(s => `
       <option value="${s.id}" ${s.id === this.activeSemesterId ? 'selected' : ''}>${s.code} (${s.name})</option>
     `).join('');
 
     if (globalSelect) {
-      globalSelect.innerHTML = options;
+      globalSelect.innerHTML = globalOptions;
       globalSelect.onchange = (e) => {
         this.handleGlobalSemesterChange(e.target.value);
       };
     }
     if (filterSelect) {
-      filterSelect.innerHTML = `<option value="">Všechny semestry</option>` + options;
+      filterSelect.innerHTML = `<option value="">Všechny semestry</option>` + fullOptions;
       if (this.activeSemesterId) filterSelect.value = this.activeSemesterId;
     }
     if (uploadSelect) {
-      uploadSelect.innerHTML = options;
+      uploadSelect.innerHTML = fullOptions;
       if (this.activeSemesterId) uploadSelect.value = this.activeSemesterId;
     }
   },
@@ -639,11 +646,12 @@ const App = {
 
     if (isOpening) {
       this.updateGradingDockSideButton();
-      // If AI drawer is open and both would be on the SAME side, auto-move AI drawer to opposite side!
-      const aiDrawer = document.getElementById('studio-ai-drawer');
-      if (aiDrawer && aiDrawer.style.display !== 'none' && !aiDrawer.classList.contains('floating-mode') && !dock.classList.contains('floating-mode')) {
-        if (this.gradingDockSide === this.aiDrawerDockSide) {
-          this.toggleAIDrawerSide();
+      if (!this.allowBothPanelsSameSide) {
+        const aiDrawer = document.getElementById('studio-ai-drawer');
+        if (aiDrawer && aiDrawer.style.display !== 'none' && !aiDrawer.classList.contains('floating-mode') && !dock.classList.contains('floating-mode')) {
+          if (this.gradingDockSide === this.aiDrawerDockSide) {
+            this.setAIDrawerSide(this.gradingDockSide === 'right' ? 'left' : 'right', false);
+          }
         }
       }
     }
@@ -661,36 +669,30 @@ const App = {
     }
   },
 
-  toggleGradingDockSide() {
+  setGradingDockSide(side, triggerOther = true) {
     const dock = document.getElementById('studio-grading-dock');
     if (!dock) return;
-    if (this.gradingDockSide === 'right') {
-      this.gradingDockSide = 'left';
-      dock.classList.remove('docked-right', 'floating-mode');
-      dock.classList.add('docked-left');
-      dock.style.left = '';
-      dock.style.top = '';
-      dock.style.right = '';
-      // If AI drawer is also docked left, auto-flip AI drawer to right so both stay visible!
+    this.gradingDockSide = side;
+    dock.classList.remove('docked-left', 'docked-right', 'floating-mode');
+    dock.classList.add(side === 'left' ? 'docked-left' : 'docked-right');
+    dock.style.left = '';
+    dock.style.top = '';
+    dock.style.right = '';
+    this.updateGradingDockSideButton();
+    localStorage.setItem('praktika_grading_dock_side', side);
+
+    if (triggerOther && !this.allowBothPanelsSameSide) {
       const aiDrawer = document.getElementById('studio-ai-drawer');
-      if (aiDrawer && aiDrawer.style.display !== 'none' && !aiDrawer.classList.contains('floating-mode') && this.aiDrawerDockSide === 'left') {
-        this.toggleAIDrawerSide();
-      }
-    } else {
-      this.gradingDockSide = 'right';
-      dock.classList.remove('docked-left', 'floating-mode');
-      dock.classList.add('docked-right');
-      dock.style.left = '';
-      dock.style.top = '';
-      dock.style.right = '';
-      // If AI drawer is also docked right, auto-flip AI drawer to left so both stay visible!
-      const aiDrawer = document.getElementById('studio-ai-drawer');
-      if (aiDrawer && aiDrawer.style.display !== 'none' && !aiDrawer.classList.contains('floating-mode') && this.aiDrawerDockSide === 'right') {
-        this.toggleAIDrawerSide();
+      if (aiDrawer && aiDrawer.style.display !== 'none' && !aiDrawer.classList.contains('floating-mode')) {
+        if (this.aiDrawerDockSide === side) {
+          this.setAIDrawerSide(side === 'right' ? 'left' : 'right', false);
+        }
       }
     }
-    this.updateGradingDockSideButton();
-    localStorage.setItem('praktika_grading_dock_side', this.gradingDockSide);
+  },
+
+  toggleGradingDockSide() {
+    this.setGradingDockSide(this.gradingDockSide === 'right' ? 'left' : 'right', true);
   },
 
   toggleDockFloatingMode() {
@@ -800,36 +802,30 @@ const App = {
     }
   },
 
-  toggleAIDrawerSide() {
+  setAIDrawerSide(side, triggerOther = true) {
     const drawer = document.getElementById('studio-ai-drawer');
     if (!drawer) return;
-    if (this.aiDrawerDockSide === 'right') {
-      this.aiDrawerDockSide = 'left';
-      drawer.classList.remove('docked-right', 'floating-mode');
-      drawer.classList.add('docked-left');
-      drawer.style.left = '';
-      drawer.style.top = '';
-      drawer.style.right = '';
-      // If grading dock is also docked left, auto-flip grading dock to right so both stay visible!
+    this.aiDrawerDockSide = side;
+    drawer.classList.remove('docked-left', 'docked-right', 'floating-mode');
+    drawer.classList.add(side === 'left' ? 'docked-left' : 'docked-right');
+    drawer.style.left = '';
+    drawer.style.top = '';
+    drawer.style.right = '';
+    this.updateAIDockSideButton();
+    localStorage.setItem('praktika_ai_dock_side', side);
+
+    if (triggerOther && !this.allowBothPanelsSameSide) {
       const dock = document.getElementById('studio-grading-dock');
-      if (dock && dock.style.display !== 'none' && !dock.classList.contains('floating-mode') && this.gradingDockSide === 'left') {
-        this.toggleGradingDockSide();
-      }
-    } else {
-      this.aiDrawerDockSide = 'right';
-      drawer.classList.remove('docked-left', 'floating-mode');
-      drawer.classList.add('docked-right');
-      drawer.style.left = '';
-      drawer.style.top = '';
-      drawer.style.right = '';
-      // If grading dock is also docked right, auto-flip grading dock to left so both stay visible!
-      const dock = document.getElementById('studio-grading-dock');
-      if (dock && dock.style.display !== 'none' && !dock.classList.contains('floating-mode') && this.gradingDockSide === 'right') {
-        this.toggleGradingDockSide();
+      if (dock && dock.style.display !== 'none' && !dock.classList.contains('floating-mode')) {
+        if (this.gradingDockSide === side) {
+          this.setGradingDockSide(side === 'right' ? 'left' : 'right', false);
+        }
       }
     }
-    this.updateAIDockSideButton();
-    localStorage.setItem('praktika_ai_dock_side', this.aiDrawerDockSide);
+  },
+
+  toggleAIDrawerSide() {
+    this.setAIDrawerSide(this.aiDrawerDockSide === 'right' ? 'left' : 'right', true);
   },
 
   toggleAIFloatingMode() {
@@ -1329,6 +1325,9 @@ const App = {
                 ${p.status === 'graded' ? 'Upravit' : 'Opravit'}
               </button>
               <button class="btn btn-secondary btn-sm" onclick="App.openEditMetadataModal(${p.id})" title="Upravit studenta, termín či úlohu">✏️</button>
+              ${p.share_token ? `
+                <button class="btn btn-secondary btn-sm btn-student-link" onclick="App.copyStudentLink('${p.share_token}')" title="Kopírovat odkaz pro studenta">🔗</button>
+              ` : ''}
               ${p.corrected_filename ? `
                 <a class="btn btn-secondary btn-sm" href="/api/protocols/${p.id}/pdf/corrected" target="_blank" title="Zobrazit opravené PDF">PDF</a>
                 <a class="btn btn-secondary btn-sm" href="/api/protocols/${p.id}/export/bodovani.txt" download title="Stáhnout bodovani.txt">.txt</a>
@@ -1347,6 +1346,17 @@ const App = {
       selectAll.checked = checkboxes.length > 0 && Array.from(checkboxes).every(cb => cb.checked);
     }
     this.updateBulkActionBar();
+  },
+
+  async copyStudentLink(token) {
+    if (!token) return;
+    const url = `${window.location.origin}/student/${token}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      this.showToast("Odkaz pro studenta byl zkopírován do schránky!");
+    } catch (e) {
+      window.prompt("Odkaz pro studenta:", url);
+    }
   },
 
   async assignProtocol(protoId, evaluatorId) {
@@ -1542,6 +1552,63 @@ const App = {
     return parts[0] || base;
   },
 
+  // Dashboard Drag & Drop Import
+  setupDragAndDrop() {
+    const overlay = document.getElementById('home-drag-drop-overlay');
+    if (!overlay) return;
+
+    let dragCounter = 0;
+
+    window.addEventListener('dragenter', (e) => {
+      if (this.currentView !== 'dashboard') return;
+      if (e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
+        dragCounter++;
+        overlay.style.display = 'flex';
+      }
+    });
+
+    window.addEventListener('dragover', (e) => {
+      if (this.currentView !== 'dashboard') return;
+      if (e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    });
+
+    window.addEventListener('dragleave', (e) => {
+      if (this.currentView !== 'dashboard') return;
+      dragCounter--;
+      if (dragCounter <= 0) {
+        dragCounter = 0;
+        overlay.style.display = 'none';
+      }
+    });
+
+    window.addEventListener('drop', (e) => {
+      if (this.currentView !== 'dashboard') return;
+      dragCounter = 0;
+      overlay.style.display = 'none';
+
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        e.preventDefault();
+        const files = Array.from(e.dataTransfer.files).filter(f => f.name.toLowerCase().endsWith('.pdf'));
+        if (files.length === 0) {
+          this.showToast("Přetažené soubory musí být ve formátu PDF.");
+          return;
+        }
+
+        this.openUploadModal();
+        const fileInput = document.getElementById('upload-file-input');
+        if (fileInput) {
+          const dt = new DataTransfer();
+          files.forEach(f => dt.items.add(f));
+          fileInput.files = dt.files;
+          this.handleUploadFileSelect(fileInput);
+        }
+      }
+    });
+  },
+
   // Upload Modal
   openUploadModal() {
     const modal = document.getElementById('upload-modal');
@@ -1568,6 +1635,8 @@ const App = {
     const measSelect = document.getElementById('upload-measurement-select');
 
     if (files.length > 1) {
+      this.currentAutodetectPending = false;
+      this.currentAutodetectPromise = null;
       if (nameInput) {
         nameInput.value = '';
         nameInput.placeholder = 'Automatická detekce jména pro každý soubor zvlášť...';
@@ -1586,71 +1655,82 @@ const App = {
       if (statusSpinner) statusSpinner.textContent = '⏳';
     }
 
-    try {
-      const fd = new FormData();
-      fd.append('file', files[0]);
-      const resp = await fetch('/api/protocols/autodetect', {
-        method: 'POST',
-        body: fd
-      });
+    this.currentAutodetectPending = true;
+    const p = (async () => {
+      try {
+        const fd = new FormData();
+        fd.append('file', files[0]);
+        const resp = await fetch('/api/protocols/autodetect', {
+          method: 'POST',
+          body: fd
+        });
 
-      if (resp.ok) {
-        const data = await resp.json();
-        // Prefill student name
-        if (data.student_name && nameInput) {
-          nameInput.value = data.student_name;
-        }
+        if (resp.ok) {
+          const data = await resp.json();
+          // Prefill student name
+          if (data.student_name && nameInput) {
+            nameInput.value = data.student_name;
+          }
 
-        // Prefill semester if returned
-        if (data.semester_id && semSelect) {
-          semSelect.value = data.semester_id;
-        }
+          // Prefill semester if returned
+          if (data.semester_id && semSelect) {
+            semSelect.value = data.semester_id;
+          }
 
-        // Prefill slot if returned
-        if (data.slot_id && slotSelect) {
-          slotSelect.value = data.slot_id;
-          this.handleUploadSlotChange();
-        } else if (data.course_code && slotSelect) {
-          for (let i = 0; i < slotSelect.options.length; i++) {
-            if (slotSelect.options[i].getAttribute('data-course') === data.course_code) {
-              slotSelect.selectedIndex = i;
-              this.handleUploadSlotChange();
-              break;
+          // Prefill slot if returned
+          if (data.slot_id && slotSelect) {
+            slotSelect.value = data.slot_id;
+            this.handleUploadSlotChange();
+          } else if (data.course_code && slotSelect) {
+            for (let i = 0; i < slotSelect.options.length; i++) {
+              if (slotSelect.options[i].getAttribute('data-course') === data.course_code) {
+                slotSelect.selectedIndex = i;
+                this.handleUploadSlotChange();
+                break;
+              }
             }
           }
-        }
 
-        // Prefill measurement
-        const taskNum = data.measurement_number || data.task_number;
-        if (data.measurement_id && measSelect) {
-          measSelect.value = data.measurement_id;
-        } else if (taskNum && measSelect) {
-          const match = Array.from(measSelect.options).find(o => o.textContent.includes(`Úloha ${taskNum}:`));
-          if (match) measSelect.value = match.value;
-        }
-
-        if (statusBox) {
-          const courseLabel = data.course_code ? `[${data.course_code}] ` : '';
-          const taskLabel = taskNum ? ` | Úloha ${taskNum}` : '';
-          if (statusText) {
-            statusText.innerHTML = `<strong>✨ Autodetekce úspěšná:</strong> ${this.escape(data.student_name || 'Student')} (${courseLabel}${data.slot_name || ''}${taskLabel})`;
+          // Prefill measurement
+          const taskNum = data.measurement_number || data.task_number;
+          if (data.measurement_id && measSelect) {
+            measSelect.value = data.measurement_id;
+          } else if (taskNum && measSelect) {
+            const match = Array.from(measSelect.options).find(o => o.textContent.includes(`Úloha ${taskNum}:`));
+            if (match) measSelect.value = match.value;
           }
-          if (statusSpinner) statusSpinner.textContent = '✓';
+
+          if (statusBox) {
+            const courseLabel = data.course_code ? `[${data.course_code}] ` : '';
+            const taskLabel = taskNum ? ` | Úloha ${taskNum}` : '';
+            if (statusText) {
+              statusText.innerHTML = `<strong>✨ Autodetekce úspěšná:</strong> ${this.escape(data.student_name || 'Student')} (${courseLabel}${data.slot_name || ''}${taskLabel})`;
+            }
+            if (statusSpinner) statusSpinner.textContent = '✓';
+          }
+          return data;
+        } else {
+          if (statusBox) {
+            if (statusText) statusText.textContent = 'Detekce z textu PDF se nezdařila, doplňte prosím údaje ručně.';
+            if (statusSpinner) statusSpinner.textContent = 'ℹ️';
+          }
+          return null;
         }
-      } else {
-        if (statusBox) {
-          if (statusText) statusText.textContent = 'Detekce z textu PDF se nezdařila, doplňte prosím údaje ručně.';
-          if (statusSpinner) statusSpinner.textContent = 'ℹ️';
-        }
+      } catch(e) {
+        console.warn("Autodetect failed:", e);
+        if (statusBox) statusBox.style.display = 'none';
+        return null;
+      } finally {
+        this.currentAutodetectPending = false;
       }
-    } catch(e) {
-      console.warn("Autodetect failed:", e);
-      if (statusBox) statusBox.style.display = 'none';
-    }
+    })();
+
+    this.currentAutodetectPromise = p;
+    await p;
   },
 
   async handleProtocolUpload(e) {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     const fileInput = document.getElementById('upload-file-input');
     const semSelect = document.getElementById('upload-semester-select');
     const slotSelect = document.getElementById('upload-slot-select');
@@ -1668,6 +1748,16 @@ const App = {
     submitBtn.disabled = true;
 
     if (progressBox) progressBox.style.display = 'block';
+
+    // If autodetect is currently pending and user submitted immediately, wait for it to finish
+    if (this.currentAutodetectPending && this.currentAutodetectPromise && !nameInput.value.trim()) {
+      if (progressBox) {
+        progressBox.textContent = 'Čekám na dokončení automatické detekce jména a úlohy...';
+      }
+      try {
+        await this.currentAutodetectPromise;
+      } catch(e) {}
+    }
 
     let successCount = 0;
     const manualName = nameInput.value.trim();
@@ -1687,7 +1777,7 @@ const App = {
         formData.append('file', file);
         formData.append('semester_id', semSelect.value);
         formData.append('slot_id', slotSelect.value);
-        formData.append('measurement_id', measSelect.value);
+        formData.append('measurement_id', measSelect.value || '0');
         formData.append('student_name', studentName);
 
         const resp = await fetch('/api/protocols/upload', {
@@ -2149,6 +2239,16 @@ const App = {
     const wheelSelect = document.getElementById('zoom-wheel-step-select');
     if (touchSelect) touchSelect.value = touchpadSens;
     if (wheelSelect) wheelSelect.value = wheelStep;
+
+    const allowBoth = localStorage.getItem('praktika_allow_both_panels_same_side') === 'true';
+    const allowBothEl = document.getElementById('setting-allow-both-panels-same-side');
+    if (allowBothEl) allowBothEl.checked = allowBoth;
+  },
+
+  handleAllowBothPanelsSameSideChange(checked) {
+    this.allowBothPanelsSameSide = !!checked;
+    localStorage.setItem('praktika_allow_both_panels_same_side', this.allowBothPanelsSameSide ? 'true' : 'false');
+    this.showToast(this.allowBothPanelsSameSide ? "Povoleno dokování obou panelů na stejné straně." : "Zapnuto oddělování postranních panelů na protější strany.");
   },
 
   handleZoomSettingChange(type, value) {
@@ -3496,11 +3596,12 @@ const App = {
     if (isHidden) {
       this.updateAIDockSideButton();
       this.updateAIDrawerLists();
-      // If grading dock is open and both would be on the SAME side, auto-move grading dock to opposite side!
-      const gradingDock = document.getElementById('studio-grading-dock');
-      if (gradingDock && gradingDock.style.display !== 'none' && !gradingDock.classList.contains('floating-mode') && !drawer.classList.contains('floating-mode')) {
-        if (this.aiDrawerDockSide === this.gradingDockSide) {
-          this.toggleGradingDockSide();
+      if (!this.allowBothPanelsSameSide) {
+        const gradingDock = document.getElementById('studio-grading-dock');
+        if (gradingDock && gradingDock.style.display !== 'none' && !gradingDock.classList.contains('floating-mode') && !drawer.classList.contains('floating-mode')) {
+          if (this.aiDrawerDockSide === this.gradingDockSide) {
+            this.setGradingDockSide(this.aiDrawerDockSide === 'right' ? 'left' : 'right', false);
+          }
         }
       }
     }
@@ -4282,15 +4383,33 @@ const App = {
 
       // ESC closes search bar, modal or floating comment box
       if (e.key === 'Escape') {
+        const appModal = document.getElementById('app-modal-backdrop');
+        if (appModal && appModal.style.display !== 'none') {
+          window.AppModal.close(null);
+          return;
+        }
         if (window.PDFStudio && window.PDFStudio.isSearchOpen) {
           window.PDFStudio.closeSearch();
+          return;
+        }
+        if (window.PDFStudio && window.PDFStudio.floatingBoxEl && window.PDFStudio.floatingBoxEl.style.display !== 'none') {
+          window.PDFStudio.closeCommentBox(true);
+          return;
+        }
+        const overlay = document.getElementById('home-drag-drop-overlay');
+        if (overlay && overlay.style.display !== 'none') {
+          overlay.style.display = 'none';
           return;
         }
         this.closeUploadModal();
         this.closeSettingsModal();
         this.closeEditMetadataModal();
+        this.closeBulkEditModal();
         this.closeAIReviewModal();
-        if (window.PDFStudio) window.PDFStudio.closeCommentBox();
+        this.closeInstructionsModal();
+        this.closeSwitchUserModal();
+        const guideModal = document.getElementById('ai-chat-guide-modal');
+        if (guideModal && guideModal.style.display !== 'none') guideModal.style.display = 'none';
         return;
       }
 
@@ -4302,6 +4421,73 @@ const App = {
         activeEl.tagName === 'SELECT' ||
         activeEl.isContentEditable
       );
+      const isTextarea = activeEl && activeEl.tagName === 'TEXTAREA';
+
+      // ENTER confirms active modal dialog (unless in textarea without Ctrl/Cmd)
+      if (e.key === 'Enter' && !e.shiftKey && (!isTextarea || e.ctrlKey || e.metaKey)) {
+        // 1. Generic AppModal
+        const appModal = document.getElementById('app-modal-backdrop');
+        if (appModal && appModal.style.display !== 'none') {
+          e.preventDefault();
+          const okBtn = document.getElementById('app-modal-confirm-btn') || document.getElementById('app-modal-ok-btn');
+          if (okBtn) okBtn.click();
+          return;
+        }
+
+        // 2. Upload Modal
+        const uploadModal = document.getElementById('upload-modal');
+        if (uploadModal && uploadModal.classList.contains('active')) {
+          e.preventDefault();
+          this.handleProtocolUpload(e);
+          return;
+        }
+
+        // 3. Edit Metadata Modal
+        const editMetaModal = document.getElementById('edit-metadata-modal');
+        if (editMetaModal && editMetaModal.classList.contains('active')) {
+          e.preventDefault();
+          this.handleSaveMetadata(e);
+          return;
+        }
+
+        // 4. Bulk Edit Modal
+        const bulkModal = document.getElementById('bulk-edit-modal');
+        if (bulkModal && bulkModal.classList.contains('active')) {
+          e.preventDefault();
+          this.handleBulkSaveMetadata(e);
+          return;
+        }
+
+        // 5. Switch User Modal
+        const switchUserModal = document.getElementById('switch-user-modal');
+        if (switchUserModal && switchUserModal.classList.contains('active')) {
+          e.preventDefault();
+          this.handleSwitchUser(e);
+          return;
+        }
+
+        // 6. Login Modal
+        const loginModal = document.getElementById('login-modal');
+        if (loginModal && loginModal.classList.contains('active')) {
+          e.preventDefault();
+          this.handleLogin(e);
+          return;
+        }
+
+        // 7. Instructions / Guide Modal
+        const instrModal = document.getElementById('instructions-modal');
+        if (instrModal && instrModal.classList.contains('active')) {
+          e.preventDefault();
+          this.closeInstructionsModal();
+          return;
+        }
+        const guideModal = document.getElementById('ai-chat-guide-modal');
+        if (guideModal && guideModal.style.display !== 'none') {
+          e.preventDefault();
+          guideModal.style.display = 'none';
+          return;
+        }
+      }
 
       const hasModal = document.querySelector('.modal-backdrop.active');
 
