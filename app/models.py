@@ -263,3 +263,72 @@ class AIChatResponse(BaseModel):
     annotations: List[AIAnnotationSuggestion] = []
     history: List[AIChatMessage] = []
 
+# ==========================================
+# STUDENT ANALYTICS & HEARTBEAT MODELS
+# ==========================================
+
+class StudentHeartbeatRequest(BaseModel):
+    session_id: str
+    duration_delta: int = 0
+    is_new: bool = False
+
+class StudentViewSession(BaseModel):
+    id: int
+    session_id: str
+    started_at: str
+    last_seen_at: str
+    duration_seconds: int
+    device_type: Optional[str] = "Desktop"
+
+class ProtocolViewsResponse(BaseModel):
+    protocol_id: int
+    student_name: str
+    view_count: int
+    total_seconds: int
+    first_viewed_at: Optional[str] = None
+    last_viewed_at: Optional[str] = None
+    sessions: List[StudentViewSession] = []
+
+# ==========================================
+# MOODLE INTEGRATION MODELS
+# ==========================================
+
+class MoodleConfig(BaseModel):
+    moodle_url: str = "https://moodle-vyuka.cvut.cz"
+    course_id: str = "16880"
+    moodle_session: Optional[str] = ""
+
+class MoodleAssignmentItem(BaseModel):
+    cmid: str
+    title: str
+    section: Optional[str] = ""
+    submissions_count: Optional[int] = 0
+
+class MoodleGroupItem(BaseModel):
+    id: str
+    name: str
+
+class MoodleCourseStructureResponse(BaseModel):
+    course_id: str
+    course_title: Optional[str] = ""
+    assignments: List[MoodleAssignmentItem] = []
+    groups: List[MoodleGroupItem] = []
+
+class MoodleDownloadRequest(BaseModel):
+    cmid: str
+    group_id: Optional[str] = "0"
+    semester_id: int
+    slot_id: int
+    measurement_id: int
+
+class MoodleUploadStudentItem(BaseModel):
+    protocol_id: int
+    upload_pdf: bool = True
+    upload_grade: bool = True
+
+class MoodleUploadRequest(BaseModel):
+    cmid: str
+    group_id: Optional[str] = "0"
+    students: List[MoodleUploadStudentItem]
+
+

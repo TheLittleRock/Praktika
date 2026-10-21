@@ -70,6 +70,7 @@ Thumbs.db
 site/
 
 # Test suites & source files excluded from repo
-tests/
+tests/*
+!tests/*.py
 Protokoly testovaci/
 scratch/

@@ -1817,6 +1817,89 @@
         setTimeout(fitWidth, 500);
       }
     });
+
+    // ==========================================
+    // Student Analytics & Active Reading Tracker
+    // ==========================================
+    (function initStudentAnalytics() {
+      if (!shareToken) return;
+
+      let sessionId = sessionStorage.getItem('student_session_id');
+      let isNewSession = false;
+      if (!sessionId) {
+        sessionId = 's_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+        sessionStorage.setItem('student_session_id', sessionId);
+        isNewSession = true;
+      }
+
+      let activeSeconds = 0;
+      let lastHeartbeatTime = Date.now();
+      const heartbeatInterval = 15;
+
+      function sendHeartbeat(delta, isBeacon = false) {
+        if (delta <= 0 && !isNewSession) return;
+        const payload = JSON.stringify({
+          session_id: sessionId,
+          duration_delta: Math.round(delta),
+          is_new: isNewSession
+        });
+        isNewSession = false;
+
+        const endpoint = `/api/public/protocol/${shareToken}/heartbeat`;
+
+        if (isBeacon && navigator.sendBeacon) {
+          const blob = new Blob([payload], { type: 'application/json' });
+          navigator.sendBeacon(endpoint, blob);
+        } else {
+          fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+            keepalive: true
+          }).catch(() => {});
+        }
+      }
+
+      // Initial visit ping
+      sendHeartbeat(0);
+
+      // Periodic timer tracking active reading time
+      setInterval(() => {
+        const now = Date.now();
+        const elapsed = (now - lastHeartbeatTime) / 1000;
+        lastHeartbeatTime = now;
+
+        if (document.visibilityState === 'visible') {
+          activeSeconds += Math.min(elapsed, 20);
+        }
+
+        if (activeSeconds >= heartbeatInterval) {
+          const toSend = activeSeconds;
+          activeSeconds = 0;
+          sendHeartbeat(toSend);
+        }
+      }, 3000);
+
+      // Flush remaining time on tab hide or unload
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+          if (activeSeconds > 0) {
+            const toSend = activeSeconds;
+            activeSeconds = 0;
+            sendHeartbeat(toSend, true);
+          }
+        } else {
+          lastHeartbeatTime = Date.now();
+        }
+      });
+
+      window.addEventListener('pagehide', () => {
+        if (activeSeconds > 0) {
+          sendHeartbeat(activeSeconds, true);
+          activeSeconds = 0;
+        }
+      });
+    })();
   </script>
 
 </body>

@@ -152,8 +152,14 @@
             <option value="in_progress">Rozpracované</option>
             <option value="graded">Opravené</option>
           </select>
+          <select id="filter-viewed-select" class="filter-select" onchange="App.loadProtocols()" title="Filtrovat podle zobrazení studentem">
+            <option value="">Zobrazení: Vše</option>
+            <option value="viewed">👁️ Zobrazeno studentem</option>
+            <option value="unviewed">⏳ Zatím neotevřeno</option>
+          </select>
           <input type="text" id="filter-search-input" class="search-input" placeholder="Hledat studenta nebo soubor..." oninput="App.loadProtocols()">
           <div style="margin-left:auto; display:flex; gap:8px;">
+            <button class="btn btn-secondary btn-sm" onclick="App.openMoodleModal()" title="Synchronizace a stahování/nahrávání z Moodle ČVUT (kurz 16880)">🎓 <span>Moodle</span></button>
             <button class="btn btn-secondary btn-sm" onclick="App.exportZip()" title="Stáhnout všechna opravená PDF a bodování v ZIP archivu">📦 <span>Stáhnout ZIP</span></button>
             <button class="btn btn-secondary btn-sm" onclick="App.exportCsv()" title="Exportovat přehled známek do CSV pro Excel">📊 <span>Export CSV</span></button>
           </div>
@@ -220,6 +226,12 @@
                       <span class="sort-indicator" id="sort-ind-evaluator">⇅</span>
                     </div>
                   </th>
+                  <th class="sortable-th" onclick="App.handleSortClick('views')" title="Počet a celkový čas zobrazení hodnocení studentem">
+                    <div class="th-content">
+                      <span>Zobrazeno</span>
+                      <span class="sort-indicator" id="sort-ind-views">⇅</span>
+                    </div>
+                  </th>
                   <th style="text-align:right;">Akce</th>
                 </tr>
               </thead>
@@ -248,6 +260,7 @@
             <div>
               <span id="studio-student-title" style="font-weight:700; font-size:0.92rem; color:var(--text-main);">Student</span>
               <span id="studio-meta-badge" style="font-size:0.75rem; color:var(--text-muted); margin-left:6px;"></span>
+              <span id="studio-student-views-badge" class="badge-student-view" style="display:none; margin-left:8px;" onclick="App.openCurrentStudentViewsModal()"></span>
             </div>
           </div>
 
@@ -675,6 +688,10 @@
               <span class="settings-nav-icon">🤖</span>
               <span class="settings-nav-label">AI Asistent</span>
             </button>
+            <button type="button" class="settings-nav-item" id="settings-tab-btn-moodle" onclick="App.showSettingsTab('moodle')">
+              <span class="settings-nav-icon">🎓</span>
+              <span class="settings-nav-label">Moodle integrace</span>
+            </button>
             <button type="button" class="settings-nav-item" id="settings-tab-btn-users" onclick="App.showSettingsTab('users')" style="display:none;">
               <span class="settings-nav-icon">👥</span>
               <span class="settings-nav-label">Uživatelé</span>
@@ -1007,6 +1024,68 @@
             <li>Navrhne srážky bodů přesně v násobcích 0.125 b ve standardních kategoriích (Výsledky, Diskuze, Formát, Chyby).</li>
             <li>Přímo v PDF zobrazí navržená označení s tlačítky <strong>✓ Schválit</strong>, <strong>✕ Zamítnout</strong> a <strong>✏️ Upravit</strong>.</li>
             <li>Pokud dojde k vyčerpání limitu nebo není zadán klíč, aktivuje se vestavěný fyzikální analyzátor.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Tab: Moodle Integration -->
+      <div class="settings-tab-pane" id="settings-pane-moodle" style="display:none;">
+        <div style="background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+            <div>
+              <h4 style="font-size:0.95rem; font-weight:700; margin:0; display:flex; align-items:center; gap:8px;">
+                <span>🎓 ČVUT Moodle integrace</span>
+                <span class="moodle-status-pill disconnected" id="moodle-status-pill">⚪ Neověřeno</span>
+              </h4>
+              <div style="font-size:0.8rem; color:var(--text-muted); margin-top:3px;">
+                Automatické stahování odevzdaných prací a nahrávání hodnocení bez nutnosti administrátorského API klíče.
+              </div>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="App.testMoodleConnection()" id="btn-test-moodle-conn">
+              ⚡ Otestovat spojení
+            </button>
+          </div>
+
+          <form onsubmit="App.handleSaveMoodleConfig(event)" style="display:flex; flex-direction:column; gap:12px;">
+            <div style="display:grid; grid-template-columns:2fr 1fr; gap:12px;">
+              <div class="form-group">
+                <label class="form-label">Adresa Moodle (Base URL):</label>
+                <input type="url" id="moodle-url-input" class="form-control" value="https://moodle-vyuka.cvut.cz" placeholder="https://moodle-vyuka.cvut.cz" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">ID Moodle kurzu:</label>
+                <input type="text" id="moodle-course-id-input" class="form-control" value="16880" placeholder="16880" required>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" style="display:flex; justify-content:space-between;">
+                <span>Cookie MoodleSession (z vašeho prohlížeče):</span>
+                <span id="moodle-cookie-status" style="font-size:0.75rem; color:var(--text-muted);">Nenastavena</span>
+              </label>
+              <div style="display:flex; gap:6px;">
+                <input type="password" id="moodle-cookie-input" class="form-control" placeholder="Vložte hodnotu cookie MoodleSession ze svého přihlášeného prohlížeče..." style="font-family:'JetBrains Mono',monospace;">
+                <button class="btn btn-secondary btn-sm" type="button" onclick="App.toggleMoodleCookieVisibility()">👁</button>
+              </div>
+              <div style="font-size:0.78rem; margin-top:4px; color:var(--text-muted);">
+                Cookie je uložena v lokální SQLite databázi. Umožňuje bezpečně stahovat práce a odesílat známky vaším jménem.
+              </div>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; flex-wrap:wrap; gap:8px;">
+              <button class="btn btn-secondary btn-sm" type="button" onclick="App.showMoodleLoginInstructions()">
+                ℹ️ Jak získat MoodleSession cookie?
+              </button>
+              <button class="btn btn-primary btn-sm" type="submit">Uložit konfiguraci Moodle</button>
+            </div>
+          </form>
+        </div>
+
+        <div style="background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:14px; font-size:0.83rem; color:var(--text-muted); line-height:1.5;">
+          <strong>Možnosti přihlášení a automatizace:</strong>
+          <ul style="padding-left:18px; margin-top:6px; margin-bottom:0;">
+            <li><strong>Přímé vložení cookie (Doporučeno):</strong> Přihlaste se v prohlížeči (Chrome/Firefox/Edge) do <a href="https://moodle-vyuka.cvut.cz" target="_blank" style="color:var(--primary);">moodle-vyuka.cvut.cz</a>, stiskněte <code>F12</code> ➔ <code>Aplikace / Úložiště</code> ➔ <code>Cookies</code>, zkopírujte hodnotu <code>MoodleSession</code> a vložte ji výše.</li>
+            <li><strong>Automatické přihlášení Playwrightem:</strong> V terminálu na serveru lze spustit příkaz <code>./venv/bin/python scripts/moodle_login.py</code>, který otevře okno prohlížeče, nechá vás přihlásit přes Microsoft SSO a cookie uloží automaticky.</li>
           </ul>
         </div>
       </div>
@@ -1614,6 +1693,162 @@
       <div style="display:flex; justify-content:flex-end;">
         <button type="button" class="btn btn-primary btn-sm" onclick="App.closeAIChatGuideModal()">Rozumím</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal: Historie zobrazení studentem -->
+  <div class="modal-backdrop" id="modal-student-views" style="display:none; z-index:9990;">
+    <div class="modal-box" style="max-width:540px; max-height:85vh; display:flex; flex-direction:column;">
+      <div class="modal-header">
+        <h3 style="display:flex; align-items:center; gap:8px;">
+          <span>👁️</span>
+          <span>Historie zobrazení hodnocení</span>
+        </h3>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="App.closeStudentViewsModal()">✕</button>
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <div style="font-weight:700; font-size:0.95rem; color:var(--text-main);" id="sv-student-name">Student</div>
+        <div style="font-size:0.78rem; color:var(--text-muted);" id="sv-student-meta">Protokol</div>
+      </div>
+
+      <!-- Quick summary cards -->
+      <div class="views-stats-grid">
+        <div class="views-stat-card">
+          <div class="views-stat-val" id="sv-total-count">0×</div>
+          <div class="views-stat-label">Zobrazení</div>
+        </div>
+        <div class="views-stat-card">
+          <div class="views-stat-val" id="sv-total-time">0s</div>
+          <div class="views-stat-label">Aktivní čas</div>
+        </div>
+        <div class="views-stat-card">
+          <div class="views-stat-val" id="sv-first-seen" style="font-size:0.82rem; font-weight:700;">-</div>
+          <div class="views-stat-label">První návštěva</div>
+        </div>
+        <div class="views-stat-card">
+          <div class="views-stat-val" id="sv-last-seen" style="font-size:0.82rem; font-weight:700;">-</div>
+          <div class="views-stat-label">Poslední návštěva</div>
+        </div>
+      </div>
+
+      <!-- Timeline of individual sessions -->
+      <div style="font-size:0.8rem; font-weight:700; color:var(--text-main); margin-bottom:6px;">Časová osa jednotlivých relací:</div>
+      <div style="flex:1; overflow-y:auto; border:1px solid var(--border); border-radius:6px; background:var(--bg); max-height:240px;" id="sv-sessions-list">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; margin-top:14px;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="App.closeStudentViewsModal()">Zavřít</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Moodle Synchronizace (ČVUT kurz 16880) -->
+  <div class="modal-backdrop" id="modal-moodle-sync" style="display:none; z-index:9990;">
+    <div class="modal-box" style="max-width:620px; max-height:90vh; display:flex; flex-direction:column;">
+      <div class="modal-header">
+        <h3 style="display:flex; align-items:center; gap:8px;">
+          <span>🎓</span>
+          <span>Moodle ČVUT (kurz 16880)</span>
+        </h3>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="App.closeMoodleModal()">✕</button>
+      </div>
+
+      <div style="display:flex; gap:8px; border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom:14px;">
+        <button type="button" class="btn btn-primary btn-sm" id="btn-moodle-tab-download" onclick="App.switchMoodleTab('download')">📥 Stáhnout protokoly</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-moodle-tab-upload" onclick="App.switchMoodleTab('upload')">📤 Nahrát hodnocení do Moodle</button>
+      </div>
+
+      <!-- Tab 1: Download from Moodle -->
+      <div id="moodle-tab-download-content" style="display:block;">
+        <form onsubmit="App.handleMoodleDownload(event)" style="display:flex; flex-direction:column; gap:12px;">
+          <div class="form-group">
+            <label class="form-label">1. Vyberte úlohu v Moodle (Assignment):</label>
+            <select id="moodle-assign-select" class="form-control" onchange="App.handleMoodleAssignChange(this.value)" required>
+              <option value="">Načítám úlohy z Moodle...</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">2. Vyberte termín / skupinu v Moodle:</label>
+            <select id="moodle-group-select" class="form-control">
+              <option value="0">Všichni účastníci (bez filtrování)</option>
+            </select>
+          </div>
+
+          <div style="background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px;">
+            <div style="font-weight:700; font-size:0.8rem; margin-bottom:8px;">3. Cílové zařazení v Praktiku:</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+              <div>
+                <label class="form-label" style="font-size:0.75rem;">Semestr:</label>
+                <select id="moodle-target-semester" class="form-control" required></select>
+              </div>
+              <div>
+                <label class="form-label" style="font-size:0.75rem;">Termín (Kroužek):</label>
+                <select id="moodle-target-slot" class="form-control" required></select>
+              </div>
+              <div>
+                <label class="form-label" style="font-size:0.75rem;">Úloha v Praktiku:</label>
+                <select id="moodle-target-measurement" class="form-control" required></select>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="App.refreshMoodleStructure()">↻ Obnovit z Moodle</button>
+            <button type="submit" class="btn btn-primary btn-sm" id="btn-moodle-start-download">📥 Stáhnout a importovat práce</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Tab 2: Upload Feedback to Moodle -->
+      <div id="moodle-tab-upload-content" style="display:none; flex-direction:column; gap:12px;">
+        <div style="font-size:0.83rem; color:var(--text-muted);">
+          Vyberte opravené studenty, jejichž hodnocení si přejete synchronizovat do Moodle.
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div>
+            <label class="form-label" style="font-size:0.75rem;">Cílová úloha v Moodle:</label>
+            <select id="moodle-upload-assign-select" class="form-control" required></select>
+          </div>
+          <div>
+            <label class="form-label" style="font-size:0.75rem;">Filtrovat studenty z termínu:</label>
+            <select id="moodle-upload-slot-select" class="form-control" onchange="App.loadMoodleUploadStudents()"></select>
+          </div>
+        </div>
+
+        <div style="background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div style="font-weight:700; font-size:0.8rem;">Studenti k nahrání:</div>
+            <label style="font-size:0.75rem; display:flex; align-items:center; gap:4px; cursor:pointer;">
+              <input type="checkbox" id="moodle-upload-select-all" checked onchange="App.toggleSelectAllMoodleStudents(this.checked)">
+              <span>Vybrat vše</span>
+            </label>
+          </div>
+          <div id="moodle-upload-students-list" style="max-height:180px; overflow-y:auto; border:1px solid var(--border); border-radius:4px; background:var(--card-bg);">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <div style="display:flex; gap:14px; font-size:0.82rem;">
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" id="moodle-opt-upload-pdf" checked>
+            <span>Nahrát opravené PDF se zpětnou vazbou</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" id="moodle-opt-upload-grade" checked>
+            <span>Zapsat body a komentář do známky</span>
+          </label>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="App.closeMoodleModal()">Zrušit</button>
+          <button type="button" class="btn btn-primary btn-sm" id="btn-moodle-start-upload" onclick="App.executeMoodleUpload()">📤 Odeslat do Moodle</button>
+        </div>
+      </div>
+
     </div>
   </div>
 

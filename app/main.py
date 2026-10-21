@@ -35,7 +35,14 @@ from app.models import (
     EvaluationSaveRequest, AutosaveRequest, ProtocolAssignRequest, AnnotationSaveRequest,
     ProtocolMetadataUpdateRequest, BulkDeleteRequest, BulkUpdateRequest, AISettingsRequest, AdminPasswordResetRequest, ProfileUpdateRequest,
     UserAdminUpdateRequest, AutodetectResponse, AIProposalActionRequest,
-    AIChatMessage, AIChatRequest, AIChatResponse
+    AIChatMessage, AIChatRequest, AIChatResponse,
+    StudentHeartbeatRequest, ProtocolViewsResponse, StudentViewSession,
+    MoodleConfig, MoodleCourseStructureResponse, MoodleDownloadRequest, MoodleUploadRequest
+)
+from app.moodle_service import (
+    get_moodle_config, save_moodle_setting, check_moodle_session_validity,
+    fetch_course_structure, download_moodle_assignment_zip, extract_submissions_from_zip,
+    build_moodle_feedback_zip, MoodleAuthError, MoodleServiceError
 )
 from app.storage import save_source_file, save_corrected_file, save_bodovani_file, slugify, format_slot_folder, format_semester_folder
 from app.pdf_service import extract_pdf_annotations, burn_annotations_to_pdf, format_points, calculate_grade_letter
@@ -854,6 +861,7 @@ def list_protocols(
         p.id, p.semester_id, p.slot_id, p.measurement_id, p.student_name,
         p.status, p.source_filename, p.corrected_filename, p.total_points, p.grade,
         p.evaluator_id, p.share_token, p.graded_at, p.created_at, p.updated_at,
+        p.student_view_count, p.student_view_total_seconds, p.student_view_first_at, p.student_view_last_at,
         s.code as semester_code, s.name as semester_name,
         sl.name as slot_name, sl.day_of_week, sl.time_start, sl.time_end, sl.room as slot_room,
         m.code as measurement_code, m.number as measurement_number, m.name as measurement_name,
@@ -3130,6 +3138,332 @@ def get_public_protocol_data(share_token: str):
     except Exception:
         d["deductions"] = []
     return d
+
+# ==========================================
+# STUDENT ANALYTICS & HEARTBEAT ENDPOINTS
+# ==========================================
+
+@app.post("/api/public/protocol/{share_token}/heartbeat")
+async def record_student_heartbeat(share_token: str, req: StudentHeartbeatRequest, request: Request):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT id, student_name, student_view_count, student_view_total_seconds FROM protocols WHERE share_token = ?", (share_token,))
+    prow = cur.fetchone()
+    if not prow:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Protokol nenalezen")
+
+    proto_id = prow[0]
+    # Clamp duration delta: minimum 0, maximum 30 seconds per ping
+    delta = max(0, min(int(req.duration_delta or 0), 30))
+    now = datetime.now().isoformat()
+
+    user_agent = request.headers.get("user-agent", "")[:250]
+    ip_addr = request.client.host if request.client else ""
+
+    # Check if this session already exists in protocol_views
+    cur.execute(
+        "SELECT id, duration_seconds FROM protocol_views WHERE protocol_id = ? AND session_id = ?",
+        (proto_id, req.session_id)
+    )
+    vrow = cur.fetchone()
+    if vrow:
+        new_dur = vrow[1] + delta
+        cur.execute(
+            "UPDATE protocol_views SET duration_seconds = ?, last_seen_at = ? WHERE id = ?",
+            (new_dur, now, vrow[0])
+        )
+    else:
+        new_dur = delta
+        cur.execute("""
+        INSERT INTO protocol_views (protocol_id, session_id, ip_hash, user_agent, started_at, last_seen_at, duration_seconds, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (proto_id, req.session_id, ip_addr, user_agent, now, now, delta, now))
+
+    # Update summary aggregates in protocols table
+    cur.execute("""
+    UPDATE protocols SET
+        student_view_count = (SELECT COUNT(DISTINCT session_id) FROM protocol_views WHERE protocol_id = ?),
+        student_view_total_seconds = (SELECT COALESCE(SUM(duration_seconds), 0) FROM protocol_views WHERE protocol_id = ?),
+        student_view_first_at = COALESCE(student_view_first_at, ?),
+        student_view_last_at = ?
+    WHERE id = ?
+    """, (proto_id, proto_id, now, now, proto_id))
+
+    conn.commit()
+    conn.close()
+    return {"status": "ok", "duration_seconds": new_dur}
+
+
+@app.get("/api/protocols/{proto_id}/views", response_model=ProtocolViewsResponse)
+def get_protocol_views_endpoint(proto_id: int, user: dict = Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT id, student_name, student_view_count, student_view_total_seconds, student_view_first_at, student_view_last_at FROM protocols WHERE id = ?", (proto_id,))
+    prow = cur.fetchone()
+    if not prow:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Protokol nenalezen")
+
+    cur.execute("""
+    SELECT id, session_id, started_at, last_seen_at, duration_seconds, user_agent
+    FROM protocol_views
+    WHERE protocol_id = ?
+    ORDER BY id DESC
+    """, (proto_id,))
+    vrows = cur.fetchall()
+    conn.close()
+
+    sessions = []
+    for r in vrows:
+        ua = (r["user_agent"] or "").lower()
+        dev = "Mobil" if ("mobi" in ua or "android" in ua or "iphone" in ua) else ("Tablet" if "ipad" in ua else "Desktop")
+        sessions.append(StudentViewSession(
+            id=r["id"],
+            session_id=r["session_id"],
+            started_at=r["started_at"],
+            last_seen_at=r["last_seen_at"],
+            duration_seconds=r["duration_seconds"],
+            device_type=dev
+        ))
+
+    return ProtocolViewsResponse(
+        protocol_id=prow["id"],
+        student_name=prow["student_name"],
+        view_count=prow["student_view_count"] or 0,
+        total_seconds=prow["student_view_total_seconds"] or 0,
+        first_viewed_at=prow["student_view_first_at"],
+        last_viewed_at=prow["student_view_last_at"],
+        sessions=sessions
+    )
+
+# ==========================================
+# MOODLE INTEGRATION ENDPOINTS
+# ==========================================
+
+@app.get("/api/moodle/config")
+def get_moodle_config_endpoint(user: dict = Depends(get_current_user)):
+    cfg = get_moodle_config()
+    raw_cookie = cfg.get("moodle_session", "")
+    masked_cookie = f"{raw_cookie[:6]}...{raw_cookie[-4:]}" if len(raw_cookie) > 12 else ("Nastavena" if raw_cookie else "")
+    return {
+        "moodle_url": cfg["moodle_url"],
+        "course_id": cfg["course_id"],
+        "has_cookie": bool(raw_cookie),
+        "masked_cookie": masked_cookie
+    }
+
+
+@app.post("/api/moodle/config")
+def save_moodle_config_endpoint(cfg: MoodleConfig, user: dict = Depends(get_current_user)):
+    if cfg.moodle_url:
+        save_moodle_setting("moodle_url", cfg.moodle_url.rstrip("/"))
+    if cfg.course_id:
+        save_moodle_setting("moodle_course_id", cfg.course_id.strip())
+    if cfg.moodle_session and cfg.moodle_session.strip():
+        save_moodle_setting("moodle_session_cookie", cfg.moodle_session.strip())
+
+    log_event(
+        level="INFO",
+        category="moodle",
+        user_id=user["id"],
+        user_name=user["username"],
+        action="moodle_config_update",
+        details=f"Aktualizace Moodle konfigurace pro kurz #{cfg.course_id or 'default'}"
+    )
+    return {"status": "ok", "message": "Konfigurace Moodle byla uložena."}
+
+
+@app.post("/api/moodle/test-connection")
+async def test_moodle_connection_endpoint(user: dict = Depends(get_current_user)):
+    cfg = get_moodle_config()
+    is_valid, msg = await check_moodle_session_validity(cfg["moodle_url"], cfg["course_id"], cfg["moodle_session"])
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "course_title": msg, "message": f"Spojení s kurzem '{msg}' je plně funkční."}
+
+
+@app.get("/api/moodle/course-structure", response_model=MoodleCourseStructureResponse)
+async def get_moodle_course_structure_endpoint(user: dict = Depends(get_current_user)):
+    try:
+        data = await fetch_course_structure()
+        return MoodleCourseStructureResponse(
+            course_id=data["course_id"],
+            course_title=data.get("course_title", ""),
+            assignments=data.get("assignments", []),
+            groups=data.get("groups", [])
+        )
+    except MoodleAuthError as ae:
+        raise HTTPException(status_code=401, detail=str(ae))
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=f"Chyba při načítání kurzu: {str(ex)}")
+
+
+@app.post("/api/moodle/download-submissions")
+async def download_moodle_submissions_endpoint(req: MoodleDownloadRequest, user: dict = Depends(get_current_user)):
+    try:
+        zip_bytes = await download_moodle_assignment_zip(req.cmid, req.group_id)
+        submissions = extract_submissions_from_zip(zip_bytes)
+    except MoodleAuthError as ae:
+        raise HTTPException(status_code=401, detail=str(ae))
+    except Exception as ex:
+        raise HTTPException(status_code=400, detail=str(ex))
+
+    if not submissions:
+        raise HTTPException(status_code=404, detail="V balíku z Moodle nebyly nalezeny žádné PDF soubory.")
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Get slot and measurement info
+    cur.execute("SELECT s.name, s.day_of_week, s.time_start, s.room, sem.code as semester_code FROM slots s JOIN semesters sem ON s.semester_id = sem.id WHERE s.id = ?", (req.slot_id,))
+    srow = cur.fetchone()
+    cur.execute("SELECT code, number, name, course_code FROM measurements WHERE id = ?", (req.measurement_id,))
+    mrow = cur.fetchone()
+
+    if not srow or not mrow:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Neplatný termín nebo úloha.")
+
+    slot_folder = format_slot_folder(day_of_week=srow["day_of_week"], time_start=srow["time_start"], room=srow["room"], raw_name=srow["name"])
+    semester_code = srow["semester_code"]
+    meas_code = mrow["code"]
+
+    imported_students = []
+    now = datetime.now().isoformat()
+
+    for item in submissions:
+        s_name = (item.get("student_name") or "").strip()
+        if not s_name:
+            s_name = item["clean_filename"].replace(".pdf", "").replace("_", " ").strip()
+
+        saved_path = save_source_file(
+            file_bytes=item["file_bytes"],
+            filename=item["clean_filename"],
+            semester_code=semester_code,
+            slot_name=slot_folder,
+            measurement_code=meas_code,
+            student_name=s_name
+        )
+
+        share_tok = secrets.token_urlsafe(16)
+
+        cur.execute("""
+        SELECT id FROM protocols 
+        WHERE semester_id = ? AND slot_id = ? AND measurement_id = ? AND student_name = ?
+        """, (req.semester_id, req.slot_id, req.measurement_id, s_name))
+        existing_p = cur.fetchone()
+
+        if existing_p:
+            proto_id = existing_p[0]
+            cur.execute("""
+            UPDATE protocols SET 
+                source_filename = ?, source_path = ?, updated_at = ?
+            WHERE id = ?
+            """, (item["clean_filename"], str(saved_path), now, proto_id))
+        else:
+            cur.execute("""
+            INSERT INTO protocols (
+                semester_id, slot_id, measurement_id, student_name, status,
+                source_filename, source_path, evaluator_id, share_token, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?)
+            """, (
+                req.semester_id, req.slot_id, req.measurement_id, s_name,
+                item["clean_filename"], str(saved_path), user["id"], share_tok, now, now
+            ))
+            proto_id = cur.lastrowid
+
+        imported_students.append({
+            "protocol_id": proto_id,
+            "student_name": s_name,
+            "filename": item["clean_filename"]
+        })
+
+    conn.commit()
+    conn.close()
+
+    log_event(
+        level="INFO",
+        category="moodle",
+        user_id=user["id"],
+        user_name=user["username"],
+        action="moodle_submissions_imported",
+        details=f"Staženo {len(imported_students)} protokolů z Moodle (úloha cmid={req.cmid}) do termínu {srow['day_of_week']} {srow['time_start']}."
+    )
+
+    return {
+        "status": "ok",
+        "imported_count": len(imported_students),
+        "students": imported_students,
+        "message": f"Úspěšně importováno {len(imported_students)} protokolů z Moodle."
+    }
+
+
+@app.post("/api/moodle/upload-feedback")
+async def upload_moodle_feedback_endpoint(req: MoodleUploadRequest, user: dict = Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+
+    feedback_items = []
+    for item in req.students:
+        cur.execute("""
+        SELECT p.id, p.student_name, p.corrected_filename, p.corrected_path, p.source_filename,
+               e.total_points, e.grade, e.general_comment, e.raw_output_2
+        FROM protocols p
+        LEFT JOIN evaluations e ON p.id = e.protocol_id
+        WHERE p.id = ?
+        """, (item.protocol_id,))
+        row = cur.fetchone()
+        if not row:
+            continue
+
+        c_path = row["corrected_path"]
+        pdf_bytes = None
+        if item.upload_pdf and c_path and Path(c_path).exists():
+            pdf_bytes = Path(c_path).read_bytes()
+
+        parsed = parse_moodle_submission_filename(row["source_filename"] or "")
+
+        feedback_items.append({
+            "protocol_id": row["id"],
+            "student_name": row["student_name"],
+            "moodle_user_id": parsed.get("moodle_user_id", ""),
+            "filename": row["corrected_filename"] or f"{row['student_name']}_opraveno.pdf",
+            "pdf_bytes": pdf_bytes,
+            "total_points": row["total_points"],
+            "grade": row["grade"],
+            "comment": row["general_comment"] or row["raw_output_2"] or ""
+        })
+
+    conn.close()
+
+    if not feedback_items:
+        raise HTTPException(status_code=400, detail="Nebyly vybrány žádné platné protokoly k nahrání.")
+
+    feedback_zip = build_moodle_feedback_zip(feedback_items)
+
+    export_dir = PROTOCOLS_DIR / "_moodle_exports"
+    export_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    zip_path = export_dir / f"moodle_feedback_cmid_{req.cmid}_{ts}.zip"
+    zip_path.write_bytes(feedback_zip)
+
+    log_event(
+        level="INFO",
+        category="moodle",
+        user_id=user["id"],
+        user_name=user["username"],
+        action="moodle_feedback_generated",
+        details=f"Vygenerován balík zpětné vazby pro Moodle (cmid={req.cmid}, {len(feedback_items)} studentů, velikost: {len(feedback_zip)} B)."
+    )
+
+    return {
+        "status": "ok",
+        "uploaded_count": len(feedback_items),
+        "zip_size_bytes": len(feedback_zip),
+        "archive_path": str(zip_path.name),
+        "message": f"Připraveno a zpracováno {len(feedback_items)} hodnocení pro Moodle."
+    }
 
 # ==========================================
 # FRONTEND SPA ENTRY POINT & VERSION

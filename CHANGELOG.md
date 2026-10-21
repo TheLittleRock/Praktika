@@ -4,6 +4,26 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.20.0] - 2026-10-21
+
+### 🚀 Novinky a vylepšení ve verzi 2.20.0
+
+#### 👁️ Analytika zobrazení hodnocení studentem
+- **Měření reálného času aktivního čtení**: Stránka se studentským hodnocením (`/v/{share_token}`) nyní pomocí Page Visibility API (`document.visibilityState === 'visible'`) a periodického heartbeat signálu přesně měří dobu, po kterou student hodnocení aktivně studoval. Opuštění stránky nebo přepnutí na jinou záložku čítač okamžitě pozastaví.
+- **Bezpečný přenos a ochrana proti nafukování**: Přírůstky času jsou na backendu validovány a zastropovány (max. 30 s na signál) proti manipulaci. Dokončení relace je spolehlivě odesíláno i při zavření okna přes `navigator.sendBeacon`.
+- **Přehledné indikátory v tabulce i ve Studiu**: V tabulce protokolů přibyl nový sloupec "Zobrazeno" s odznaky (např. `👁️ 3× • 4m 12s` nebo `👁️ Nezobrazeno`), filtr zobrazení a řazení dle času čtení. V záhlaví Studia je přítomen živý indikátor.
+- **Detailní historie relací studenta**: Kliknutím na odznak se otevře modální okno s rozpadem jednotlivých návštěv, časových razítek, celkové doby a typu zařízení (Počítač, Mobil, Tablet).
+
+#### 🎓 Integrace s ČVUT Moodle bez nutnosti administrátorského API
+- **Podpora stahování a nahrávání na ČVUT Moodle**: Přímé propojení s Moodle (`moodle-vyuka.cvut.cz`, výchozí kurz `16880`) umožňující stahovat odevzdané protokoly a nahrávat opravené soubory zpět bez nutnosti REST API klíče.
+- **Bezpečné přihlášení přes Microsoft Entra ID (SSO)**:
+  - Interaktivní pomocný skript `scripts/moodle_login.py` využívající Playwright Chromium pro pohodlné jednorázové přihlášení učitele v okně prohlížeče (včetně 2FA/MFA) s automatickým uložením session cookie.
+  - Možnost přímého zadání nebo aktualizace `MoodleSession` cookie v dialogu *Nastavení -> Moodle*.
+  - Tlačítko pro okamžitý test spojení a validaci přihlášení.
+- **Automatická detekce úloh a kruhů**: Aplikace automaticky načte seznam úloh (`mod/assign`) a studijních kruhů přímo z vybraného kurzu.
+- **Hromadné stažení odevzdání**: Stažení ZIP archivu odevzdaných úloh z Moodle, inteligentní rozbalení a automatické vytvoření či aktualizace protokolů v databázi se zachováním vazeb na studenta.
+- **Příprava a odeslání zpětné vazby do Moodle**: Funkce hromadného exportu a odeslání opravených PDF s hodnocením ve formátu akceptovaném Moodle funkcí *Nahrát více souborů se zpětnou vazbou v zipu* (`action=uploadfeedbackzip`).
+
 ## [2.19.1] - 2026-10-21
 
 ### 🚀 Opravy a vylepšení ve verzi 2.19.1

@@ -261,6 +261,7 @@ const App = {
     this.updateGradingDockSideButton();
     this.updateAIDockSideButton();
     this.checkAIKeyStatus();
+    this.loadMoodleConfig();
     this.showView('dashboard');
     this.applyLayoutMode();
     this.applyToolbarPosition();
@@ -1135,7 +1136,15 @@ const App = {
     try {
       const resp = await fetch(`/api/protocols?${params.toString()}`);
       if (resp.ok) {
-        const protocols = await resp.json();
+        let protocols = await resp.json();
+        const viewedFilter = document.getElementById('filter-viewed-select');
+        if (viewedFilter && viewedFilter.value) {
+          if (viewedFilter.value === 'viewed') {
+            protocols = protocols.filter(p => (p.student_view_count || 0) > 0);
+          } else if (viewedFilter.value === 'unviewed') {
+            protocols = protocols.filter(p => (p.student_view_count || 0) === 0);
+          }
+        }
         this.loadedProtocols = protocols;
         this.updateSortIndicators();
         this.renderProtocolsTable(this.applySort(protocols));
@@ -1161,7 +1170,7 @@ const App = {
   },
 
   updateSortIndicators() {
-    const cols = ['student', 'measurement', 'slot', 'status', 'score', 'evaluator'];
+    const cols = ['student', 'measurement', 'slot', 'status', 'score', 'evaluator', 'views'];
     const curCol = this.currentSort ? this.currentSort.column : null;
     const curDir = this.currentSort ? this.currentSort.dir : 'asc';
     for (const col of cols) {
@@ -1212,6 +1221,12 @@ const App = {
         }
         case 'evaluator':
           return factor * (a.evaluator_name || '').localeCompare(b.evaluator_name || '', 'cs', { sensitivity: 'base' });
+        case 'views': {
+          const vA = a.student_view_count || 0;
+          const vB = b.student_view_count || 0;
+          if (vA !== vB) return factor * (vA - vB);
+          return factor * ((a.student_view_total_seconds || 0) - (b.student_view_total_seconds || 0));
+        }
         default:
           return 0;
       }
@@ -1348,6 +1363,17 @@ const App = {
           <td>${statusBadge}</td>
           <td>${scoreDisplay} ${gradeBadge}</td>
           <td>${evaluatorDisplay}</td>
+          <td>
+            ${(p.student_view_count || 0) > 0 ? `
+              <span class="badge-student-view viewed" onclick="App.openStudentViewsModal(${p.id})" title="Zobrazeno ${p.student_view_count}× (aktivní čas ${this.formatDuration(p.student_view_total_seconds)}). Klikněte pro detailní historii.">
+                👁️ ${p.student_view_count}× • ${this.formatDuration(p.student_view_total_seconds)}
+              </span>
+            ` : `
+              <span class="badge-student-view unviewed" title="Student si opravený protokol zatím nezobrazil">
+                👁️ 0×
+              </span>
+            `}
+          </td>
           <td style="text-align:right;">
             <div style="display:inline-flex; gap:6px;">
               <button class="btn btn-primary btn-sm" onclick="App.openStudio(${p.id})">
@@ -1457,6 +1483,23 @@ const App = {
       this.isDirty = false;
       this.updateAutosaveIndicator('saved');
       this.updateGradingDockScore();
+
+      const vBadge = document.getElementById('studio-student-views-badge');
+      if (vBadge) {
+        const vCount = this.currentProtocol.student_view_count || 0;
+        const vSecs = this.currentProtocol.student_view_total_seconds || 0;
+        if (vCount > 0) {
+          vBadge.style.display = 'inline-flex';
+          vBadge.className = 'badge-student-view viewed';
+          vBadge.innerHTML = `👁️ ${vCount}× • ${this.formatDuration(vSecs)}`;
+          vBadge.title = `Student zobrazil hodnocení ${vCount}× (aktivní čas ${this.formatDuration(vSecs)}). Klikněte pro historii návštěv.`;
+        } else {
+          vBadge.style.display = 'inline-flex';
+          vBadge.className = 'badge-student-view unviewed';
+          vBadge.innerHTML = '👁️ 0× zatím neotevřeno';
+          vBadge.title = 'Student si toto hodnocení zatím neotevřel.';
+        }
+      }
 
       this.showView('studio');
       this.ensureOppositePanels('open');
@@ -2110,6 +2153,7 @@ const App = {
     else if (tabName === 'database') this.loadDatabaseStats();
     else if (tabName === 'logs') this.loadSystemLogs();
     else if (tabName === 'diagnostics') this.loadSystemDiagnostics();
+    else if (tabName === 'moodle') this.loadMoodleConfig();
     else if (tabName === 'about') this.loadChangelog();
   },
 
@@ -4642,6 +4686,484 @@ const App = {
     window.addEventListener('unhandledrejection', (e) => {
       report(e.reason?.message || String(e.reason), '', 0, 0, e.reason?.stack);
     });
+  },
+
+  // ==========================================
+  // STUDENT VIEW ANALYTICS & SESSIONS
+  // ==========================================
+  formatDuration(sec) {
+    const s = Math.max(0, parseInt(sec || 0, 10));
+    if (s < 60) return `${s}s`;
+    const m = Math.floor(s / 60);
+    const remS = s % 60;
+    if (m < 60) {
+      return remS > 0 ? `${m}m ${remS}s` : `${m}m`;
+    }
+    const h = Math.floor(m / 60);
+    const remM = m % 60;
+    return `${h}h ${remM}m`;
+  },
+
+  async openStudentViewsModal(protoId) {
+    const id = protoId || (this.currentProtocol ? this.currentProtocol.id : null);
+    if (!id) return;
+
+    try {
+      const resp = await fetch(`/api/protocols/${id}/views`);
+      if (!resp.ok) throw new Error("Nelze načíst historii zobrazení.");
+      const data = await resp.json();
+
+      const nameEl = document.getElementById('sv-student-name');
+      const metaEl = document.getElementById('sv-student-meta');
+      const countEl = document.getElementById('sv-total-count');
+      const timeEl = document.getElementById('sv-total-time');
+      const firstEl = document.getElementById('sv-first-seen');
+      const lastEl = document.getElementById('sv-last-seen');
+      const listEl = document.getElementById('sv-sessions-list');
+
+      if (nameEl) nameEl.textContent = data.student_name;
+      if (metaEl) metaEl.textContent = `Protokol #${data.protocol_id}`;
+      if (countEl) countEl.textContent = `${data.view_count}×`;
+      if (timeEl) timeEl.textContent = this.formatDuration(data.total_seconds);
+
+      const fmtDate = (dStr) => {
+        if (!dStr) return '—';
+        try {
+          const d = new Date(dStr);
+          return d.toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        } catch(e) { return dStr; }
+      };
+
+      if (firstEl) firstEl.textContent = fmtDate(data.first_viewed_at);
+      if (lastEl) lastEl.textContent = fmtDate(data.last_viewed_at);
+
+      if (listEl) {
+        if (!data.sessions || data.sessions.length === 0) {
+          listEl.innerHTML = `<div style="padding:24px; text-align:center; color:var(--text-muted); font-size:0.82rem;">Student si tento protokol zatím neotevřel.</div>`;
+        } else {
+          listEl.innerHTML = data.sessions.map((s, idx) => `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:9px 12px; border-bottom:1px solid var(--border); font-size:0.8rem;">
+              <div>
+                <span style="font-weight:700; color:var(--text-main); margin-right:8px;">Relace #${data.sessions.length - idx}</span>
+                <span style="color:var(--text-muted); font-size:0.75rem;">${fmtDate(s.started_at)}</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span class="badge" style="background:var(--hover); font-size:0.72rem;">${this.escape(s.device_type || 'Desktop')}</span>
+                <span style="font-weight:700; color:var(--primary); font-family:'JetBrains Mono',monospace;">${this.formatDuration(s.duration_seconds)}</span>
+              </div>
+            </div>
+          `).join('');
+        }
+      }
+
+      const modal = document.getElementById('modal-student-views');
+      if (modal) modal.style.display = 'flex';
+    } catch(e) {
+      this.showToast("Chyba při načítání historie: " + e.message, "error");
+    }
+  },
+
+  openCurrentStudentViewsModal() {
+    if (this.currentProtocol) {
+      this.openStudentViewsModal(this.currentProtocol.id);
+    }
+  },
+
+  closeStudentViewsModal() {
+    const modal = document.getElementById('modal-student-views');
+    if (modal) modal.style.display = 'none';
+  },
+
+  // ==========================================
+  // MOODLE INTEGRATION (ČVUT kurz 16880)
+  // ==========================================
+  moodleCourseStructure: null,
+
+  async loadMoodleConfig() {
+    try {
+      const resp = await fetch('/api/moodle/config');
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const urlInput = document.getElementById('moodle-url-input');
+      const cidInput = document.getElementById('moodle-course-id-input');
+      const statusPill = document.getElementById('moodle-status-pill');
+      const cookieStatus = document.getElementById('moodle-cookie-status');
+
+      if (urlInput) urlInput.value = data.moodle_url || 'https://moodle-vyuka.cvut.cz';
+      if (cidInput) cidInput.value = data.course_id || '16880';
+      if (cookieStatus) {
+        cookieStatus.textContent = data.has_cookie ? `Nastavena (${data.masked_cookie})` : 'Nenastavena';
+        cookieStatus.style.color = data.has_cookie ? 'var(--accent-green)' : 'var(--text-muted)';
+      }
+      if (statusPill) {
+        if (data.has_cookie) {
+          statusPill.className = 'moodle-status-pill connected';
+          statusPill.textContent = '🟢 Cookie nastavena';
+        } else {
+          statusPill.className = 'moodle-status-pill disconnected';
+          statusPill.textContent = '⚪ Nepřipojeno';
+        }
+      }
+    } catch(e) {
+      console.warn("Could not load Moodle config:", e);
+    }
+  },
+
+  async handleSaveMoodleConfig(e) {
+    if (e) e.preventDefault();
+    const url = document.getElementById('moodle-url-input')?.value.trim();
+    const cid = document.getElementById('moodle-course-id-input')?.value.trim();
+    const cookie = document.getElementById('moodle-cookie-input')?.value.trim();
+
+    try {
+      const resp = await fetch('/api/moodle/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          moodle_url: url,
+          course_id: cid,
+          moodle_session: cookie
+        })
+      });
+      if (resp.ok) {
+        this.showToast("Konfigurace Moodle byla uložena!");
+        const cInput = document.getElementById('moodle-cookie-input');
+        if (cInput) cInput.value = '';
+        await this.loadMoodleConfig();
+      } else {
+        const err = await resp.json();
+        await AppModal.alert({ title: "Chyba", message: err.detail || "Nelze uložit konfiguraci." });
+      }
+    } catch(err) {
+      await AppModal.alert({ title: "Chyba", message: err.message });
+    }
+  },
+
+  async testMoodleConnection() {
+    const btn = document.getElementById('btn-test-moodle-conn');
+    const origText = btn ? btn.textContent : '⚡ Otestovat spojení';
+    if (btn) { btn.disabled = true; btn.textContent = 'Ověřuji...'; }
+
+    try {
+      const resp = await fetch('/api/moodle/test-connection', { method: 'POST' });
+      const data = await resp.json();
+      const statusPill = document.getElementById('moodle-status-pill');
+
+      if (resp.ok) {
+        if (statusPill) {
+          statusPill.className = 'moodle-status-pill connected';
+          statusPill.textContent = `🟢 Připojeno: ${data.course_title || 'Kurz ověřen'}`;
+        }
+        await AppModal.alert({
+          title: "Spojení s Moodle je v pořádku!",
+          message: `Spojení s kurzem '${data.course_title || '16880'}' na moodle-vyuka.cvut.cz je plně funkční a relace je aktivní.`
+        });
+      } else {
+        if (statusPill) {
+          statusPill.className = 'moodle-status-pill disconnected';
+          statusPill.textContent = '🔴 Neplatná relace';
+        }
+        await AppModal.alert({
+          title: "Chyba spojení s Moodle",
+          message: data.detail || "Spojení se nezdařilo. Zkontrolujte platnost cookie MoodleSession."
+        });
+      }
+    } catch(err) {
+      await AppModal.alert({ title: "Chyba komunikace", message: err.message });
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = origText; }
+    }
+  },
+
+  toggleMoodleCookieVisibility() {
+    const inp = document.getElementById('moodle-cookie-input');
+    if (inp) {
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+    }
+  },
+
+  showMoodleLoginInstructions() {
+    AppModal.alert({
+      title: "Jak získat cookie MoodleSession",
+      message: `
+        1. V běžném prohlížeči (Chrome, Firefox, Edge) se přihlaste na <a href="https://moodle-vyuka.cvut.cz" target="_blank" style="color:var(--primary); font-weight:700;">moodle-vyuka.cvut.cz</a>.<br><br>
+        2. Stiskněte klávesu <strong>F12</strong> (Vývojářské nástroje).<br><br>
+        3. Přejděte na záložku <strong>Aplikace</strong> (Application) nebo <strong>Úložiště</strong> (Storage) ➔ vlevo rozklikněte <strong>Cookies</strong> ➔ <code>https://moodle-vyuka.cvut.cz</code>.<br><br>
+        4. Najděte řádek s názvem <strong>MoodleSession</strong>, zkopírujte jeho hodnotu a vložte ji sem.<br><br>
+        Nebo v terminálu na serveru spusťte: <code>./venv/bin/python scripts/moodle_login.py</code>
+      `
+    });
+  },
+
+  async openMoodleModal() {
+    const modal = document.getElementById('modal-moodle-sync');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    this.switchMoodleTab('download');
+    await this.refreshMoodleStructure();
+  },
+
+  closeMoodleModal() {
+    const modal = document.getElementById('modal-moodle-sync');
+    if (modal) modal.style.display = 'none';
+  },
+
+  switchMoodleTab(tab) {
+    const btnDl = document.getElementById('btn-moodle-tab-download');
+    const btnUl = document.getElementById('btn-moodle-tab-upload');
+    const contDl = document.getElementById('moodle-tab-download-content');
+    const contUl = document.getElementById('moodle-tab-upload-content');
+
+    if (tab === 'download') {
+      if (btnDl) btnDl.className = 'btn btn-primary btn-sm';
+      if (btnUl) btnUl.className = 'btn btn-secondary btn-sm';
+      if (contDl) contDl.style.display = 'block';
+      if (contUl) contUl.style.display = 'none';
+    } else {
+      if (btnDl) btnDl.className = 'btn btn-secondary btn-sm';
+      if (btnUl) btnUl.className = 'btn btn-primary btn-sm';
+      if (contDl) contDl.style.display = 'none';
+      if (contUl) contUl.style.display = 'flex';
+      this.loadMoodleUploadStudents();
+    }
+  },
+
+  async refreshMoodleStructure() {
+    const assignSel = document.getElementById('moodle-assign-select');
+    const uploadAssignSel = document.getElementById('moodle-upload-assign-select');
+    const groupSel = document.getElementById('moodle-group-select');
+    const targetSem = document.getElementById('moodle-target-semester');
+    const targetSlot = document.getElementById('moodle-target-slot');
+    const targetMeas = document.getElementById('moodle-target-measurement');
+
+    if (targetSem && this.semesters) {
+      targetSem.innerHTML = this.semesters.map(s => `<option value="${s.id}" ${s.is_active ? 'selected' : ''}>${this.escape(s.name)} (${s.code})</option>`).join('');
+    }
+    if (targetSlot && this.slots) {
+      targetSlot.innerHTML = this.slots.map(sl => `<option value="${sl.id}">${this.escape(sl.day_of_week)} ${this.escape(sl.time_start)} - ${this.escape(sl.name)}</option>`).join('');
+    }
+    if (targetMeas && this.measurements) {
+      targetMeas.innerHTML = this.measurements.map(m => `<option value="${m.id}">Úloha ${m.number}: ${this.escape(m.name)}</option>`).join('');
+    }
+
+    const uploadSlotSel = document.getElementById('moodle-upload-slot-select');
+    if (uploadSlotSel && this.slots) {
+      uploadSlotSel.innerHTML = `<option value="">Všechny termíny</option>` + this.slots.map(sl => `<option value="${sl.id}">${this.escape(sl.day_of_week)} ${this.escape(sl.time_start)} - ${this.escape(sl.name)}</option>`).join('');
+    }
+
+    if (assignSel) assignSel.innerHTML = '<option value="">Načítám úlohy z Moodle...</option>';
+
+    try {
+      const resp = await fetch('/api/moodle/course-structure');
+      if (resp.status === 401) {
+        if (assignSel) assignSel.innerHTML = '<option value="">⚠️ Neplatná relace MoodleSession</option>';
+        await AppModal.alert({
+          title: "Moodle relace vypršela",
+          message: "Platnost vaší MoodleSession cookie vypršela. Přejděte do Nastavení ➔ Moodle integrace a vložte novou cookie."
+        });
+        return;
+      }
+      if (!resp.ok) throw new Error("Chyba při komunikaci s Moodle.");
+
+      const data = await resp.json();
+      this.moodleCourseStructure = data;
+
+      if (assignSel) {
+        if (!data.assignments || data.assignments.length === 0) {
+          assignSel.innerHTML = '<option value="">V kurzu nebyly nalezeny žádné úlohy</option>';
+        } else {
+          assignSel.innerHTML = data.assignments.map(a => `<option value="${a.cmid}">${this.escape(a.title)}</option>`).join('');
+        }
+      }
+
+      if (uploadAssignSel && data.assignments) {
+        uploadAssignSel.innerHTML = data.assignments.map(a => `<option value="${a.cmid}">${this.escape(a.title)}</option>`).join('');
+      }
+
+      if (groupSel) {
+        if (!data.groups || data.groups.length === 0) {
+          groupSel.innerHTML = '<option value="0">Všichni účastníci (bez filtrování)</option>';
+        } else {
+          groupSel.innerHTML = data.groups.map(g => `<option value="${g.id}">${this.escape(g.name)}</option>`).join('');
+        }
+      }
+
+      this.autoMatchMoodleAssignment();
+    } catch(err) {
+      if (assignSel) assignSel.innerHTML = `<option value="">Chyba: ${this.escape(err.message)}</option>`;
+    }
+  },
+
+  handleMoodleAssignChange(cmid) {
+    this.autoMatchMoodleAssignment();
+  },
+
+  autoMatchMoodleAssignment() {
+    const assignSel = document.getElementById('moodle-assign-select');
+    const targetMeas = document.getElementById('moodle-target-measurement');
+    if (!assignSel || !targetMeas || !this.moodleCourseStructure || !this.measurements) return;
+
+    const selectedCmid = assignSel.value;
+    const assign = (this.moodleCourseStructure.assignments || []).find(a => a.cmid === selectedCmid);
+    if (!assign) return;
+
+    const numMatch = assign.title.match(/(?:úloha|uloha|č\.|task)\s*0?(\d+)/i);
+    if (numMatch) {
+      const taskNum = parseInt(numMatch[1], 10);
+      const matchMeas = this.measurements.find(m => m.number === taskNum);
+      if (matchMeas) {
+        targetMeas.value = matchMeas.id;
+      }
+    }
+  },
+
+  async handleMoodleDownload(e) {
+    if (e) e.preventDefault();
+    const cmid = document.getElementById('moodle-assign-select')?.value;
+    const groupId = document.getElementById('moodle-group-select')?.value || '0';
+    const semId = parseInt(document.getElementById('moodle-target-semester')?.value, 10);
+    const slotId = parseInt(document.getElementById('moodle-target-slot')?.value, 10);
+    const measId = parseInt(document.getElementById('moodle-target-measurement')?.value, 10);
+
+    if (!cmid) {
+      await AppModal.alert({ title: "Chyba", message: "Vyberte prosím úlohu v Moodle." });
+      return;
+    }
+
+    const btn = document.getElementById('btn-moodle-start-download');
+    const origText = btn ? btn.textContent : '📥 Stáhnout a importovat práce';
+    if (btn) { btn.disabled = true; btn.textContent = 'Stahuji z Moodle...'; }
+
+    try {
+      const resp = await fetch('/api/moodle/download-submissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cmid: cmid,
+          group_id: groupId,
+          semester_id: semId,
+          slot_id: slotId,
+          measurement_id: measId
+        })
+      });
+
+      const data = await resp.json();
+      if (resp.ok) {
+        this.closeMoodleModal();
+        await AppModal.alert({
+          title: "Import z Moodle dokončen!",
+          message: `Úspěšně staženo a importováno ${data.imported_count} protokolů.`
+        });
+        await this.loadProtocols();
+      } else {
+        await AppModal.alert({
+          title: "Chyba při stahování",
+          message: data.detail || "Chyba při stahování prací z Moodle."
+        });
+      }
+    } catch(err) {
+      await AppModal.alert({ title: "Chyba komunikace", message: err.message });
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = origText; }
+    }
+  },
+
+  loadMoodleUploadStudents() {
+    const listEl = document.getElementById('moodle-upload-students-list');
+    const slotSel = document.getElementById('moodle-upload-slot-select');
+    if (!listEl) return;
+
+    let protos = this.loadedProtocols || [];
+    if (slotSel && slotSel.value) {
+      protos = protos.filter(p => p.slot_id === parseInt(slotSel.value, 10));
+    }
+
+    if (protos.length === 0) {
+      listEl.innerHTML = `<div style="padding:16px; text-align:center; color:var(--text-muted); font-size:0.8rem;">Žádné protokoly k nahrání.</div>`;
+      return;
+    }
+
+    listEl.innerHTML = protos.map(p => `
+      <div class="moodle-student-item">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" class="moodle-upload-student-cb" value="${p.id}" checked>
+          <div>
+            <strong>${this.escape(p.student_name)}</strong>
+            <span style="font-size:0.75rem; color:var(--text-muted); margin-left:6px;">(${this.escape(p.measurement_code || '')})</span>
+          </div>
+        </label>
+        <div style="font-size:0.78rem;">
+          ${p.status === 'graded' ? `<span style="color:var(--accent-green); font-weight:700;">${p.total_points} b (${p.grade})</span>` : `<span style="color:var(--text-muted);">${p.status}</span>`}
+        </div>
+      </div>
+    `).join('');
+  },
+
+  toggleSelectAllMoodleStudents(checked) {
+    document.querySelectorAll('.moodle-upload-student-cb').forEach(cb => cb.checked = checked);
+  },
+
+  async executeMoodleUpload() {
+    const cmid = document.getElementById('moodle-upload-assign-select')?.value;
+    const uploadPdf = document.getElementById('moodle-opt-upload-pdf')?.checked ?? true;
+    const uploadGrade = document.getElementById('moodle-opt-upload-grade')?.checked ?? true;
+
+    if (!cmid) {
+      await AppModal.alert({ title: "Chyba", message: "Vyberte prosím cílovou úlohu v Moodle." });
+      return;
+    }
+
+    const selectedCbs = Array.from(document.querySelectorAll('.moodle-upload-student-cb:checked'));
+    if (selectedCbs.length === 0) {
+      await AppModal.alert({ title: "Upozornění", message: "Vyberte alespoň jednoho studenta k nahrání." });
+      return;
+    }
+
+    const students = selectedCbs.map(cb => ({
+      protocol_id: parseInt(cb.value, 10),
+      upload_pdf: uploadPdf,
+      upload_grade: uploadGrade
+    }));
+
+    const ok = await AppModal.confirm({
+      title: "Potvrzení odeslání do Moodle",
+      message: `Opravdu chcete odeslat hodnocení pro ${students.length} studentů do Moodle (úloha cmid=${cmid})?`
+    });
+    if (!ok) return;
+
+    const btn = document.getElementById('btn-moodle-start-upload');
+    const origText = btn ? btn.textContent : '📤 Odeslat do Moodle';
+    if (btn) { btn.disabled = true; btn.textContent = 'Odesílám do Moodle...'; }
+
+    try {
+      const resp = await fetch('/api/moodle/upload-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cmid: cmid,
+          group_id: '0',
+          students: students
+        })
+      });
+
+      const data = await resp.json();
+      if (resp.ok) {
+        this.closeMoodleModal();
+        await AppModal.alert({
+          title: "Odeslání dokončeno!",
+          message: `Balík zpětné vazby pro ${data.uploaded_count} studentů byl úspěšně připraven a zpracován pro Moodle.`
+        });
+      } else {
+        await AppModal.alert({
+          title: "Chyba při odesílání",
+          message: data.detail || "Chyba při nahrávání do Moodle."
+        });
+      }
+    } catch(err) {
+      await AppModal.alert({ title: "Chyba komunikace", message: err.message });
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = origText; }
+    }
   },
 
   showToast(msg) {

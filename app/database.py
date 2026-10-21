@@ -252,6 +252,24 @@ def init_db():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_logs_category ON system_logs(category)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_logs_level ON system_logs(level)")
 
+    # Protocol Views Analytics (Student read time & view sessions)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS protocol_views (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        protocol_id INTEGER NOT NULL,
+        session_id TEXT NOT NULL,
+        ip_hash TEXT,
+        user_agent TEXT,
+        started_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL,
+        duration_seconds INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(protocol_id) REFERENCES protocols(id) ON DELETE CASCADE
+    )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_protocol_views_proto ON protocol_views(protocol_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_protocol_views_session ON protocol_views(session_id)")
+
     # Migrations: check if semester_type column exists in measurements
     try:
         cur.execute("ALTER TABLE measurements ADD COLUMN semester_type TEXT NOT NULL DEFAULT 'ZS'")
@@ -357,6 +375,30 @@ def init_db():
 
     try:
         cur.execute("ALTER TABLE evaluations ADD COLUMN general_comment TEXT DEFAULT ''")
+    except Exception:
+        pass
+
+    # Protocol student view analytics columns
+    for col, col_def in [
+        ("student_view_count", "INTEGER NOT NULL DEFAULT 0"),
+        ("student_view_total_seconds", "INTEGER NOT NULL DEFAULT 0"),
+        ("student_view_first_at", "TEXT DEFAULT NULL"),
+        ("student_view_last_at", "TEXT DEFAULT NULL"),
+    ]:
+        try:
+            cur.execute(f"ALTER TABLE protocols ADD COLUMN {col} {col_def}")
+        except Exception:
+            pass
+
+    # Seed Moodle Settings defaults
+    try:
+        cur.execute("SELECT value FROM app_settings WHERE key = 'moodle_url'")
+        if not cur.fetchone():
+            cur.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('moodle_url', 'https://moodle-vyuka.cvut.cz')")
+
+        cur.execute("SELECT value FROM app_settings WHERE key = 'moodle_course_id'")
+        if not cur.fetchone():
+            cur.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('moodle_course_id', '16880')")
     except Exception:
         pass
 
