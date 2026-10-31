@@ -3246,6 +3246,21 @@ tr:hover td {
   border: 1px solid rgba(234, 179, 8, 0.3);
 }
 
+.moodle-tag.duplicate {
+  background: rgba(234, 179, 8, 0.16);
+  color: #b45309;
+  border: 1px solid rgba(234, 179, 8, 0.4);
+}
+
+.moodle-row-duplicate {
+  opacity: 0.82;
+  background: rgba(234, 179, 8, 0.04);
+}
+
+.moodle-row-duplicate:hover {
+  background: rgba(234, 179, 8, 0.09) !important;
+}
+
 .moodle-tag.matched {
   background: rgba(59, 130, 246, 0.15);
   color: #2563eb;
@@ -3266,7 +3281,8 @@ tr:hover td {
   border: 1px solid var(--border);
   background: var(--card-bg);
   color: var(--text-main);
-  max-width: 170px;
+  max-width: 100%;
+  width: 100%;
 }
 
 

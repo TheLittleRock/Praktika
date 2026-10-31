@@ -4,6 +4,26 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.20.2] - 2026-11-01
+
+### 🚀 Opravy a vylepšení ve verzi 2.20.2
+
+#### 🎓 Moodle dialog: Responzivita, striktní filtrování protokolů P{n} a správa duplicit
+- **Responzivní zobrazení modálního okna bez ořezu filtrů a sloupců**:
+  - Zvětšena šířka modálního okna na `max-width: 1100px; width: 95vw;`.
+  - Opraven CSS grid filtrů (`minmax(0, 1.3fr) minmax(0, 1fr)`) a přidáno `min-width: 0` a `max-width: 100%` pro roletky úloh a skupin. Roletka skupin již není vytlačována mimo viewport ani při dlouhých názvech úloh.
+  - Optimalizovány šířky sloupců tabulky s protokoly k importu tak, aby sloupec "STAV" byl vždy plně viditelný bez nutnosti horizontálního posouvání.
+- **Striktní filtrování na protokoly `P{číslo}`**:
+  - V seznamech úloh pro import i nahrávání jsou nabízeny výhradně protokoly začínající `P{číslo}` (např. `P1`, `P2`, ... `P12`, `P0`, `P13`).
+  - Položky naměřených dat (`Úloha xx - data`) a kontrol měření (`M1`–`M12`) jsou striktně vyřazeny.
+- **Detekce, varování a ochrana před duplicitním importem**:
+  - Protokoly již existující v databázi pro danou úlohu a semestr jsou zřetelně označeny odznakem `⚠️ V DB (${stav})` a jemně zašednuty.
+  - Detekce duplicit podporuje shodu tokenů jména nezávisle na pořadí jméno/příjmení.
+  - Duplicitní položky jsou ve výchozím stavu **nezaškrtnuté** (předvybrány jsou pouze nové práce).
+  - Přidán přepínač **"Skrýt již v DB"** pro okamžité odfiltrování duplicit z tabulky.
+  - Přidáno rychlé tlačítko **"Pouze nové"** a indikátor počtu `(X nových • Y v databázi)`.
+  - **Bezpečnostní pojistka**: při pokusu importovat ručně zaškrtnutou duplicitu je zobrazen potvrzovací dialog varující před přepsáním stávajícího zdrojového souboru protokolu.
+
 ## [2.20.1] - 2026-10-21
 
 ### 🚀 Opravy a vylepšení ve verzi 2.20.1

@@ -335,6 +335,7 @@ class MoodlePendingSubmissionItem(BaseModel):
     matched_slot_name: Optional[str] = ""
     can_auto_create_slot: bool = False
     already_in_db: bool = False
+    existing_status: Optional[str] = ""
 
 class MoodleDownloadItem(BaseModel):
     cmid: str

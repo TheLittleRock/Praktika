@@ -4958,10 +4958,13 @@ const App = {
         titleEl.textContent = `Moodle: ${data.course_title}`;
       }
 
-      // Populate assignment selects
+      // Populate assignment selects (filter strictly to protocols matching P{number})
+      const protocolAssignments = (data.assignments || []).filter(a => a.is_protocol);
+      const assignmentsToShow = protocolAssignments.length > 0 ? protocolAssignments : (data.assignments || []);
+
       if (assignSel && data.assignments) {
-        let assignOpts = `<option value="all">🌟 Všechny úlohy s neohodnocenými pracemi</option>`;
-        assignOpts += data.assignments.map(a => {
+        let assignOpts = `<option value="all">🌟 Všechny protokoly P{n} s neohodnocenými pracemi</option>`;
+        assignOpts += assignmentsToShow.map(a => {
           const badge = a.needs_grading_count > 0 ? ` (${a.needs_grading_count} k hodnocení)` : (a.submitted_count > 0 ? ` (${a.submitted_count} odevzdáno)` : '');
           return `<option value="${a.cmid}">${this.escape(a.title)}${badge}</option>`;
         }).join('');
@@ -4970,7 +4973,7 @@ const App = {
 
       if (uploadAssignSel && data.assignments) {
         uploadAssignSel.innerHTML = `<option value="">Vyberte úlohu v Moodle...</option>` + 
-          data.assignments.map(a => `<option value="${a.cmid}">${this.escape(a.title)}</option>`).join('');
+          assignmentsToShow.map(a => `<option value="${a.cmid}">${this.escape(a.title)}</option>`).join('');
       }
 
       // Populate group selects
@@ -4998,7 +5001,9 @@ const App = {
   async loadMoodlePendingSubmissions() {
     const tbody = document.getElementById('moodle-pending-tbody');
     const countBadge = document.getElementById('moodle-pending-count-badge');
+    const breakdownBadge = document.getElementById('moodle-pending-breakdown-badge');
     const selectedCountEl = document.getElementById('moodle-selected-count');
+    const selectAllCb = document.getElementById('moodle-pending-select-all');
     const cmid = document.getElementById('moodle-assign-select')?.value || 'all';
     const group = document.getElementById('moodle-group-select')?.value || 'all';
 
@@ -5020,10 +5025,24 @@ const App = {
       const items = await resp.json();
       this.moodlePendingItems = items;
 
+      const newItems = items.filter(it => !it.already_in_db);
+      const dupItems = items.filter(it => it.already_in_db);
+
       if (countBadge) countBadge.textContent = String(items.length);
-      if (selectedCountEl) selectedCountEl.textContent = String(items.length);
+      if (breakdownBadge) {
+        if (items.length > 0) {
+          breakdownBadge.textContent = `(${newItems.length} nových • ${dupItems.length} v databázi)`;
+        } else {
+          breakdownBadge.textContent = '';
+        }
+      }
+
+      if (selectAllCb) {
+        selectAllCb.checked = (newItems.length > 0 && dupItems.length === 0);
+      }
 
       if (items.length === 0) {
+        if (selectedCountEl) selectedCountEl.textContent = '0';
         if (tbody) {
           tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:28px; color:var(--text-muted);">
             Pro vybraný filtr nebyly nalezeny žádné neohodnocené odevzdané protokoly.
@@ -5035,6 +5054,7 @@ const App = {
       // Build rows
       const slotsList = this.slots || [];
       const measList = this.measurements || [];
+      const hideDuplicates = document.getElementById('moodle-hide-duplicates')?.checked ?? false;
 
       tbody.innerHTML = items.map((it, idx) => {
         // Build Slot options
@@ -5053,14 +5073,17 @@ const App = {
           return `<option value="${m.id}" ${isSelected ? 'selected' : ''}>Úloha ${m.number}: ${this.escape(m.name)}</option>`;
         }).join('');
 
-        const statusBadge = it.already_in_db 
-          ? `<span class="moodle-tag exists" title="Protokol v databázi existuje a bude aktualizován">V databázi</span>`
-          : `<span class="moodle-tag new">Nový</span>`;
+        const isDuplicate = !!it.already_in_db;
+        const statusBadge = isDuplicate 
+          ? `<span class="moodle-tag duplicate" title="Protokol v databázi existuje (${this.escape(it.existing_status || 'založeno')})">⚠️ V DB (${this.escape(it.existing_status || 'existuje')})</span>`
+          : `<span class="moodle-tag new">✨ Nový</span>`;
+        const rowClass = isDuplicate ? 'moodle-row-duplicate' : '';
+        const isHidden = isDuplicate && hideDuplicates;
 
         return `
-          <tr data-index="${idx}">
+          <tr class="${rowClass}" data-index="${idx}" data-duplicate="${isDuplicate ? '1' : '0'}" style="${isHidden ? 'display:none;' : ''}">
             <td style="text-align:center;">
-              <input type="checkbox" class="moodle-pending-cb" data-index="${idx}" checked onchange="App.updateMoodlePendingSelectedCount()">
+              <input type="checkbox" class="moodle-pending-cb" data-index="${idx}" ${!isDuplicate ? 'checked' : ''} onchange="App.updateMoodlePendingSelectedCount()">
             </td>
             <td>
               <strong>${this.escape(it.student_name)}</strong>
@@ -5085,18 +5108,39 @@ const App = {
                 ${measOptions}
               </select>
             </td>
-            <td>
+            <td style="text-align:center;">
               ${statusBadge}
             </td>
           </tr>
         `;
       }).join('');
 
+      this.updateMoodlePendingSelectedCount();
+
     } catch(err) {
       if (tbody) {
         tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:24px; color:var(--danger);">Chyba: ${this.escape(err.message)}</td></tr>`;
       }
     }
+  },
+
+  handleMoodleToggleHideDuplicates(hide) {
+    const rows = document.querySelectorAll('#moodle-pending-tbody tr[data-duplicate="1"]');
+    rows.forEach(tr => {
+      tr.style.display = hide ? 'none' : '';
+    });
+  },
+
+  selectOnlyNewMoodlePending() {
+    const cbs = document.querySelectorAll('.moodle-pending-cb');
+    cbs.forEach(cb => {
+      const idx = parseInt(cb.dataset.index, 10);
+      const it = this.moodlePendingItems && this.moodlePendingItems[idx];
+      cb.checked = it ? !it.already_in_db : false;
+    });
+    const selectAllCb = document.getElementById('moodle-pending-select-all');
+    if (selectAllCb) selectAllCb.checked = false;
+    this.updateMoodlePendingSelectedCount();
   },
 
   toggleSelectAllMoodlePending(checked) {
@@ -5117,6 +5161,21 @@ const App = {
     if (checkedBoxes.length === 0) {
       await AppModal.alert({ title: "Upozornění", message: "Vyberte alespoň jeden protokol k importu." });
       return;
+    }
+
+    const hasDuplicates = checkedBoxes.some(cb => {
+      const idx = parseInt(cb.dataset.index, 10);
+      return this.moodlePendingItems && this.moodlePendingItems[idx] && this.moodlePendingItems[idx].already_in_db;
+    });
+
+    if (hasDuplicates) {
+      const ok = await AppModal.confirm({
+        title: "Upozornění na duplicity",
+        message: "Některé z vybraných prací již v databázi máte (např. rozpracované nebo ohodnocené). Pokud budete pokračovat, jejich původní soubor protokolu bude přepsán nově staženým z Moodle. Chcete pokračovat?",
+        confirmText: "Ano, přepsat a importovat",
+        cancelText: "Zrušit"
+      });
+      if (!ok) return;
     }
 
     const itemsToDownload = checkedBoxes.map(cb => {

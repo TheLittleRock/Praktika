@@ -1747,7 +1747,7 @@
   <!-- Modal: Moodle Synchronizace (ČVUT kurz 16880) -->
   <!-- Moodle Sync Modal -->
   <div class="modal-backdrop" id="modal-moodle-sync" style="display:none; z-index:9990;">
-    <div class="modal-box" style="max-width:860px; width:95%; max-height:92vh; display:flex; flex-direction:column;">
+    <div class="modal-box" style="max-width:1100px; width:95vw; max-height:92vh; display:flex; flex-direction:column;">
       <div class="modal-header">
         <h3 style="display:flex; align-items:center; gap:8px;">
           <span>🎓</span>
@@ -1764,16 +1764,16 @@
       <!-- Tab 1: Download Pending Submissions from Moodle -->
       <div id="moodle-tab-download-content" style="display:flex; flex-direction:column; gap:12px; flex:1; min-height:0; overflow:hidden;">
         <!-- Top Filters -->
-        <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:10px; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px;">
-          <div>
-            <label class="form-label" style="font-size:0.75rem; font-weight:700;">1. Filtrovat úlohu v Moodle:</label>
-            <select id="moodle-assign-select" class="form-control" onchange="App.handleMoodleFilterChange()">
-              <option value="all">Všechny úlohy s neohodnocenými pracemi</option>
+        <div style="display:grid; grid-template-columns:minmax(0, 1.3fr) minmax(0, 1fr); gap:12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px;">
+          <div style="min-width:0;">
+            <label class="form-label" style="font-size:0.75rem; font-weight:700;">1. Filtrovat úlohu v Moodle (pouze protokoly P1–P12):</label>
+            <select id="moodle-assign-select" class="form-control" style="width:100%; max-width:100%; text-overflow:ellipsis;" onchange="App.handleMoodleFilterChange()">
+              <option value="all">🌟 Všechny protokoly P{n} s neohodnocenými pracemi</option>
             </select>
           </div>
-          <div>
+          <div style="min-width:0;">
             <label class="form-label" style="font-size:0.75rem; font-weight:700;">2. Filtrovat skupinu / termín v Moodle:</label>
-            <select id="moodle-group-select" class="form-control" onchange="App.handleMoodleFilterChange()">
+            <select id="moodle-group-select" class="form-control" style="width:100%; max-width:100%; text-overflow:ellipsis;" onchange="App.handleMoodleFilterChange()">
               <option value="all">Všechny skupiny</option>
             </select>
           </div>
@@ -1781,29 +1781,39 @@
 
         <!-- Pending Submissions Table Section -->
         <div style="display:flex; flex-direction:column; flex:1; min-height:220px; border:1px solid var(--border); border-radius:6px; background:var(--card-bg); overflow:hidden;">
-          <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:var(--bg); border-bottom:1px solid var(--border);">
+          <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; padding:8px 12px; background:var(--bg); border-bottom:1px solid var(--border);">
             <div style="font-weight:700; font-size:0.82rem; display:flex; align-items:center; gap:8px;">
-              <span>Nalezené neohodnocené protokoly k importu:</span>
+              <span>Nalezené protokoly k importu:</span>
               <span class="badge" id="moodle-pending-count-badge" style="background:var(--primary); color:#fff; font-size:0.75rem; padding:2px 8px; border-radius:10px;">0</span>
+              <span id="moodle-pending-breakdown-badge" style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;"></span>
             </div>
-            <label style="font-size:0.78rem; display:flex; align-items:center; gap:6px; cursor:pointer;">
-              <input type="checkbox" id="moodle-pending-select-all" checked onchange="App.toggleSelectAllMoodlePending(this.checked)">
-              <span>Vybrat vše</span>
-            </label>
+            <div style="display:flex; align-items:center; gap:12px; font-size:0.78rem;">
+              <label style="display:flex; align-items:center; gap:5px; cursor:pointer; color:var(--text-muted); user-select:none;">
+                <input type="checkbox" id="moodle-hide-duplicates" onchange="App.handleMoodleToggleHideDuplicates(this.checked)">
+                <span>Skrýt již v DB</span>
+              </label>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <button type="button" class="btn btn-secondary btn-xs" style="font-size:0.72rem; padding:2px 8px;" onclick="App.selectOnlyNewMoodlePending()">Pouze nové</button>
+                <label style="display:flex; align-items:center; gap:5px; cursor:pointer; user-select:none;">
+                  <input type="checkbox" id="moodle-pending-select-all" onchange="App.toggleSelectAllMoodlePending(this.checked)">
+                  <span>Vybrat vše</span>
+                </label>
+              </div>
+            </div>
           </div>
 
-          <div id="moodle-pending-table-container" style="flex:1; overflow-y:auto; padding:0;">
+          <div id="moodle-pending-table-container" style="flex:1; overflow-y:auto; overflow-x:auto; padding:0;">
             <table class="table" style="width:100%; font-size:0.8rem; margin:0; border-collapse:collapse;" id="moodle-pending-table">
               <thead>
                 <tr style="position:sticky; top:0; background:var(--bg); z-index:2; border-bottom:1px solid var(--border);">
                   <th style="width:36px; text-align:center;"></th>
-                  <th>Student</th>
-                  <th>Skupina</th>
-                  <th>Úloha v Moodle</th>
-                  <th>Soubor</th>
-                  <th>Cílový termín</th>
-                  <th>Cílová úloha</th>
-                  <th>Stav</th>
+                  <th style="width:16%;">Student</th>
+                  <th style="width:13%;">Skupina</th>
+                  <th style="width:18%;">Úloha v Moodle</th>
+                  <th style="width:16%;">Soubor</th>
+                  <th style="width:15%;">Cílový termín</th>
+                  <th style="width:13%;">Cílová úloha</th>
+                  <th style="width:9%; text-align:center;">Stav</th>
                 </tr>
               </thead>
               <tbody id="moodle-pending-tbody">
@@ -1831,16 +1841,16 @@
       <!-- Tab 2: Upload Feedback to Moodle -->
       <div id="moodle-tab-upload-content" style="display:none; flex-direction:column; gap:12px; flex:1; min-height:0; overflow:hidden;">
         <!-- Top Filters -->
-        <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:10px; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px;">
-          <div>
+        <div style="display:grid; grid-template-columns:minmax(0, 1.3fr) minmax(0, 1fr); gap:12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px;">
+          <div style="min-width:0;">
             <label class="form-label" style="font-size:0.75rem; font-weight:700;">1. Cílová úloha v Moodle:</label>
-            <select id="moodle-upload-assign-select" class="form-control" onchange="App.loadMoodleUploadStudents()">
+            <select id="moodle-upload-assign-select" class="form-control" style="width:100%; max-width:100%; text-overflow:ellipsis;" onchange="App.loadMoodleUploadStudents()">
               <option value="">Vyberte úlohu v Moodle...</option>
             </select>
           </div>
-          <div>
+          <div style="min-width:0;">
             <label class="form-label" style="font-size:0.75rem; font-weight:700;">2. Filtrovat skupinu / termín:</label>
-            <select id="moodle-upload-group-select" class="form-control" onchange="App.loadMoodleUploadStudents()">
+            <select id="moodle-upload-group-select" class="form-control" style="width:100%; max-width:100%; text-overflow:ellipsis;" onchange="App.loadMoodleUploadStudents()">
               <option value="all">Všechny skupiny</option>
             </select>
           </div>

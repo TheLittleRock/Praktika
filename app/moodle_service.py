@@ -167,7 +167,7 @@ async def fetch_course_structure(
     """
     cfg = get_moodle_config()
     m_url = (moodle_url or cfg["moodle_url"]).rstrip("/")
-    c_id = (course_id or cfg["course_id"]).strip()
+    c_id = str(course_id or cfg["course_id"]).strip()
     s_cookie = (session_cookie or cfg["moodle_session"]).strip()
 
     if not s_cookie:
@@ -233,6 +233,9 @@ async def fetch_course_structure(
                 else:
                     display_label = raw_name
 
+                # Check if protocol assignment (must match P{number}, e.g. P1, P2... P12; not M1, not data)
+                is_protocol = bool(re.match(r'^P\d+\b', raw_name, re.I))
+
                 assignments.append({
                     "cmid": cmid,
                     "title": display_label,
@@ -241,7 +244,7 @@ async def fetch_course_structure(
                     "task_number": task_number,
                     "submitted_count": submitted_count,
                     "needs_grading_count": needs_grading,
-                    "is_protocol": bool(raw_name.upper().startswith("P") and not raw_name.upper().startswith("PŘEHLED"))
+                    "is_protocol": is_protocol
                 })
 
         # 2. Fetch Participants to extract Groups
@@ -356,7 +359,7 @@ async def fetch_pending_submissions(
     """
     cfg = get_moodle_config()
     m_url = (moodle_url or cfg["moodle_url"]).rstrip("/")
-    c_id = (course_id or cfg["course_id"]).strip()
+    c_id = str(course_id or cfg["course_id"]).strip()
     s_cookie = (session_cookie or cfg["moodle_session"]).strip()
 
     if not s_cookie:
@@ -369,14 +372,15 @@ async def fetch_pending_submissions(
     by_id = user_maps["by_id"]
 
     assignments_to_check = []
+    protocol_assignments = [a for a in structure["assignments"] if a.get("is_protocol")]
     if cmid and cmid != "all":
-        assignments_to_check = [a for a in structure["assignments"] if str(a["cmid"]) == str(cmid)]
+        assignments_to_check = [a for a in protocol_assignments if str(a["cmid"]) == str(cmid)]
     else:
         # Check all protocol assignments that have submissions or needs_grading > 0
-        assignments_to_check = [a for a in structure["assignments"] if a.get("is_protocol") and a.get("needs_grading_count", 0) > 0]
+        assignments_to_check = [a for a in protocol_assignments if a.get("needs_grading_count", 0) > 0]
         if not assignments_to_check:
             # Fallback: check all protocol assignments
-            assignments_to_check = [a for a in structure["assignments"] if a.get("is_protocol")][:12]
+            assignments_to_check = protocol_assignments
 
     cookies = {"MoodleSession": s_cookie}
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -393,10 +397,17 @@ async def fetch_pending_submissions(
     cur.execute("SELECT id, name, code FROM semesters WHERE is_active = 1 LIMIT 1")
     active_sem_row = cur.fetchone()
     active_semester = dict(active_sem_row) if active_sem_row else None
+    active_sem_id = active_semester["id"] if active_semester else 1
 
-    # Load existing protocols for duplicate check
-    cur.execute("SELECT student_name, measurement_id FROM protocols")
-    existing_protocols = set((r[0].strip().lower(), r[1]) for r in cur.fetchall() if r[0] and r[1])
+    # Load existing protocols for duplicate check (including their status)
+    cur.execute("SELECT student_name, measurement_id, status FROM protocols WHERE semester_id = ?", (active_sem_id,))
+    existing_protocols: Dict[Tuple[str, int], str] = {}
+    for r in cur.fetchall():
+        if r["student_name"] and r["measurement_id"]:
+            s_clean = r["student_name"].strip().lower()
+            s_sorted = " ".join(sorted(s_clean.split()))
+            existing_protocols[(s_clean, r["measurement_id"])] = r["status"]
+            existing_protocols[(s_sorted, r["measurement_id"])] = r["status"]
     conn.close()
 
     pending_items = []
@@ -476,9 +487,22 @@ async def fetch_pending_submissions(
 
                 # Check if duplicate in DB
                 is_duplicate = False
+                existing_status_label = ""
                 if matched_task:
                     norm_student = student_name_raw.strip().lower()
-                    is_duplicate = (norm_student, matched_task["id"]) in existing_protocols
+                    sorted_student = " ".join(sorted(norm_student.split()))
+                    raw_status = existing_protocols.get((norm_student, matched_task["id"])) or existing_protocols.get((sorted_student, matched_task["id"]))
+                    if raw_status:
+                        is_duplicate = True
+                        status_map = {
+                            "new": "čeká na hodnocení",
+                            "in_progress": "rozpracováno",
+                            "reviewed": "zkontrolováno",
+                            "graded": "ohodnoceno",
+                            "evaluated": "ohodnoceno",
+                            "completed": "dokončeno"
+                        }
+                        existing_status_label = status_map.get(raw_status, raw_status)
 
                 pending_items.append({
                     "cmid": assign_cmid,
@@ -494,7 +518,8 @@ async def fetch_pending_submissions(
                     "matched_slot_id": matched_slot["id"] if matched_slot else None,
                     "matched_slot_name": matched_slot["name"] if matched_slot else "",
                     "can_auto_create_slot": bool(student_group and not matched_slot),
-                    "already_in_db": is_duplicate
+                    "already_in_db": is_duplicate,
+                    "existing_status": existing_status_label
                 })
 
     return pending_items

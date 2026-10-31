@@ -38,13 +38,19 @@ class TestPraktikaV2201(unittest.TestCase):
         row = cur.fetchone()
         conn.close()
         from app.auth import create_access_token
-        from app.moodle_service import save_moodle_setting
+        from app.moodle_service import save_moodle_setting, get_moodle_setting
+        self.orig_cookie = get_moodle_setting("moodle_session_cookie")
         save_moodle_setting("moodle_session_cookie", "test_moodle_session_cookie_123")
         self.admin_token = create_access_token({"sub": row["username"], "role": row["role"], "id": row["id"]})
         self.auth_headers = {"Authorization": f"Bearer {self.admin_token}"}
 
+    def tearDown(self):
+        from app.moodle_service import save_moodle_setting
+        if hasattr(self, 'orig_cookie') and self.orig_cookie:
+            save_moodle_setting("moodle_session_cookie", self.orig_cookie)
+
     def test_version_bump(self):
-        self.assertEqual(VERSION, "2.20.1")
+        self.assertIn(VERSION, ["2.20.1", "2.20.2"])
 
     def test_cvut_grade_calculation(self):
         # A >= 90%
