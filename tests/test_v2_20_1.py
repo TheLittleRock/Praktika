@@ -50,7 +50,7 @@ class TestPraktikaV2201(unittest.TestCase):
             save_moodle_setting("moodle_session_cookie", self.orig_cookie)
 
     def test_version_bump(self):
-        self.assertIn(VERSION, ["2.20.1", "2.20.2"])
+        self.assertTrue(VERSION >= "2.20.1")
 
     def test_cvut_grade_calculation(self):
         # A >= 90%

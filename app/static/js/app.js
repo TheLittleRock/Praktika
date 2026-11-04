@@ -2465,6 +2465,7 @@ const App = {
       const sqlEl = document.getElementById('diag-sqlite-ver');
       const jEl = document.getElementById('diag-journal-mode');
       const dbPathEl = document.getElementById('diag-db-path');
+      const provEl = document.getElementById('diag-provider-status');
       const keyEl = document.getElementById('diag-key-status');
       const modelEl = document.getElementById('diag-model-status');
 
@@ -2477,6 +2478,7 @@ const App = {
         dbPathEl.textContent = data.db_path;
         dbPathEl.title = data.db_path;
       }
+      if (provEl) provEl.textContent = data.ai_provider || 'Google Gemini';
       if (keyEl) keyEl.textContent = data.gemini_api_key_status;
       if (modelEl) modelEl.textContent = data.gemini_preferred_model;
     } catch (e) {
@@ -2484,7 +2486,7 @@ const App = {
     }
   },
 
-  async testGeminiConnection() {
+  async testAiConnection() {
     const btn = document.getElementById('btn-test-gemini');
     const resultBox = document.getElementById('diag-test-result-box');
     if (btn) btn.disabled = true;
@@ -2492,18 +2494,19 @@ const App = {
       resultBox.style.display = 'block';
       resultBox.style.background = 'rgba(99, 102, 241, 0.1)';
       resultBox.style.color = 'var(--text-main)';
-      resultBox.textContent = "Odesílám testovací dotaz na Google Gemini API...";
+      resultBox.textContent = "Odesílám testovací dotaz na aktivní AI API...";
     }
 
     try {
-      const resp = await fetch('/api/system/test-gemini', { method: 'POST' });
+      const resp = await fetch('/api/system/test-ai', { method: 'POST' });
       const data = await resp.json();
       if (!resultBox) return;
 
       if (resp.ok && data.success) {
         resultBox.style.background = 'rgba(34, 197, 94, 0.15)';
         resultBox.style.color = 'var(--accent-green)';
-        resultBox.innerHTML = `<strong>✓ Spojení úspěšné:</strong> Model ${data.model} odpověděl za <strong>${data.latency_ms} ms</strong>.`;
+        const provName = data.provider === 'openai_compatible' ? 'OpenAI/Groq' : 'Gemini';
+        resultBox.innerHTML = `<strong>✓ Spojení úspěšné (${provName}):</strong> Model <code>${data.model}</code> odpověděl za <strong>${data.latency_ms} ms</strong>.`;
       } else {
         resultBox.style.background = 'rgba(239, 68, 68, 0.15)';
         resultBox.style.color = 'var(--accent-red)';
@@ -2518,6 +2521,10 @@ const App = {
     } finally {
       if (btn) btn.disabled = false;
     }
+  },
+
+  async testGeminiConnection() {
+    return this.testAiConnection();
   },
 
   // Settings: Tasks Management by Course (FPRA1 / FPRA2 / ZFM2)
@@ -4321,6 +4328,62 @@ const App = {
   },
 
   // Settings: AI API Key and Settings
+  handleAiProviderChange(provider) {
+    const isGemini = provider === 'gemini';
+    const geminiContainer = document.getElementById('ai-gemini-container');
+    const openaiContainer = document.getElementById('ai-openai-container');
+    const badge = document.getElementById('ai-active-provider-badge');
+    const geminiLink = document.getElementById('link-ai-get-gemini-key');
+    const groqLink = document.getElementById('link-ai-get-groq-key');
+
+    if (geminiContainer) geminiContainer.style.display = isGemini ? 'block' : 'none';
+    if (openaiContainer) openaiContainer.style.display = isGemini ? 'none' : 'block';
+    if (badge) badge.textContent = isGemini ? 'Google Gemini API' : 'OpenAI / Groq API';
+    if (geminiLink) geminiLink.style.display = isGemini ? 'inline-block' : 'none';
+    if (groqLink) groqLink.style.display = isGemini ? 'none' : 'inline-block';
+  },
+
+  applyAiPreset(preset) {
+    const urlInput = document.getElementById('ai-openai-base-url');
+    const modelInput = document.getElementById('ai-openai-model-input');
+    const keyInput = document.getElementById('ai-openai-key-input');
+    if (!urlInput || !modelInput) return;
+
+    if (preset === 'groq') {
+      urlInput.value = 'https://api.groq.com/openai/v1';
+      modelInput.value = 'llama-3.3-70b-versatile';
+      if (keyInput && !keyInput.value) keyInput.placeholder = 'gsk_...';
+      this.showToast("Předvolba: Groq (Llama 3.3 70B)");
+    } else if (preset === 'openrouter') {
+      urlInput.value = 'https://openrouter.ai/api/v1';
+      modelInput.value = 'meta-llama/llama-3.3-70b-instruct:free';
+      if (keyInput && !keyInput.value) keyInput.placeholder = 'sk-or-v1-...';
+      this.showToast("Předvolba: OpenRouter (Llama 3.3 Free)");
+    } else if (preset === 'cerebras') {
+      urlInput.value = 'https://api.cerebras.ai/v1';
+      modelInput.value = 'llama-3.3-70b';
+      if (keyInput && !keyInput.value) keyInput.placeholder = 'csk-...';
+      this.showToast("Předvolba: Cerebras (Llama 3.3 70B)");
+    } else if (preset === 'deepseek') {
+      urlInput.value = 'https://api.deepseek.com/v1';
+      modelInput.value = 'deepseek-chat';
+      if (keyInput && !keyInput.value) keyInput.placeholder = 'sk-...';
+      this.showToast("Předvolba: DeepSeek API");
+    } else if (preset === 'ollama') {
+      urlInput.value = 'http://localhost:11434/v1';
+      modelInput.value = 'llama3.3:latest';
+      if (keyInput) keyInput.value = '';
+      this.showToast("Předvolba: Lokální Ollama");
+    }
+  },
+
+  toggleOpenAiKeyVisibility() {
+    const inp = document.getElementById('ai-openai-key-input');
+    if (inp) {
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+    }
+  },
+
   async loadAISettings() {
     try {
       const resp = await fetch('/api/settings/ai');
@@ -4334,14 +4397,44 @@ const App = {
         const autoAnalyzeToggle = document.getElementById('ai-auto-analyze-toggle');
         const langSelect = document.getElementById('ai-language-select');
 
+        // Provider radio & sections
+        const providerRadios = document.getElementsByName('ai-provider-radio');
+        const activeProvider = data.ai_provider || 'gemini';
+        if (providerRadios && providerRadios.length) {
+          for (let r of providerRadios) {
+            r.checked = (r.value === activeProvider);
+          }
+        }
+        this.handleAiProviderChange(activeProvider);
+
+        // OpenAI-compatible fields
+        const openAiUrl = document.getElementById('ai-openai-base-url');
+        const openAiKey = document.getElementById('ai-openai-key-input');
+        const openAiModel = document.getElementById('ai-openai-model-input');
+        const openAiKeyStatus = document.getElementById('ai-openai-key-status');
+
+        if (openAiUrl) openAiUrl.value = data.openai_base_url || 'https://api.groq.com/openai/v1';
+        if (openAiKey) openAiKey.value = data.openai_api_key || '';
+        if (openAiModel) openAiModel.value = data.openai_model || 'llama-3.3-70b-versatile';
+        if (openAiKeyStatus) {
+          if (data.has_openai_key || (data.openai_api_key && data.openai_api_key.trim().length > 0)) {
+            const keyStr = data.openai_api_key || '••••••••';
+            openAiKeyStatus.innerHTML = `✓ Klíč je nastaven (${keyStr.substring(0, 6)}...${keyStr.slice(-4)})`;
+            openAiKeyStatus.style.color = 'var(--accent-green)';
+          } else {
+            openAiKeyStatus.innerHTML = `⚠️ Klíč není zadán (při použití bezplatného Groq / OpenRouter vložte API klíč).`;
+            openAiKeyStatus.style.color = 'var(--accent-red)';
+          }
+        }
+
         if (toggle) toggle.checked = !!data.ai_enabled;
         if (keyInput) keyInput.value = data.gemini_api_key || '';
         if (autoAnalyzeToggle) autoAnalyzeToggle.checked = (data.auto_analyze_on_upload !== false);
         if (langSelect && data.ai_language) langSelect.value = data.ai_language;
 
         if (modelSelect) {
-          const m = data.model_name || 'gemini-3.5-flash-lite';
-          const validModels = ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+          const m = data.model_name || 'gemini-3.8-flash';
+          const validModels = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
           if (validModels.includes(m)) {
             modelSelect.value = m;
             if (customInput) customInput.style.display = 'none';
@@ -4382,6 +4475,14 @@ const App = {
   async handleSaveAISettings(e) {
     e.preventDefault();
     const enabled = document.getElementById('ai-enabled-toggle').checked;
+    const providerRadios = document.getElementsByName('ai-provider-radio');
+    let provider = 'gemini';
+    if (providerRadios && providerRadios.length) {
+      for (let r of providerRadios) {
+        if (r.checked) { provider = r.value; break; }
+      }
+    }
+
     const apiKey = document.getElementById('ai-api-key-input').value.trim();
     const modelSelect = document.getElementById('ai-model-select').value;
     const customModel = document.getElementById('ai-custom-model-input').value.trim();
@@ -4389,6 +4490,10 @@ const App = {
     const langSelect = document.getElementById('ai-language-select');
     const aiLanguage = langSelect ? langSelect.value : 'cs';
     const modelName = (modelSelect === 'custom' && customModel) ? customModel : modelSelect;
+
+    const openAiUrl = (document.getElementById('ai-openai-base-url')?.value || '').trim();
+    const openAiKey = (document.getElementById('ai-openai-key-input')?.value || '').trim();
+    const openAiModel = (document.getElementById('ai-openai-model-input')?.value || '').trim();
 
     try {
       const resp = await fetch('/api/settings/ai', {
@@ -4399,7 +4504,11 @@ const App = {
           ai_enabled: enabled,
           model_name: modelName,
           auto_analyze_on_upload: autoAnalyze,
-          ai_language: aiLanguage
+          ai_language: aiLanguage,
+          ai_provider: provider,
+          openai_base_url: openAiUrl,
+          openai_api_key: openAiKey,
+          openai_model: openAiModel
         })
       });
       if (resp.ok) {
@@ -4909,6 +5018,161 @@ const App = {
     if (modal) modal.style.display = 'none';
   },
 
+  // ==========================================
+  // My Tasks Modal ("Moje úlohy") Management
+  // ==========================================
+  myTasksData: null,
+  myTasksSelectedIds: new Set(),
+  myTasksActiveCourse: 'FPRA1',
+
+  async openMyTasksModal() {
+    const modal = document.getElementById('modal-my-tasks');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    const badge = document.getElementById('my-tasks-selected-count-badge');
+    if (badge) badge.textContent = "Načítám vyučované úlohy...";
+
+    try {
+      const resp = await fetch('/api/users/me/assigned-tasks');
+      if (!resp.ok) throw new Error("Chyba načítání přiřazených úloh.");
+      const data = await resp.json();
+      this.myTasksData = data;
+      this.myTasksSelectedIds = new Set(data.assigned_ids || []);
+      
+      this.renderMyTasksPanes();
+      this.switchMyTasksCourseTab(this.myTasksActiveCourse || 'FPRA1');
+      this.updateMyTasksBadge();
+    } catch (err) {
+      if (badge) badge.textContent = `Chyba: ${err.message}`;
+    }
+  },
+
+  closeMyTasksModal() {
+    const modal = document.getElementById('modal-my-tasks');
+    if (modal) modal.style.display = 'none';
+  },
+
+  switchMyTasksCourseTab(courseCode) {
+    this.myTasksActiveCourse = courseCode;
+    ['FPRA1', 'FPRA2', 'ZFM2'].forEach(c => {
+      const btn = document.getElementById(`btn-my-tasks-tab-${c}`);
+      const pane = document.getElementById(`my-tasks-list-${c}`);
+      if (btn) {
+        if (c === courseCode) {
+          btn.className = "btn btn-primary btn-sm my-tasks-tab-btn";
+        } else {
+          btn.className = "btn btn-secondary btn-sm my-tasks-tab-btn";
+        }
+      }
+      if (pane) {
+        pane.style.display = (c === courseCode) ? 'grid' : 'none';
+      }
+    });
+  },
+
+  renderMyTasksPanes() {
+    if (!this.myTasksData || !this.myTasksData.measurements) return;
+    const courses = ['FPRA1', 'FPRA2', 'ZFM2'];
+    courses.forEach(c => {
+      const pane = document.getElementById(`my-tasks-list-${c}`);
+      if (!pane) return;
+      const tasks = this.myTasksData.measurements.filter(m => (m.course_code || '').toUpperCase() === c);
+      if (tasks.length === 0) {
+        pane.innerHTML = `<div style="grid-column:1/-1; color:var(--text-muted); font-size:0.83rem; padding:12px; text-align:center;">V tomto předmětu nejsou v databázi definovány žádné úlohy.</div>`;
+        return;
+      }
+      pane.innerHTML = tasks.map(t => {
+        const isChecked = this.myTasksSelectedIds.has(t.id);
+        const numLabel = t.number !== null ? `Úloha ${t.number}` : (t.code || `ID ${t.id}`);
+        return `
+          <label class="my-tasks-item ${isChecked ? 'selected' : ''}" id="my-task-item-${t.id}">
+            <input type="checkbox" value="${t.id}" ${isChecked ? 'checked' : ''} onchange="App.handleMyTaskItemToggle(${t.id}, this.checked)">
+            <div style="flex:1; min-width:0;">
+              <div style="font-weight:700; font-size:0.85rem; color:var(--text-main); margin-bottom:2px;">
+                ${this.escape(numLabel)}: ${this.escape(t.name)}
+              </div>
+              <div style="font-size:0.75rem; color:var(--text-muted);">
+                ${this.escape(t.code || '')} ${t.semester_type ? `• ${this.escape(t.semester_type)}` : ''}
+              </div>
+            </div>
+          </label>
+        `;
+      }).join('');
+    });
+  },
+
+  handleMyTaskItemToggle(taskId, checked) {
+    if (checked) {
+      this.myTasksSelectedIds.add(taskId);
+    } else {
+      this.myTasksSelectedIds.delete(taskId);
+    }
+    const itemEl = document.getElementById(`my-task-item-${taskId}`);
+    if (itemEl) {
+      if (checked) itemEl.classList.add('selected');
+      else itemEl.classList.remove('selected');
+    }
+    this.updateMyTasksBadge();
+  },
+
+  toggleMyTasksCourseSelection(selectAll) {
+    if (!this.myTasksData || !this.myTasksData.measurements) return;
+    const currentCourse = this.myTasksActiveCourse || 'FPRA1';
+    const tasks = this.myTasksData.measurements.filter(m => (m.course_code || '').toUpperCase() === currentCourse);
+    tasks.forEach(t => {
+      if (selectAll) {
+        this.myTasksSelectedIds.add(t.id);
+      } else {
+        this.myTasksSelectedIds.delete(t.id);
+      }
+      const itemEl = document.getElementById(`my-task-item-${t.id}`);
+      if (itemEl) {
+        const cb = itemEl.querySelector('input[type="checkbox"]');
+        if (cb) cb.checked = selectAll;
+        if (selectAll) itemEl.classList.add('selected');
+        else itemEl.classList.remove('selected');
+      }
+    });
+    this.updateMyTasksBadge();
+  },
+
+  updateMyTasksBadge() {
+    const badge = document.getElementById('my-tasks-selected-count-badge');
+    if (badge) {
+      const count = this.myTasksSelectedIds.size;
+      badge.textContent = `Vybráno celkem: ${count} úloh`;
+    }
+  },
+
+  async saveMyTasks() {
+    const btn = document.getElementById('btn-save-my-tasks');
+    if (btn) btn.disabled = true;
+    try {
+      const taskIds = Array.from(this.myTasksSelectedIds);
+      const resp = await fetch('/api/users/me/assigned-tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_ids: taskIds })
+      });
+      if (!resp.ok) {
+        const err = await resp.json();
+        throw new Error(err.detail || "Chyba při ukládání.");
+      }
+      this.showToast(`Uloženo ${taskIds.length} vyučovaných úloh!`);
+      this.closeMyTasksModal();
+
+      // If Moodle modal is open and "Moje úlohy" is selected, refresh pending submissions
+      const moodleSelect = document.getElementById('moodle-assign-select');
+      if (moodleSelect && moodleSelect.value === 'my_tasks') {
+        this.loadMoodlePendingSubmissions();
+      }
+    } catch (err) {
+      await AppModal.alert({ title: "Chyba", message: err.message });
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  },
+
   switchMoodleTab(tab) {
     const btnDl = document.getElementById('btn-moodle-tab-download');
     const btnUl = document.getElementById('btn-moodle-tab-upload');
@@ -4963,7 +5227,8 @@ const App = {
       const assignmentsToShow = protocolAssignments.length > 0 ? protocolAssignments : (data.assignments || []);
 
       if (assignSel && data.assignments) {
-        let assignOpts = `<option value="all">🌟 Všechny protokoly P{n} s neohodnocenými pracemi</option>`;
+        let assignOpts = `<option value="all">Všechny úlohy</option>`;
+        assignOpts += `<option value="my_tasks">⭐ Moje úlohy</option>`;
         assignOpts += assignmentsToShow.map(a => {
           const badge = a.needs_grading_count > 0 ? ` (${a.needs_grading_count} k hodnocení)` : (a.submitted_count > 0 ? ` (${a.submitted_count} odevzdáno)` : '');
           return `<option value="${a.cmid}">${this.escape(a.title)}${badge}</option>`;

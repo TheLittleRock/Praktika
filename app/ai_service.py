@@ -147,19 +147,81 @@ def robust_json_loads(text: str) -> dict:
     except Exception as ex:
         raise ValueError(f"Nelze analyzovat JSON z odpovědi AI modelu: {ex}")
 
+def get_ai_provider(user: Optional[dict] = None) -> str:
+    if user and user.get("custom_ai_provider"):
+        return user["custom_ai_provider"].strip().lower()
+    return get_ai_setting("ai_provider", "gemini").strip().lower()
+
+def get_openai_settings(user: Optional[dict] = None) -> dict:
+    base_url = (user.get("custom_openai_base_url") if user else None) or get_ai_setting("openai_base_url", "https://api.groq.com/openai/v1")
+    api_key = (user.get("custom_openai_api_key") if user else None) or get_ai_setting("openai_api_key", "")
+    model = (user.get("custom_openai_model") if user else None) or get_ai_setting("openai_model", "llama-3.3-70b-versatile")
+    return {
+        "base_url": (base_url or "https://api.groq.com/openai/v1").rstrip("/"),
+        "api_key": (api_key or "").strip(),
+        "model": (model or "llama-3.3-70b-versatile").strip()
+    }
+
+async def call_openai_compatible(
+    messages: List[dict],
+    temperature: float = 0.2,
+    json_mode: bool = False,
+    base_url: Optional[str] = None,
+    api_key: Optional[str] = None,
+    model: Optional[str] = None,
+    timeout: float = 90.0,
+    user: Optional[dict] = None
+) -> dict:
+    cfg = get_openai_settings(user)
+    b_url = (base_url or cfg["base_url"]).rstrip("/")
+    key = (api_key or cfg["api_key"]).strip()
+    mdl = (model or cfg["model"]).strip()
+
+    if not key:
+        raise ValueError("Chybí API klíč pro OpenAI-kompatibilního providera. Zadejte jej prosím v Nastavení -> AI Asistent.")
+
+    endpoint = f"{b_url}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json"
+    }
+
+    body: Dict[str, Any] = {
+        "model": mdl,
+        "messages": messages,
+        "temperature": temperature
+    }
+    if json_mode:
+        body["response_format"] = {"type": "json_object"}
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        resp = await client.post(endpoint, headers=headers, json=body)
+        if resp.status_code != 200:
+            err_text = resp.text
+            try:
+                err_json = resp.json()
+                err_text = err_json.get("error", {}).get("message", err_text)
+            except Exception:
+                pass
+            raise RuntimeError(f"Chyba AI API ({resp.status_code}): {err_text}")
+
+        data = resp.json()
+        raw_content = data["choices"][0]["message"]["content"]
+        return {
+            "content": raw_content,
+            "model": data.get("model", mdl)
+        }
+
 def get_candidate_models(preferred: Optional[str] = None) -> List[str]:
-    pref = (preferred or get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.6-flash")).strip()
+    pref = (preferred or get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.8-flash")).strip()
     candidates = []
     if pref:
         candidates.append(pref)
     for m in [
-        "gemini-3.6-flash",
         "gemini-3.8-flash",
+        "gemini-3.6-flash",
         "gemini-3.5-flash-lite",
         "gemini-3.1-flash-lite",
-        "gemini-3-flash",
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
         "gemini-flash-latest",
         "gemini-flash-lite-latest"
     ]:
@@ -167,11 +229,9 @@ def get_candidate_models(preferred: Optional[str] = None) -> List[str]:
             candidates.append(m)
     return candidates
 
-async def generate_task_rubric(raw_text: str, task_name: str, task_number: int) -> str:
-    """Uses Gemini to synthesize an uploaded task manual into a concise, high-value evaluation rubric for AI grading."""
-    api_key = get_gemini_api_key()
-    if not api_key:
-        return raw_text[:20000]
+async def generate_task_rubric(raw_text: str, task_name: str, task_number: int, user: Optional[dict] = None) -> str:
+    """Uses Gemini or OpenAI-compatible provider to synthesize an uploaded task manual into a concise, high-value evaluation rubric for AI grading."""
+    provider = get_ai_provider(user)
 
     prompt = f"""Jsi vedoucí fyzikálního praktika na univerzitě.
 Dostal jsi oficiální návod / zadání k laboratorní úloze:
@@ -199,11 +259,30 @@ Vygeneruj text v češtině s touto pevnou strukturou:
 
 Napiš to stručně, jasně, v bodech a odrážkách, bez zbytečné omáčky.
 """
+
+    if provider == "openai_compatible":
+        try:
+            res = await call_openai_compatible(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                user=user,
+                timeout=60.0
+            )
+            rubric = res.get("content", "").strip()
+            if rubric:
+                return rubric
+        except Exception as e:
+            print(f"Error generating rubric with OpenAI provider: {e}")
+
+    api_key = get_gemini_api_key()
+    if not api_key:
+        return raw_text[:20000]
+
     models_to_try = get_candidate_models()
     for m in models_to_try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent?key={api_key}"
         try:
-            async with httpx.AsyncClient(timeout=25.0) as client:
+            async with httpx.AsyncClient(timeout=60.0) as client:
                 resp = await client.post(url, json={
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {"temperature": 0.2}
@@ -242,7 +321,8 @@ async def run_background_ai_analysis(proto_id: int):
         conn.commit()
         conn.close()
 
-async def analyze_protocol(proto_id: int, custom_key: Optional[str] = None, custom_model: Optional[str] = None, language: Optional[str] = None) -> AIAnalysisResult:
+async def analyze_protocol(proto_id: int, custom_key: Optional[str] = None, custom_model: Optional[str] = None, language: Optional[str] = None, user: Optional[dict] = None) -> AIAnalysisResult:
+    provider = get_ai_provider(user)
     api_key = (custom_key or "").strip() or get_gemini_api_key()
 
     target_lang = (language or get_ai_setting("ai_language", "cs")).strip().lower()
@@ -479,6 +559,34 @@ ZÁVAZNÁ PRAVIDLA:
 4. Vytvoř anotace v textu POUZE pro skutečné chyby a nedostatky. Každá anotace musí studentovi věcně sdělovat, co má špatně a jak to opravit. Žádná prázdná konstatování ani komentáře k věcem, které jsou v pořádku.
 """
 
+    if provider == "openai_compatible":
+        messages = [
+            {"role": "system", "content": "Jsi přísný a spravedlivý odborný asistent fyzikálního praktika na univerzitě. Výstup odevzdávej výhradně jako validní JSON objekt podle zadaného schématu."},
+            {"role": "user", "content": prompt}
+        ]
+        res = await call_openai_compatible(
+            messages=messages,
+            temperature=0.35,
+            json_mode=True,
+            timeout=90.0,
+            user=user
+        )
+        parsed = robust_json_loads(res["content"])
+        log_event(
+            level="INFO",
+            category="ai",
+            action="ai_analysis_success",
+            details=f"Úspěšná AI analýza protokolu #{proto_id} modelem {res['model']} ({len(parsed.get('annotations', []))} anotací, {len(parsed.get('deductions', []))} srážek)."
+        )
+        return build_resolved_result(
+            proto_id, 
+            parsed, 
+            doc, 
+            model_used=f"OpenAI-Compatible ({res['model']})",
+            preferred_model=res['model'],
+            fallback_note=None
+        )
+
     parts = []
     if pdf_b64:
         parts.append({
@@ -497,7 +605,7 @@ ZÁVAZNÁ PRAVIDLA:
         }
     }
 
-    preferred_model = (custom_model or get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.6-flash")).strip()
+    preferred_model = (custom_model or get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.8-flash")).strip()
     models_to_try = get_candidate_models(custom_model)
     last_error = None
     fallback_note = None
@@ -507,7 +615,7 @@ ZÁVAZNÁ PRAVIDLA:
         # Retry up to 2 times on transient spikes
         for attempt in range(2):
             try:
-                async with httpx.AsyncClient(timeout=75.0) as client:
+                async with httpx.AsyncClient(timeout=90.0) as client:
                     resp = await client.post(gemini_url, json=payload)
                     if resp.status_code == 400 and pdf_b64:
                         # Fallback to text-only payload if multimodal inline_data is rejected
@@ -790,9 +898,11 @@ async def chat_with_ai(
     user_message: str, 
     custom_key: Optional[str] = None, 
     custom_model: Optional[str] = None, 
-    language: Optional[str] = None
+    language: Optional[str] = None,
+    user: Optional[dict] = None
 ) -> AIChatResponse:
     """Interactively process a question or grading assignment task in AI chat for a given protocol."""
+    provider = get_ai_provider(user)
     api_key = (custom_key or "").strip() or get_gemini_api_key()
     if not api_key:
         raise ValueError("Není nastaven platný API klíč pro Google Gemini. Zadejte jej prosím v Nastavení -> AI Asistent.")
@@ -911,78 +1021,94 @@ ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
 }}
 """
 
-    chat_parts = []
-    if pdf_b64:
-        chat_parts.append({
-            "inline_data": {
-                "mime_type": "application/pdf",
-                "data": pdf_b64
-            }
-        })
-    chat_parts.append({"text": prompt})
-
-    payload = {
-        "contents": [{"parts": chat_parts}],
-        "generationConfig": {
-            "response_mime_type": "application/json",
-            "temperature": 0.3
-        }
-    }
-
-    models_to_try = get_candidate_models(custom_model)
     raw_response = None
     last_error = None
     successful_model = None
 
-    for model_name in models_to_try:
-        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-        for attempt in range(2):
-            try:
-                async with httpx.AsyncClient(timeout=65.0) as client:
-                    resp = await client.post(gemini_url, json=payload)
-                    if resp.status_code == 400 and pdf_b64:
-                        # Fallback to text-only payload if multimodal inline_data is rejected
-                        text_payload = {
-                            "contents": [{"parts": [{"text": prompt}]}],
-                            "generationConfig": payload["generationConfig"]
-                        }
-                        resp = await client.post(gemini_url, json=text_payload)
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-                        raw_response = robust_json_loads(raw_text)
-                        successful_model = model_name
-                        break
-                    elif resp.status_code in [503, 429]:
-                        err_msg = ""
-                        try:
-                            err_msg = resp.json().get("error", {}).get("message", "")
-                        except Exception:
-                            err_msg = resp.text[:200]
-                        last_error = f"Model {model_name} vrátil HTTP {resp.status_code} ({err_msg or 'přetížení / vyčerpaný limit kvóty'})"
-                        if attempt == 0:
-                            import asyncio
-                            await asyncio.sleep(1.0)
-                            continue
-                        break
-                    else:
-                        err_msg = ""
-                        try:
-                            err_msg = resp.json().get("error", {}).get("message", "")
-                        except Exception:
-                            err_msg = resp.text[:300]
-                        last_error = f"Model {model_name} vrátil HTTP {resp.status_code}: {err_msg}"
-                        break
-            except Exception as e:
-                err_msg = str(e) or type(e).__name__
-                last_error = f"Model {model_name} selhal na chybě spojení ({err_msg})"
-                if attempt == 0:
-                    import asyncio
-                    await asyncio.sleep(0.8)
-                    continue
+    if provider == "openai_compatible":
+        messages = [
+            {"role": "system", "content": "Jsi zkušený vysokoškolský pedagog a asistent ve fyzikálním praktiku. Odpovídej věcně a pomáhej hodnotiteli s kontrolou protokolu. Výstup odevzdávej výhradně jako validní JSON objekt dle specifikace."},
+            {"role": "user", "content": prompt}
+        ]
+        res = await call_openai_compatible(
+            messages=messages,
+            temperature=0.3,
+            json_mode=True,
+            timeout=90.0,
+            user=user
+        )
+        raw_response = robust_json_loads(res["content"])
+        successful_model = f"OpenAI-Compatible ({res['model']})"
+    else:
+        chat_parts = []
+        if pdf_b64:
+            chat_parts.append({
+                "inline_data": {
+                    "mime_type": "application/pdf",
+                    "data": pdf_b64
+                }
+            })
+        chat_parts.append({"text": prompt})
+
+        payload = {
+            "contents": [{"parts": chat_parts}],
+            "generationConfig": {
+                "response_mime_type": "application/json",
+                "temperature": 0.3
+            }
+        }
+
+        models_to_try = get_candidate_models(custom_model)
+
+        for model_name in models_to_try:
+            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+            for attempt in range(2):
+                try:
+                    async with httpx.AsyncClient(timeout=90.0) as client:
+                        resp = await client.post(gemini_url, json=payload)
+                        if resp.status_code == 400 and pdf_b64:
+                            # Fallback to text-only payload if multimodal inline_data is rejected
+                            text_payload = {
+                                "contents": [{"parts": [{"text": prompt}]}],
+                                "generationConfig": payload["generationConfig"]
+                            }
+                            resp = await client.post(gemini_url, json=text_payload)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
+                            raw_response = robust_json_loads(raw_text)
+                            successful_model = model_name
+                            break
+                        elif resp.status_code in [503, 429]:
+                            err_msg = ""
+                            try:
+                                err_msg = resp.json().get("error", {}).get("message", "")
+                            except Exception:
+                                err_msg = resp.text[:200]
+                            last_error = f"Model {model_name} vrátil HTTP {resp.status_code} ({err_msg or 'přetížení / vyčerpaný limit kvóty'})"
+                            if attempt == 0:
+                                import asyncio
+                                await asyncio.sleep(1.0)
+                                continue
+                            break
+                        else:
+                            err_msg = ""
+                            try:
+                                err_msg = resp.json().get("error", {}).get("message", "")
+                            except Exception:
+                                err_msg = resp.text[:300]
+                            last_error = f"Model {model_name} vrátil HTTP {resp.status_code}: {err_msg}"
+                            break
+                except Exception as e:
+                    err_msg = str(e) or type(e).__name__
+                    last_error = f"Model {model_name} selhal na chybě spojení ({err_msg})"
+                    if attempt == 0:
+                        import asyncio
+                        await asyncio.sleep(0.8)
+                        continue
+                    break
+            if raw_response:
                 break
-        if raw_response:
-            break
 
     if not raw_response or not isinstance(raw_response, dict):
         conn.close()

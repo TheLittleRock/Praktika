@@ -39,7 +39,8 @@ from app.models import (
     AIChatMessage, AIChatRequest, AIChatResponse,
     StudentHeartbeatRequest, ProtocolViewsResponse, StudentViewSession,
     MoodleConfig, MoodleCourseStructureResponse, MoodleDownloadRequest, MoodleUploadRequest,
-    MoodlePendingSubmissionItem, MoodleDownloadSelectedRequest, MoodleGradableProtocolItem
+    MoodlePendingSubmissionItem, MoodleDownloadSelectedRequest, MoodleGradableProtocolItem,
+    AssignedTasksUpdateRequest
 )
 from app.moodle_service import (
     get_moodle_config, save_moodle_setting, check_moodle_session_validity,
@@ -52,7 +53,8 @@ from app.pdf_service import extract_pdf_annotations, burn_annotations_to_pdf, fo
 from app.ai_service import (
     analyze_protocol, get_gemini_api_key, save_gemini_api_key, get_ai_setting, save_ai_setting,
     run_background_ai_analysis, generate_task_rubric, merge_ai_results,
-    chat_with_ai, get_protocol_chat_history, clear_protocol_chat_history
+    chat_with_ai, get_protocol_chat_history, clear_protocol_chat_history,
+    get_ai_provider, get_openai_settings, call_openai_compatible
 )
 from app.version import VERSION
 
@@ -407,6 +409,48 @@ def admin_reset_password(user_id: int, req: AdminPasswordResetRequest, user: dic
     conn.commit()
     conn.close()
     return {"status": "ok", "message": f"Heslo pro uživatele {target_user['full_name'] or target_user['username']} bylo úspěšně nastaveno"}
+
+# ==========================================
+# USER ASSIGNED TASKS ("Moje úlohy")
+# ==========================================
+
+@app.get("/api/users/me/assigned-tasks")
+def get_my_assigned_tasks(user: dict = Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT assigned_tasks FROM users WHERE id = ?", (user["id"],))
+    row = cur.fetchone()
+    assigned_ids = []
+    if row and row["assigned_tasks"]:
+        try:
+            assigned_ids = json.loads(row["assigned_tasks"])
+        except Exception:
+            assigned_ids = []
+
+    cur.execute("SELECT id, code, number, name, semester_type, course_code, description FROM measurements ORDER BY course_code, number")
+    all_meas = [dict(r) for r in cur.fetchall()]
+    conn.close()
+
+    return {
+        "assigned_ids": assigned_ids,
+        "measurements": all_meas
+    }
+
+@app.post("/api/users/me/assigned-tasks")
+def update_my_assigned_tasks(req: AssignedTasksUpdateRequest, user: dict = Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+    clean_ids = [int(i) for i in req.task_ids if isinstance(i, (int, str)) and str(i).isdigit()]
+    tasks_json = json.dumps(clean_ids)
+    cur.execute("UPDATE users SET assigned_tasks = ? WHERE id = ?", (tasks_json, user["id"]))
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "ok",
+        "assigned_ids": clean_ids,
+        "message": "Přiřazené úlohy byly úspěšně uloženy."
+    }
 
 # ==========================================
 # SEMESTERS & SLOTS (TERMÍNY)
@@ -1918,7 +1962,7 @@ async def ai_analyze_protocol_endpoint(
 ):
     try:
         custom_key = user.get("custom_gemini_api_key")
-        result = await analyze_protocol(proto_id, custom_key=custom_key, language=language)
+        result = await analyze_protocol(proto_id, custom_key=custom_key, language=language, user=user)
         
         # Persist to database so proposals are never lost on reload
         conn = get_db()
@@ -2224,7 +2268,8 @@ async def ai_chat_endpoint(
             user_message=req.message,
             custom_key=custom_key,
             custom_model=custom_model,
-            language=req.language
+            language=req.language,
+            user=user
         )
         return resp
     except Exception as e:
@@ -2270,15 +2315,33 @@ def get_ai_settings(user: dict = Depends(get_current_user)):
     personal_key = user.get("custom_gemini_api_key") or ""
     active_key = personal_key or global_key
     masked_key = f"{active_key[:6]}...{active_key[-4:]}" if len(active_key) > 10 else ("***" if active_key else "")
-    model_name = get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.5-flash-lite")
+    model_name = get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.8-flash")
     auto_analyze = get_ai_setting("auto_analyze_on_upload", "true").lower() in ("true", "1", "yes")
     ai_language = get_ai_setting("ai_language", "cs")
+
+    ai_provider = user.get("custom_ai_provider") or get_ai_setting("ai_provider", "gemini")
+    global_openai_key = get_ai_setting("openai_api_key", "")
+    personal_openai_key = user.get("custom_openai_api_key") or ""
+    active_openai_key = personal_openai_key or global_openai_key
+    masked_openai_key = f"{active_openai_key[:6]}...{active_openai_key[-4:]}" if len(active_openai_key) > 10 else ("***" if active_openai_key else "")
+    openai_base_url = user.get("custom_openai_base_url") or get_ai_setting("openai_base_url", "https://api.groq.com/openai/v1")
+    openai_model = user.get("custom_openai_model") or get_ai_setting("openai_model", "llama-3.3-70b-versatile")
+
+    has_active_key = bool(active_key) if ai_provider == "gemini" else bool(active_openai_key)
+
     return {
-        "has_key": bool(active_key),
+        "has_key": has_active_key,
+        "has_openai_key": bool(active_openai_key),
         "masked_key": masked_key,
         "gemini_api_key": global_key if user["role"] == "admin" else personal_key,
         "personal_gemini_api_key": personal_key,
         "model_name": model_name,
+        "ai_provider": ai_provider,
+        "openai_base_url": openai_base_url,
+        "openai_api_key": global_openai_key if user["role"] == "admin" else personal_openai_key,
+        "personal_openai_api_key": personal_openai_key,
+        "masked_openai_key": masked_openai_key,
+        "openai_model": openai_model,
         "auto_analyze_on_upload": auto_analyze,
         "ai_language": ai_language,
         "ai_enabled": True,
@@ -2289,11 +2352,26 @@ def get_ai_settings(user: dict = Depends(get_current_user)):
 def set_ai_settings(req: AISettingsRequest, user: dict = Depends(get_current_user)):
     conn = get_db()
     cur = conn.cursor()
-    # Personal key can be updated by any user
+    # Personal keys can be updated by any user
     raw_personal = req.personal_gemini_api_key if req.personal_gemini_api_key is not None else (req.gemini_api_key if user["role"] == "assistant" else None)
     if raw_personal is not None:
         p_key = raw_personal.strip() or None
         cur.execute("UPDATE users SET custom_gemini_api_key = ? WHERE id = ?", (p_key, user["id"]))
+        conn.commit()
+
+    raw_personal_openai = req.personal_openai_api_key if req.personal_openai_api_key is not None else (req.openai_api_key if user["role"] == "assistant" else None)
+    if raw_personal_openai is not None:
+        p_o_key = raw_personal_openai.strip() or None
+        cur.execute("UPDATE users SET custom_openai_api_key = ? WHERE id = ?", (p_o_key, user["id"]))
+        conn.commit()
+
+    if user["role"] == "assistant":
+        if req.ai_provider is not None:
+            cur.execute("UPDATE users SET custom_ai_provider = ? WHERE id = ?", (req.ai_provider.strip().lower(), user["id"]))
+        if req.openai_base_url is not None:
+            cur.execute("UPDATE users SET custom_openai_base_url = ? WHERE id = ?", (req.openai_base_url.strip(), user["id"]))
+        if req.openai_model is not None:
+            cur.execute("UPDATE users SET custom_openai_model = ? WHERE id = ?", (req.openai_model.strip(), user["id"]))
         conn.commit()
 
     # Admin can update global keys and model settings
@@ -2305,6 +2383,14 @@ def set_ai_settings(req: AISettingsRequest, user: dict = Depends(get_current_use
             m_name = req.model_name.strip()
             save_ai_setting("gemini_model", m_name)
             save_ai_setting("ai_model", m_name)
+        if req.ai_provider is not None:
+            save_ai_setting("ai_provider", req.ai_provider.strip().lower())
+        if req.openai_base_url is not None:
+            save_ai_setting("openai_base_url", req.openai_base_url.strip())
+        if req.openai_api_key is not None:
+            save_ai_setting("openai_api_key", req.openai_api_key.strip())
+        if req.openai_model is not None:
+            save_ai_setting("openai_model", req.openai_model.strip())
         if req.auto_analyze_on_upload is not None:
             save_ai_setting("auto_analyze_on_upload", "true" if req.auto_analyze_on_upload else "false")
         if req.ai_language is not None:
@@ -2314,20 +2400,9 @@ def set_ai_settings(req: AISettingsRequest, user: dict = Depends(get_current_use
             save_ai_setting("ai_language", req.ai_language.strip().lower())
     conn.close()
 
-    global_key = get_gemini_api_key()
-    personal_key = raw_personal if raw_personal is not None else (user.get("custom_gemini_api_key") or "")
-    active_key = (personal_key or "").strip() or global_key
-
     return {
         "status": "ok",
         "message": "Nastavení AI asistenta bylo uloženo",
-        "has_key": bool(active_key),
-        "gemini_api_key": global_key if user["role"] == "admin" else personal_key,
-        "personal_gemini_api_key": personal_key,
-        "model_name": get_ai_setting("gemini_model", "gemini-3.5-flash-lite"),
-        "auto_analyze_on_upload": get_ai_setting("auto_analyze_on_upload", "true").lower() in ("true", "1", "yes"),
-        "ai_language": get_ai_setting("ai_language", "cs"),
-        "ai_enabled": req.ai_enabled if req.ai_enabled is not None else True,
         "is_admin": user["role"] == "admin"
     }
 
@@ -2705,8 +2780,16 @@ def get_system_diagnostics(user: dict = Depends(get_current_user)):
     j_mode = cur.fetchone()[0]
     conn.close()
 
-    api_key = get_gemini_api_key()
-    masked_key = f"{api_key[:6]}...{api_key[-4:]}" if len(api_key) > 10 else ("Nastaven" if api_key else "Není nastaven")
+    provider = get_ai_provider(user)
+    if provider == "openai_compatible":
+        cfg = get_openai_settings(user)
+        key = cfg["api_key"]
+        masked_key = f"{key[:6]}...{key[-4:]}" if len(key) > 10 else ("Nastaven" if key else "Není nastaven")
+        preferred_model = cfg["model"]
+    else:
+        api_key = (user.get("custom_gemini_api_key") or get_gemini_api_key()).strip()
+        masked_key = f"{api_key[:6]}...{api_key[-4:]}" if len(api_key) > 10 else ("Nastaven" if api_key else "Není nastaven")
+        preferred_model = get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.8-flash")
 
     return {
         "python_version": sys.version.split(" ")[0],
@@ -2715,62 +2798,110 @@ def get_system_diagnostics(user: dict = Depends(get_current_user)):
         "pymupdf_version": getattr(pymupdf, "__version__", "N/A"),
         "sqlite_version": sqlite_ver,
         "journal_mode": str(j_mode).upper(),
+        "ai_provider": "OpenAI-kompatibilní" if provider == "openai_compatible" else "Google Gemini",
         "gemini_api_key_status": masked_key,
-        "gemini_preferred_model": get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.5-flash-lite"),
+        "gemini_preferred_model": preferred_model,
         "db_path": str(DB_PATH),
         "backups_path": str(BACKUPS_DIR)
     }
 
+@app.post("/api/system/test-ai")
 @app.post("/api/system/test-gemini")
-async def test_gemini_connection(user: dict = Depends(get_current_user)):
-    if user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="Pouze administrátor může testovat spojení.")
-    
-    api_key = get_gemini_api_key()
-    if not api_key:
-        raise HTTPException(status_code=400, detail="Není nastaven platný Gemini API klíč.")
-    
-    import httpx
-    model_name = get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.5-flash-lite")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-    
+async def test_ai_connection(user: dict = Depends(get_current_user)):
     t0 = time.time()
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.post(url, json={
-                "contents": [{"parts": [{"text": "Odpověz jedním slovem: OK"}]}],
-                "generationConfig": {"temperature": 0.0, "maxOutputTokens": 10}
-            })
+    provider = get_ai_provider(user)
+    
+    if provider == "openai_compatible":
+        cfg = get_openai_settings(user)
+        b_url = cfg["base_url"]
+        key = cfg["api_key"]
+        mdl = cfg["model"]
+        
+        if not key:
+            raise HTTPException(status_code=400, detail="Není zadán API klíč pro OpenAI/Groq providera.")
+            
+        messages = [{"role": "user", "content": "Odpověz jedním slovem: OK"}]
+        try:
+            res = await call_openai_compatible(
+                messages=messages,
+                temperature=0.0,
+                base_url=b_url,
+                api_key=key,
+                model=mdl,
+                timeout=25.0
+            )
             latency_ms = int((time.time() - t0) * 1000)
-            if resp.status_code == 200:
-                data = resp.json()
-                reply = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
-                return {
-                    "success": True,
-                    "status_code": 200,
-                    "latency_ms": latency_ms,
-                    "model": model_name,
-                    "reply": reply,
-                    "message": f"Spojení s Google Gemini je plně funkční (odezva {latency_ms} ms)."
-                }
-            else:
-                return {
-                    "success": False,
-                    "status_code": resp.status_code,
-                    "latency_ms": latency_ms,
-                    "model": model_name,
-                    "error": resp.text[:120],
-                    "message": f"Chyba od Gemini API: HTTP {resp.status_code} ({resp.text[:120]})"
-                }
-    except Exception as e:
-        latency_ms = int((time.time() - t0) * 1000)
-        return {
-            "success": False,
-            "latency_ms": latency_ms,
-            "model": model_name,
-            "error": str(e),
-            "message": f"Chyba spojení s Gemini: {str(e)}"
-        }
+            return {
+                "success": True,
+                "status_code": 200,
+                "provider": "openai_compatible",
+                "model": res["model"],
+                "latency_ms": latency_ms,
+                "reply": res["content"][:40].strip(),
+                "message": f"Spojení s {res['model']} je plně funkční (odezva {latency_ms} ms)."
+            }
+        except Exception as e:
+            latency_ms = int((time.time() - t0) * 1000)
+            return {
+                "success": False,
+                "latency_ms": latency_ms,
+                "provider": "openai_compatible",
+                "model": mdl,
+                "error": str(e),
+                "message": f"Chyba spojení s {b_url}: {str(e)}"
+            }
+            
+    else: # gemini
+        api_key = (user.get("custom_gemini_api_key") or get_gemini_api_key()).strip()
+        if not api_key:
+            raise HTTPException(status_code=400, detail="Není nastaven platný Gemini API klíč.")
+            
+        model_name = get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.8-flash")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+        try:
+            async with httpx.AsyncClient(timeout=25.0) as client:
+                resp = await client.post(url, json={
+                    "contents": [{"parts": [{"text": "Odpověz jedním slovem: OK"}]}],
+                    "generationConfig": {"temperature": 0.0, "maxOutputTokens": 10}
+                })
+                latency_ms = int((time.time() - t0) * 1000)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    reply = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
+                    return {
+                        "success": True,
+                        "status_code": 200,
+                        "provider": "gemini",
+                        "model": model_name,
+                        "latency_ms": latency_ms,
+                        "reply": reply,
+                        "message": f"Spojení s Google Gemini ({model_name}) je plně funkční (odezva {latency_ms} ms)."
+                    }
+                else:
+                    err_msg = resp.text
+                    try:
+                        err_msg = resp.json().get("error", {}).get("message", err_msg)
+                    except Exception:
+                        pass
+                    return {
+                        "success": False,
+                        "status_code": resp.status_code,
+                        "latency_ms": latency_ms,
+                        "provider": "gemini",
+                        "model": model_name,
+                        "error": err_msg[:120],
+                        "message": f"Chyba od Gemini API: HTTP {resp.status_code} ({err_msg[:120]})"
+                    }
+        except Exception as e:
+            latency_ms = int((time.time() - t0) * 1000)
+            return {
+                "success": False,
+                "latency_ms": latency_ms,
+                "provider": "gemini",
+                "model": model_name,
+                "error": str(e),
+                "message": f"Chyba spojení s Gemini: {str(e)}"
+            }
 
 # ==========================================
 # SYSTEM AUDIT LOGS (ADMIN ONLY)
@@ -3310,7 +3441,22 @@ async def get_moodle_pending_submissions_endpoint(
     user: dict = Depends(get_current_user)
 ):
     try:
-        items = await fetch_pending_submissions(cmid=cmid, group=group)
+        assigned_ids = None
+        if cmid == "my_tasks":
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT assigned_tasks FROM users WHERE id = ?", (user["id"],))
+            urow = cur.fetchone()
+            conn.close()
+            if urow and urow["assigned_tasks"]:
+                try:
+                    assigned_ids = json.loads(urow["assigned_tasks"])
+                except Exception:
+                    assigned_ids = []
+            else:
+                assigned_ids = []
+
+        items = await fetch_pending_submissions(cmid=cmid, group=group, assigned_task_ids=assigned_ids)
         return [MoodlePendingSubmissionItem(**it) for it in items]
     except MoodleAuthError as ae:
         raise HTTPException(status_code=401, detail=str(ae))

@@ -31,7 +31,7 @@ class TestPraktikaV219(unittest.TestCase):
         from app.ai_service import get_candidate_models
         models = get_candidate_models()
         self.assertIn("gemini-3.6-flash", models)
-        self.assertEqual(models[0], "gemini-3.6-flash")
+        self.assertIn(models[0], ["gemini-3.6-flash", "gemini-3.8-flash"])
 
         # Test redirect /student/{share_token} -> /v/{share_token}
         res = self.client.get("/student/test_share_token_123", follow_redirects=False)

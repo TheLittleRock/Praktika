@@ -820,6 +820,7 @@
               <button type="button" class="btn btn-sm task-course-btn" id="course-tab-ZFM2" onclick="App.setTaskCourseFilter('ZFM2')" style="border-radius:0; border:none; border-left:1px solid var(--border); padding:4px 12px; background:var(--card-bg); color:var(--text-main); cursor:pointer;">ZFM2 (LS)</button>
             </div>
           </div>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="App.openMyTasksModal()">⭐ Nastavit moje úlohy</button>
         </div>
 
         <form onsubmit="App.handleAddTask(event)" style="display:flex; gap:8px; margin-bottom:16px;">
@@ -943,8 +944,8 @@
         <div style="background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:16px; margin-bottom:14px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
             <h4 style="font-size:0.95rem; font-weight:700; margin:0; display:flex; align-items:center; gap:8px;">
-              <span>✨ Google Gemini Flash AI</span>
-              <span class="badge" style="background:rgba(34,197,94,0.15); color:var(--accent-green); font-size:0.75rem;">Free Tier (15 RPM / 1500 RPD)</span>
+              <span>✨ AI Asistent pro hodnocení</span>
+              <span id="ai-active-provider-badge" class="badge" style="background:rgba(34,197,94,0.15); color:var(--accent-green); font-size:0.75rem;">Google Gemini / Groq</span>
             </h4>
             <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.85rem; font-weight:600;">
               <input type="checkbox" id="ai-enabled-toggle">
@@ -952,38 +953,87 @@
             </label>
           </div>
           <p style="font-size:0.83rem; color:var(--text-muted); margin-bottom:12px;">
-            AI asistent automaticky projde odevzdaný fyzikální protokol a navrhne srážky bodů (v násobcích 0.125 b) a konkrétní textové anotace. S bezplatným API klíčem z Google AI Studio máte k dispozici 1500 protokolů denně zdarma.
+            AI asistent automaticky projde odevzdaný fyzikální protokol a navrhne srážky bodů (v násobcích 0.125 b) a konkrétní textové anotace. Můžete využít Google Gemini API nebo bezplatného OpenAI-kompatibilního providera (např. ultra-rychlý Groq s modelem Llama 3.3 70B).
           </p>
           <form onsubmit="App.handleSaveAISettings(event)" style="display:flex; flex-direction:column; gap:12px;">
-            <div class="form-group">
-              <label class="form-label">Gemini API klíč (Google AI Studio):</label>
-              <div style="display:flex; gap:8px;">
-                <input type="password" id="ai-api-key-input" class="form-control" placeholder="AIzaSy..." style="flex:1; font-family:'JetBrains Mono',monospace;">
-                <button class="btn btn-secondary btn-sm" type="button" onclick="App.toggleApiKeyVisibility()">👁</button>
-              </div>
-              <div id="ai-key-status" style="font-size:0.78rem; margin-top:4px; color:var(--text-muted);">
-                Klíč je bezpečně uložen v lokální SQLite databázi.
+            
+            <!-- Provider Selector -->
+            <div class="form-group" style="background:var(--card-bg); border:1px solid var(--border); border-radius:6px; padding:10px;">
+              <label class="form-label" style="font-size:0.8rem; font-weight:700; margin-bottom:6px;">Poskytovatel AI (Provider):</label>
+              <div style="display:flex; flex-wrap:wrap; gap:16px;">
+                <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem; cursor:pointer; user-select:none;">
+                  <input type="radio" name="ai-provider-radio" value="gemini" checked onchange="App.handleAiProviderChange('gemini')">
+                  <strong>Google Gemini API</strong>
+                </label>
+                <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem; cursor:pointer; user-select:none;">
+                  <input type="radio" name="ai-provider-radio" value="openai_compatible" onchange="App.handleAiProviderChange('openai_compatible')">
+                  <strong>OpenAI-kompatibilní (Groq, OpenRouter, DeepSeek, Ollama)</strong>
+                </label>
               </div>
             </div>
 
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <!-- OpenAI-compatible Settings Section -->
+            <div id="ai-openai-container" style="display:none; background:var(--card-bg); border:1px solid var(--border); border-radius:6px; padding:12px;">
+              <div style="font-size:0.78rem; font-weight:700; margin-bottom:6px; color:var(--text-muted);">
+                Rychlé předvolby zdarma (1 klik):
+              </div>
+              <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">
+                <button type="button" class="btn btn-secondary btn-xs" onclick="App.applyAiPreset('groq')">⚡ Groq (Llama 3.3 70B - Doporučeno zdarma)</button>
+                <button type="button" class="btn btn-secondary btn-xs" onclick="App.applyAiPreset('openrouter')">🌐 OpenRouter (Free modely)</button>
+                <button type="button" class="btn btn-secondary btn-xs" onclick="App.applyAiPreset('cerebras')">🚀 Cerebras (Llama 3.3 70B)</button>
+                <button type="button" class="btn btn-secondary btn-xs" onclick="App.applyAiPreset('deepseek')">🐋 DeepSeek API</button>
+                <button type="button" class="btn btn-secondary btn-xs" onclick="App.applyAiPreset('ollama')">💻 Lokální Ollama</button>
+              </div>
+              <div class="form-group" style="margin-bottom:10px;">
+                <label class="form-label">API Base URL (např. https://api.groq.com/openai/v1):</label>
+                <input type="text" id="ai-openai-base-url" class="form-control" placeholder="https://api.groq.com/openai/v1" style="font-family:'JetBrains Mono',monospace;">
+              </div>
+              <div class="form-group" style="margin-bottom:10px;">
+                <label class="form-label">API klíč (OpenAI / Groq / OpenRouter / DeepSeek):</label>
+                <div style="display:flex; gap:8px;">
+                  <input type="password" id="ai-openai-key-input" class="form-control" placeholder="gsk_... nebo sk-..." style="flex:1; font-family:'JetBrains Mono',monospace;">
+                  <button class="btn btn-secondary btn-sm" type="button" onclick="App.toggleOpenAiKeyVisibility()">👁</button>
+                </div>
+                <div id="ai-openai-key-status" style="font-size:0.78rem; margin-top:4px; color:var(--text-muted);">
+                  Pro lokální Ollama nechte pole prázdné.
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Název modelu (Model ID):</label>
+                <input type="text" id="ai-openai-model-input" class="form-control" placeholder="llama-3.3-70b-versatile" style="font-family:'JetBrains Mono',monospace;">
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">
+                  Groq doporučeno: <code>llama-3.3-70b-versatile</code>. OpenRouter doporučeno: <code>meta-llama/llama-3.3-70b-instruct:free</code>.
+                </div>
+              </div>
+            </div>
+
+            <!-- Gemini Settings Section -->
+            <div id="ai-gemini-container">
+              <div class="form-group">
+                <label class="form-label">Gemini API klíč (Google AI Studio):</label>
+                <div style="display:flex; gap:8px;">
+                  <input type="password" id="ai-api-key-input" class="form-control" placeholder="AIzaSy..." style="flex:1; font-family:'JetBrains Mono',monospace;">
+                  <button class="btn btn-secondary btn-sm" type="button" onclick="App.toggleApiKeyVisibility()">👁</button>
+                </div>
+                <div id="ai-key-status" style="font-size:0.78rem; margin-top:4px; color:var(--text-muted);">
+                  Klíč je bezpečně uložen v lokální SQLite databázi.
+                </div>
+              </div>
+
               <div class="form-group">
                 <label class="form-label">Preferovaný Gemini model:</label>
                 <select id="ai-model-select" class="form-control" onchange="App.handleAIModelSelectChange(this.value)">
-                  <option value="gemini-3.6-flash" selected>Gemini 3.6 Flash (Doporučeno pro Free Tier – rychlý, stabilní)</option>
                   <option value="gemini-3.8-flash">Gemini 3.8 Flash (Vysoká přesnost a komplexní úlohy)</option>
+                  <option value="gemini-3.6-flash" selected>Gemini 3.6 Flash (Doporučeno pro Free Tier – rychlý, stabilní)</option>
                   <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite (Extrémně rychlý, úsporný)</option>
                   <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
-                  <option value="gemini-3-flash">Gemini 3 Flash</option>
-                  <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                  <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
-                  <option value="gemini-flash-latest">Gemini Flash Latest</option>
-                  <option value="gemini-flash-lite-latest">Gemini Flash Lite Latest</option>
                   <option value="custom">Vlastní název modelu...</option>
                 </select>
                 <input type="text" id="ai-custom-model-input" class="form-control" placeholder="např. gemini-3.8-flash" style="display:none; margin-top:6px; font-family:'JetBrains Mono',monospace;">
               </div>
+            </div>
 
+            <div style="display:grid; grid-template-columns:1fr; gap:12px;">
               <div class="form-group">
                 <label class="form-label">Jazyk výstupů AI asistenta:</label>
                 <select id="ai-language-select" class="form-control">
@@ -1008,10 +1058,15 @@
               </div>
             </div>
 
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
-              <a href="https://aistudio.google.com/app/apikey" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none;">
-                🔑 Získat bezplatný API klíč na Google AI Studio ↗
-              </a>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
+              <div id="ai-provider-help-links">
+                <a id="link-ai-get-gemini-key" href="https://aistudio.google.com/app/apikey" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none;">
+                  🔑 Získat bezplatný klíč Google AI Studio ↗
+                </a>
+                <a id="link-ai-get-groq-key" href="https://console.groq.com/keys" target="_blank" class="btn btn-secondary btn-sm" style="display:none; text-decoration:none;">
+                  🔑 Získat bezplatný klíč Groq (Llama 3.3) ↗
+                </a>
+              </div>
               <button class="btn btn-primary btn-sm" type="submit">Uložit nastavení AI</button>
             </div>
           </form>
@@ -1307,15 +1362,19 @@
             <button type="button" class="btn btn-secondary btn-sm" onclick="App.loadSystemDiagnostics()">🔄 Obnovit údaje</button>
           </div>
 
-          <!-- Card 2: Gemini API Live Health Check -->
+          <!-- Card 2: AI API Live Health Check -->
           <div class="settings-card">
             <h4 style="font-size:0.95rem; font-weight:700; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
-              <span>⚡ Test odezvy a dostupnosti Gemini API</span>
+              <span>⚡ Test odezvy a dostupnosti AI API</span>
             </h4>
             <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:12px;">
-              Ověří platnost nastaveného API klíče a změří reálnou latenci spojení se servery Google.
+              Ověří platnost nastaveného API klíče a změří reálnou latenci spojení s aktivním poskytovatelem (Google Gemini nebo OpenAI/Groq).
             </p>
             <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:6px; padding:12px; margin-bottom:14px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="font-size:0.82rem; color:var(--text-muted);">Aktivní provider:</span>
+                <span id="diag-provider-status" class="badge" style="font-family:'JetBrains Mono',monospace;">--</span>
+              </div>
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                 <span style="font-size:0.82rem; color:var(--text-muted);">Stav API klíče:</span>
                 <span id="diag-key-status" class="badge" style="font-family:'JetBrains Mono',monospace;">--</span>
@@ -1326,8 +1385,8 @@
               </div>
               <div id="diag-test-result-box" style="display:none; padding:8px 10px; border-radius:4px; font-size:0.8rem; margin-top:8px;"></div>
             </div>
-            <button type="button" class="btn btn-primary btn-sm" id="btn-test-gemini" onclick="App.testGeminiConnection()">
-              ⚡ Otestovat spojení s Gemini API
+            <button type="button" class="btn btn-primary btn-sm" id="btn-test-gemini" onclick="App.testAiConnection()">
+              ⚡ Otestovat AI spojení
             </button>
           </div>
         </div>
@@ -1766,9 +1825,13 @@
         <!-- Top Filters -->
         <div style="display:grid; grid-template-columns:minmax(0, 1.3fr) minmax(0, 1fr); gap:12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px;">
           <div style="min-width:0;">
-            <label class="form-label" style="font-size:0.75rem; font-weight:700;">1. Filtrovat úlohu v Moodle (pouze protokoly P1–P12):</label>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <label class="form-label" style="font-size:0.75rem; font-weight:700; margin:0;">1. Filtrovat úlohu v Moodle:</label>
+              <button type="button" class="btn btn-secondary btn-xs" style="font-size:0.7rem; padding:1px 6px;" onclick="App.openMyTasksModal()" title="Nastavit úlohy, které vyučuji">⚙️ Nastavit moje úlohy</button>
+            </div>
             <select id="moodle-assign-select" class="form-control" style="width:100%; max-width:100%; text-overflow:ellipsis;" onchange="App.handleMoodleFilterChange()">
-              <option value="all">🌟 Všechny protokoly P{n} s neohodnocenými pracemi</option>
+              <option value="all">Všechny úlohy</option>
+              <option value="my_tasks">⭐ Moje úlohy</option>
             </select>
           </div>
           <div style="min-width:0;">
@@ -1917,6 +1980,43 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- Modal: Nastavení mých úloh (Assigned Tasks) -->
+  <div class="modal-backdrop" id="modal-my-tasks" style="display:none; z-index:9995;">
+    <div class="modal-box" style="max-width:760px; width:95vw; max-height:88vh; display:flex; flex-direction:column;">
+      <div class="modal-header">
+        <h3 style="display:flex; align-items:center; gap:8px;">
+          <span>⭐</span>
+          <span>Moje vyučované úlohy</span>
+        </h3>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="App.closeMyTasksModal()">✕</button>
+      </div>
+      <div style="font-size:0.83rem; color:var(--text-muted); margin-bottom:12px;">
+        Zaškrtněte úlohy, které máte na starosti a opravujete. Výběr se uloží do vašeho profilu a umožní v Moodle importu filtrovat pouze vaše práce.
+      </div>
+      <div style="display:flex; gap:8px; border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:12px;">
+        <button type="button" class="btn btn-primary btn-sm my-tasks-tab-btn" id="btn-my-tasks-tab-FPRA1" onclick="App.switchMyTasksCourseTab('FPRA1')">FPRA1 (Zimní semestr)</button>
+        <button type="button" class="btn btn-secondary btn-sm my-tasks-tab-btn" id="btn-my-tasks-tab-FPRA2" onclick="App.switchMyTasksCourseTab('FPRA2')">FPRA2 (Letní semestr)</button>
+        <button type="button" class="btn btn-secondary btn-sm my-tasks-tab-btn" id="btn-my-tasks-tab-ZFM2" onclick="App.switchMyTasksCourseTab('ZFM2')">ZFM (Základní fyzikální měření)</button>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:0.8rem;">
+        <span id="my-tasks-selected-count-badge" style="color:var(--text-muted); font-weight:600;">Načítám...</span>
+        <div style="display:flex; gap:6px;">
+          <button type="button" class="btn btn-secondary btn-xs" onclick="App.toggleMyTasksCourseSelection(true)">Vybrat vše v předmětu</button>
+          <button type="button" class="btn btn-secondary btn-xs" onclick="App.toggleMyTasksCourseSelection(false)">Zrušit výběr v předmětu</button>
+        </div>
+      </div>
+      <div id="my-tasks-container" style="flex:1; overflow-y:auto; border:1px solid var(--border); border-radius:6px; background:var(--bg); padding:10px;">
+        <div id="my-tasks-list-FPRA1" class="my-tasks-course-pane" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:8px;"></div>
+        <div id="my-tasks-list-FPRA2" class="my-tasks-course-pane" style="display:none; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:8px;"></div>
+        <div id="my-tasks-list-ZFM2" class="my-tasks-course-pane" style="display:none; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:8px;"></div>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px; padding-top:12px; margin-top:4px;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="App.closeMyTasksModal()">Zrušit</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btn-save-my-tasks" onclick="App.saveMyTasks()">💾 Uložit moje úlohy</button>
+      </div>
     </div>
   </div>
 

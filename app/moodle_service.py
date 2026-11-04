@@ -351,7 +351,8 @@ async def fetch_pending_submissions(
     group: Optional[str] = None,
     moodle_url: Optional[str] = None,
     course_id: Optional[str] = None,
-    session_cookie: Optional[str] = None
+    session_cookie: Optional[str] = None,
+    assigned_task_ids: Optional[List[int]] = None
 ) -> List[Dict[str, Any]]:
     """
     Finds all submitted protocols that do NOT have a grade yet.
@@ -373,8 +374,20 @@ async def fetch_pending_submissions(
 
     assignments_to_check = []
     protocol_assignments = [a for a in structure["assignments"] if a.get("is_protocol")]
-    if cmid and cmid != "all":
+    if cmid and cmid not in ("all", "my_tasks"):
         assignments_to_check = [a for a in protocol_assignments if str(a["cmid"]) == str(cmid)]
+    elif cmid == "my_tasks":
+        if not assigned_task_ids:
+            return []
+        conn_t = get_db()
+        cur_t = conn_t.cursor()
+        cur_t.execute("SELECT id, number FROM measurements")
+        meas_map = {r["id"]: r["number"] for r in cur_t.fetchall()}
+        conn_t.close()
+        assigned_numbers = set(meas_map[tid] for tid in assigned_task_ids if tid in meas_map)
+        assignments_to_check = [a for a in protocol_assignments if a.get("task_number") in assigned_numbers]
+        if not assignments_to_check:
+            return []
     else:
         # Check all protocol assignments that have submissions or needs_grading > 0
         assignments_to_check = [a for a in protocol_assignments if a.get("needs_grading_count", 0) > 0]
@@ -521,6 +534,9 @@ async def fetch_pending_submissions(
                     "already_in_db": is_duplicate,
                     "existing_status": existing_status_label
                 })
+
+    if cmid == "my_tasks" and assigned_task_ids is not None:
+        pending_items = [it for it in pending_items if it.get("matched_task_id") in assigned_task_ids]
 
     return pending_items
 

@@ -39,7 +39,7 @@ class TestPraktikaV2202(unittest.TestCase):
         self.auth_headers = {"Authorization": f"Bearer {self.admin_token}"}
 
     def test_version_bump(self):
-        self.assertEqual(VERSION, "2.20.2")
+        self.assertTrue(VERSION >= "2.20.2")
 
     def test_is_protocol_regex_strictness(self):
         """Only assignments starting with P{number} (P0..P13) must match is_protocol = True."""

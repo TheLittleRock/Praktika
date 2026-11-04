@@ -3285,6 +3285,36 @@ tr:hover td {
   width: 100%;
 }
 
+/* v2.21.0 Assigned Tasks Modal styles */
+.my-tasks-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.my-tasks-item:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.my-tasks-item.selected {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.my-tasks-item input[type="checkbox"] {
+  margin-top: 3px;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
 
 
 

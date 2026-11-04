@@ -402,6 +402,55 @@ def init_db():
     except Exception:
         pass
 
+    # Universal AI Provider & Assistant Assigned Tasks migrations
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN assigned_tasks TEXT DEFAULT '[]'")
+    except Exception:
+        pass
+
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN custom_ai_provider TEXT DEFAULT NULL")
+    except Exception:
+        pass
+
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN custom_openai_base_url TEXT DEFAULT NULL")
+    except Exception:
+        pass
+
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN custom_openai_api_key TEXT DEFAULT NULL")
+    except Exception:
+        pass
+
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN custom_openai_model TEXT DEFAULT NULL")
+    except Exception:
+        pass
+
+    try:
+        cur.execute("SELECT value FROM app_settings WHERE key = 'ai_provider'")
+        if not cur.fetchone():
+            cur.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('ai_provider', 'gemini')")
+
+        cur.execute("SELECT value FROM app_settings WHERE key = 'openai_base_url'")
+        if not cur.fetchone():
+            cur.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('openai_base_url', 'https://api.groq.com/openai/v1')")
+
+        cur.execute("SELECT value FROM app_settings WHERE key = 'openai_api_key'")
+        if not cur.fetchone():
+            cur.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('openai_api_key', '')")
+
+        cur.execute("SELECT value FROM app_settings WHERE key = 'openai_model'")
+        if not cur.fetchone():
+            cur.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('openai_model', 'llama-3.3-70b-versatile')")
+
+        cur.execute("SELECT value FROM app_settings WHERE key = 'moodle_course_id'")
+        if not cur.fetchone():
+            cur.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('moodle_course_id', '16880')")
+    except Exception:
+        pass
+
     # Seed Admin User if none exists
     cur.execute("SELECT COUNT(*) FROM users")
     if cur.fetchone()[0] == 0:

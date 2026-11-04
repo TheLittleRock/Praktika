@@ -188,11 +188,19 @@ class AISettingsRequest(BaseModel):
     api_key: Optional[str] = None
     gemini_api_key: Optional[str] = None
     personal_gemini_api_key: Optional[str] = None
-    model_name: Optional[str] = "gemini-3.5-flash"
+    model_name: Optional[str] = "gemini-3.8-flash"
+    ai_provider: Optional[str] = "gemini" # 'gemini' or 'openai_compatible'
+    openai_base_url: Optional[str] = "https://api.groq.com/openai/v1"
+    openai_api_key: Optional[str] = None
+    personal_openai_api_key: Optional[str] = None
+    openai_model: Optional[str] = "llama-3.3-70b-versatile"
     ai_enabled: Optional[bool] = True
     auto_analyze_on_upload: Optional[bool] = True
     ai_language: Optional[str] = "cs"
     guidelines: Optional[str] = None
+
+class AssignedTasksUpdateRequest(BaseModel):
+    task_ids: List[int] = []
 
 class AIDeductionSuggestion(BaseModel):
     proposal_id: Optional[str] = None

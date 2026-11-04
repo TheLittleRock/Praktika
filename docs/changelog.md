@@ -4,6 +4,35 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.21.0] - 2026-11-04
+
+### 🚀 Novinky a vylepšení ve verzi 2.21.0
+
+#### 🤖 Univerzální OpenAI-kompatibilní AI Provider & Groq Llama 3.3 70B zdarma
+- **Podpora libovolných OpenAI-kompatibilních rozhraní**: Aplikace nyní umožňuje přepínat mezi Google Gemini API a libovolným OpenAI-kompatibilním poskytovatelem (včetně vlastního Base URL, API klíče a ID modelu).
+- **Rychlé předvolby na 1 klik**:
+  - **Groq (Doporučeno zdarma)**: Model `llama-3.3-70b-versatile` – 14 400 dotazů denně zdarma, 30 RPM, blesková rychlost ~300 tokenů/s a špičková přesnost 70B parametrů pro fyzikální výpočty a chyby.
+  - **OpenRouter**: Bezplatné modely (`meta-llama/llama-3.3-70b-instruct:free`).
+  - **Cerebras**: Ultra-rychlá inference Llama 3.3 70B.
+  - **DeepSeek API**: `deepseek-chat` pro hlubokou analýzu textu.
+  - **Lokální Ollama**: Zcela offline hodnocení bez odesílání dat ven (`http://localhost:11434/v1`).
+- **Osobní vs. globální nastavení**: Každý vyučující si může nastavit vlastního poskytovatele nebo model nezávisle na administrátorském výchozím nastavení.
+
+#### ✨ Stabilizace Gemini 3.x generace
+- **Přechod na oficiální modely Gemini 3.x**: Podpora `gemini-3.8-flash`, `gemini-3.6-flash`, `gemini-3.5-flash-lite` a `gemini-3.1-flash-lite`. Staré a ukončené modely 1.5 a 2.0 byly vyřazeny.
+- **Odstranění chyb spojení a přetížení**:
+  - Klientský HTTP timeout navýšen z 25s na **90 sekund**, což zcela eliminuje `Connection error` u modelu 3.6.
+  - Implementován automatický kaskádový fallback: pokud model 3.8 vrátí HTTP 429 / 503 (vytížení Free tieru Google AI Studio), dotaz se okamžitě přepojí na model 3.6 nebo 3.5-lite.
+- **Diagnostický test AI spojení**: Přepracovaný test odezvy (`/api/system/test-ai`) spolehlivě ověřuje aktivního poskytovatele (Gemini i OpenAI/Groq) a měří přesnou latenci.
+
+#### 🎓 Moodle: Filtr "Moje úlohy" a zjednodušení textace
+- **Zjednodušená textace filtru**: V Moodle dialogu nahrazen dlouhý text čistým a přehledným označením **"Všechny úlohy"**.
+- **Filtr "⭐ Moje úlohy"**: Umožňuje vyučujícímu jedním kliknutím zobrazit a importovat pouze neohodnocené protokoly z úloh, které sám vede a opravuje.
+- **Správa mých vyučovaných úloh (`#modal-my-tasks`)**:
+  - Přehledný modální dialog s rozdělením úloh podle předmětu a semestru: **FPRA1 (Zimní semestr)**, **FPRA2 (Letní semestr)** a **ZFM (Základní fyzikální měření)**.
+  - Možnost hromadného výběru ("Vybrat vše v předmětu" / "Zrušit výběr").
+  - Nastavení je uloženo v profilu uživatele v databázi a je přístupné jak přímo z Moodle dialogu přes tlačítko `⚙️ Nastavit moje úlohy`, tak ze záložky Laboratorní úlohy v Nastavení.
+
 ## [2.20.2] - 2026-11-01
 
 ### 🚀 Opravy a vylepšení ve verzi 2.20.2
