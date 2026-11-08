@@ -155,6 +155,43 @@ async def check_moodle_session_validity(moodle_url: str, course_id: str, session
         return False, f"Chyba při komunikaci s Moodle: {str(ex)}"
 
 
+async def moodle_keepalive_ping(moodle_url: Optional[str] = None, session_cookie: Optional[str] = None) -> Tuple[bool, str]:
+    """
+    Sends a lightweight keep-alive request to Moodle to keep the PHP session active
+    and prevent idle session timeout.
+    Returns (is_alive, detail_message).
+    """
+    cfg = get_moodle_config()
+    m_url = (moodle_url or cfg.get("moodle_url") or "https://moodle-vyuka.cvut.cz").rstrip("/")
+    cookie = (session_cookie or cfg.get("moodle_session") or "").strip()
+
+    if not cookie:
+        return False, "Není nastavena žádná cookie MoodleSession."
+
+    target_url = f"{m_url}/my/"
+    cookies = {"MoodleSession": cookie}
+    headers = {
+        "User-Agent": "Praktika-Moodle-KeepAlive/2.22.0 (X11; Linux x86_64)",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=False, cookies=cookies) as client:
+            resp = await client.get(target_url, headers=headers)
+            # If valid, /my/ responds with 200 OK or 302/303 redirect to user dashboard
+            if resp.status_code in (200, 302, 303):
+                loc = resp.headers.get("location", "")
+                if "login" in loc.lower() or "microsoft" in loc.lower():
+                    return False, "Relace vypršela (přesměrováno na přihlášení)."
+                return True, "Relace je aktivní a byla úspěšně obnovena."
+            elif resp.status_code == 401:
+                return False, "Relace vypršela (HTTP 401 Unauthorized)."
+            else:
+                return False, f"Moodle vrátil neočekávaný kód HTTP {resp.status_code}."
+    except Exception as ex:
+        return False, f"Chyba spojení při keep-alive: {str(ex)}"
+
+
 async def fetch_course_structure(
     moodle_url: Optional[str] = None, 
     course_id: Optional[str] = None, 

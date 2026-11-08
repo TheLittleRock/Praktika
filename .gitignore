@@ -39,6 +39,8 @@ venv.bak/
 *.sqlite3
 data/*.sqlite3*
 data/*.db
+data/*.json
+data/moodle_browser_profile/
 data/protocols/
 data/backups/
 backups/

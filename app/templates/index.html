@@ -1096,9 +1096,14 @@
                 Automatické stahování odevzdaných prací a nahrávání hodnocení bez nutnosti administrátorského API klíče.
               </div>
             </div>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="App.testMoodleConnection()" id="btn-test-moodle-conn">
-              ⚡ Otestovat spojení
-            </button>
+            <div style="display:flex; gap:8px;">
+              <button type="button" class="btn btn-primary btn-sm" onclick="App.startInteractiveMoodleLogin()" id="btn-start-interactive-moodle-login">
+                🌐 Přihlásit se do Moodle
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="App.testMoodleConnection()" id="btn-test-moodle-conn">
+                ⚡ Otestovat spojení
+              </button>
+            </div>
           </div>
 
           <form onsubmit="App.handleSaveMoodleConfig(event)" style="display:flex; flex-direction:column; gap:12px;">
@@ -1122,8 +1127,13 @@
                 <input type="password" id="moodle-cookie-input" class="form-control" placeholder="Vložte hodnotu cookie MoodleSession ze svého přihlášeného prohlížeče..." style="font-family:'JetBrains Mono',monospace;">
                 <button class="btn btn-secondary btn-sm" type="button" onclick="App.toggleMoodleCookieVisibility()">👁</button>
               </div>
-              <div style="font-size:0.78rem; margin-top:4px; color:var(--text-muted);">
-                Cookie je uložena v lokální SQLite databázi. Umožňuje bezpečně stahovat práce a odesílat známky vaším jménem.
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; flex-wrap:wrap; gap:8px;">
+                <span style="font-size:0.78rem; color:var(--text-muted);">
+                  💡 Nebo klikněte nahoře na <strong>🌐 Přihlásit se do Moodle</strong> pro automatické získání cookie bez F12.
+                </span>
+                <button type="button" class="btn btn-secondary btn-xs" onclick="App.triggerMoodleKeepalive()">
+                  💓 Prodloužit relaci (Keep-Alive)
+                </button>
               </div>
             </div>
 
@@ -1139,8 +1149,10 @@
         <div style="background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:14px; font-size:0.83rem; color:var(--text-muted); line-height:1.5;">
           <strong>Možnosti přihlášení a automatizace:</strong>
           <ul style="padding-left:18px; margin-top:6px; margin-bottom:0;">
-            <li><strong>Přímé vložení cookie (Doporučeno):</strong> Přihlaste se v prohlížeči (Chrome/Firefox/Edge) do <a href="https://moodle-vyuka.cvut.cz" target="_blank" style="color:var(--primary);">moodle-vyuka.cvut.cz</a>, stiskněte <code>F12</code> ➔ <code>Aplikace / Úložiště</code> ➔ <code>Cookies</code>, zkopírujte hodnotu <code>MoodleSession</code> a vložte ji výše.</li>
-            <li><strong>Automatické přihlášení Playwrightem:</strong> V terminálu na serveru lze spustit příkaz <code>./venv/bin/python scripts/moodle_login.py</code>, který otevře okno prohlížeče, nechá vás přihlásit přes Microsoft SSO a cookie uloží automaticky.</li>
+            <li><strong>🌐 Interaktivní přihlášení Playwrightem (Doporučeno):</strong> Kliknutím na tlačítko <em>Přihlásit se do Moodle</em> aplikace otevře řízené okno Chromium na ploše, kde se přihlásíte přes ČVUT SSO (Microsoft Entra ID / 2FA). Skript cookie <code>MoodleSession</code> automaticky zachytí a uloží.</li>
+            <li><strong>🔒 Perzistentní profil SSO:</strong> Přihlášení si pamatuje Microsoft tokeny v profilu <code>data/moodle_browser_profile</code>. Při příštím přihlášení zkusí aplikace nejprve tiché obnovení na pozadí bez nutnosti otevírat okno.</li>
+            <li><strong>💓 Automatický Keep-Alive heartbeat:</strong> Server na pozadí každých 15 minut udržuje relaci aktivní, aby nevypršela nečinností.</li>
+            <li><strong>Manuální vložení:</strong> Můžete také kdykoliv vložit hodnotu cookie <code>MoodleSession</code> ručně přes vývojářské nástroje F12.</li>
           </ul>
         </div>
       </div>
@@ -1820,6 +1832,17 @@
         <button type="button" class="btn btn-secondary btn-sm" id="btn-moodle-tab-upload" onclick="App.switchMoodleTab('upload')">📤 Nahrát hodnocení do Moodle</button>
       </div>
 
+      <!-- Session Expired Warning Banner (shown when HTTP 401 or session invalid) -->
+      <div id="moodle-session-alert-banner" style="display:none; background:rgba(239, 68, 68, 0.12); border:1px solid rgba(239, 68, 68, 0.35); border-radius:6px; padding:10px 14px; margin-bottom:12px; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <div style="font-size:0.83rem; color:var(--text-main); display:flex; align-items:center; gap:8px;">
+          <span style="font-size:1.1rem;">⚠️</span>
+          <span><strong>Moodle relace vypršela nebo je neplatná:</strong> Pro stažení či nahrání prací se prosím znovu přihlaste.</span>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" onclick="App.startInteractiveMoodleLogin(true)">
+          🌐 Přihlásit se do Moodle
+        </button>
+      </div>
+
       <!-- Tab 1: Download Pending Submissions from Moodle -->
       <div id="moodle-tab-download-content" style="display:flex; flex-direction:column; gap:12px; flex:1; min-height:0; overflow:hidden;">
         <!-- Top Filters -->
@@ -2016,6 +2039,25 @@
       <div style="display:flex; justify-content:flex-end; gap:8px; padding-top:12px; margin-top:4px;">
         <button type="button" class="btn btn-secondary btn-sm" onclick="App.closeMyTasksModal()">Zrušit</button>
         <button type="button" class="btn btn-primary btn-sm" id="btn-save-my-tasks" onclick="App.saveMyTasks()">💾 Uložit moje úlohy</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Interaktivní Moodle přihlášení -->
+  <div class="modal-backdrop" id="modal-moodle-interactive-login" style="display:none; z-index:9998;">
+    <div class="modal-box" style="max-width:520px; width:92vw; text-align:center; padding:24px;">
+      <div style="font-size:2.4rem; margin-bottom:10px;" id="moodle-login-modal-icon">🌐</div>
+      <h3 style="font-size:1.15rem; font-weight:700; margin-bottom:8px;" id="moodle-login-modal-title">Přihlašování do ČVUT Moodle</h3>
+      <p style="font-size:0.85rem; color:var(--text-muted); line-height:1.5; margin-bottom:16px;" id="moodle-login-modal-desc">
+        Inicializuji proces přihlášení...
+      </p>
+      <div id="moodle-login-modal-spinner" style="display:inline-block; margin-bottom:16px;">
+        <div class="spinner" style="width:36px; height:36px; border:3px solid rgba(0,122,204,0.2); border-top-color:var(--primary); border-radius:50%; animation:spin 1s linear infinite; margin:0 auto;"></div>
+      </div>
+      <div id="moodle-login-modal-details" style="display:none; font-size:0.8rem; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px; margin-bottom:16px; text-align:left; font-family:'JetBrains Mono',monospace;"></div>
+      <div style="display:flex; justify-content:center; gap:10px;">
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-moodle-login" onclick="App.cancelInteractiveMoodleLogin()">Zrušit</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btn-close-moodle-login" style="display:none;" onclick="App.closeInteractiveMoodleLoginModal()">Zavřít</button>
       </div>
     </div>
   </div>

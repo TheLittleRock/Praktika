@@ -5005,6 +5005,159 @@ const App = {
     });
   },
 
+  // ==========================================
+  // Interactive Moodle Login & Keep-Alive
+  // ==========================================
+  moodleLoginPollTimer: null,
+  moodleLoginResumeModal: false,
+
+  async startInteractiveMoodleLogin(resumeMoodleModal = false) {
+    this.moodleLoginResumeModal = !!resumeMoodleModal;
+    const modal = document.getElementById('modal-moodle-interactive-login');
+    const titleEl = document.getElementById('moodle-login-modal-title');
+    const iconEl = document.getElementById('moodle-login-modal-icon');
+    const descEl = document.getElementById('moodle-login-modal-desc');
+    const spinner = document.getElementById('moodle-login-modal-spinner');
+    const details = document.getElementById('moodle-login-modal-details');
+    const btnCancel = document.getElementById('btn-cancel-moodle-login');
+    const btnClose = document.getElementById('btn-close-moodle-login');
+
+    if (modal) modal.style.display = 'flex';
+    if (titleEl) titleEl.textContent = 'Přihlašování do ČVUT Moodle';
+    if (iconEl) iconEl.textContent = '🌐';
+    if (descEl) descEl.innerHTML = 'Inicializuji proces přihlášení...';
+    if (spinner) spinner.style.display = 'inline-block';
+    if (details) { details.style.display = 'none'; details.textContent = ''; }
+    if (btnCancel) { btnCancel.style.display = 'inline-block'; btnCancel.disabled = false; }
+    if (btnClose) btnClose.style.display = 'none';
+
+    try {
+      const resp = await fetch('/api/moodle/interactive-login/start', { method: 'POST' });
+      const data = await resp.json();
+      if (!resp.ok) {
+        throw new Error(data.detail || data.message || "Nepodařilo se spustit přihlašování.");
+      }
+
+      if (this.moodleLoginPollTimer) clearInterval(this.moodleLoginPollTimer);
+      this.moodleLoginPollTimer = setInterval(() => this.pollInteractiveMoodleLogin(), 1000);
+      this.pollInteractiveMoodleLogin();
+    } catch (err) {
+      if (iconEl) iconEl.textContent = '❌';
+      if (descEl) descEl.textContent = `Chyba spuštění: ${err.message}`;
+      if (spinner) spinner.style.display = 'none';
+      if (btnCancel) btnCancel.style.display = 'none';
+      if (btnClose) btnClose.style.display = 'inline-block';
+    }
+  },
+
+  async pollInteractiveMoodleLogin() {
+    try {
+      const resp = await fetch('/api/moodle/interactive-login/status');
+      if (!resp.ok) return;
+      const data = await resp.json();
+
+      const titleEl = document.getElementById('moodle-login-modal-title');
+      const iconEl = document.getElementById('moodle-login-modal-icon');
+      const descEl = document.getElementById('moodle-login-modal-desc');
+      const spinner = document.getElementById('moodle-login-modal-spinner');
+      const details = document.getElementById('moodle-login-modal-details');
+      const btnCancel = document.getElementById('btn-cancel-moodle-login');
+      const btnClose = document.getElementById('btn-close-moodle-login');
+
+      if (data.status === 'silent_checking') {
+        if (iconEl) iconEl.textContent = '🔍';
+        if (descEl) descEl.innerHTML = 'Zkouším rychlé tiché obnovení přes uložený profil Microsoft SSO na pozadí...';
+      } else if (data.status === 'awaiting_user') {
+        if (iconEl) iconEl.textContent = '🖥️';
+        if (descEl) descEl.innerHTML = 'Na ploše se otevřelo okno prohlížeče.<br><strong>Přihlaste se prosím svým ČVUT účtem</strong> (heslo / 2FA Authenticator).<br><span style="font-size:0.8rem; color:var(--text-muted); margin-top:4px; display:inline-block;">Po úspěšném přihlášení se okno automaticky zavře.</span>';
+      } else if (data.status === 'success') {
+        if (this.moodleLoginPollTimer) {
+          clearInterval(this.moodleLoginPollTimer);
+          this.moodleLoginPollTimer = null;
+        }
+        if (iconEl) iconEl.textContent = '✅';
+        if (descEl) descEl.innerHTML = `<strong>Přihlášení úspěšné!</strong><br>Relace MoodleSession byla bezpečně uložena (${this.escape(data.cookie_preview || '')}).`;
+        if (spinner) spinner.style.display = 'none';
+        if (btnCancel) btnCancel.style.display = 'none';
+        if (btnClose) btnClose.style.display = 'inline-block';
+
+        this.showToast("MoodleSession byla úspěšně získána a uložena!");
+        await this.loadMoodleConfig();
+
+        if (this.moodleLoginResumeModal) {
+          setTimeout(async () => {
+            this.closeInteractiveMoodleLoginModal();
+            const banner = document.getElementById('moodle-session-alert-banner');
+            if (banner) banner.style.display = 'none';
+            await this.refreshMoodleStructure();
+          }, 1200);
+        }
+      } else if (data.status === 'error') {
+        if (this.moodleLoginPollTimer) {
+          clearInterval(this.moodleLoginPollTimer);
+          this.moodleLoginPollTimer = null;
+        }
+        if (iconEl) iconEl.textContent = '❌';
+        if (descEl) descEl.textContent = data.message || "Při přihlašování došlo k chybě.";
+        if (data.error_detail && details) {
+          details.style.display = 'block';
+          details.textContent = data.error_detail;
+        }
+        if (spinner) spinner.style.display = 'none';
+        if (btnCancel) btnCancel.style.display = 'none';
+        if (btnClose) btnClose.style.display = 'inline-block';
+      } else if (data.status === 'cancelled') {
+        if (this.moodleLoginPollTimer) {
+          clearInterval(this.moodleLoginPollTimer);
+          this.moodleLoginPollTimer = null;
+        }
+        if (iconEl) iconEl.textContent = '⚠️';
+        if (descEl) descEl.textContent = "Přihlašování bylo zrušeno.";
+        if (spinner) spinner.style.display = 'none';
+        if (btnCancel) btnCancel.style.display = 'none';
+        if (btnClose) btnClose.style.display = 'inline-block';
+      }
+    } catch (e) {
+      console.warn("Poll login error:", e);
+    }
+  },
+
+  async cancelInteractiveMoodleLogin() {
+    if (this.moodleLoginPollTimer) {
+      clearInterval(this.moodleLoginPollTimer);
+      this.moodleLoginPollTimer = null;
+    }
+    try {
+      await fetch('/api/moodle/interactive-login/cancel', { method: 'POST' });
+    } catch(e) {}
+    this.closeInteractiveMoodleLoginModal();
+  },
+
+  closeInteractiveMoodleLoginModal() {
+    if (this.moodleLoginPollTimer) {
+      clearInterval(this.moodleLoginPollTimer);
+      this.moodleLoginPollTimer = null;
+    }
+    const modal = document.getElementById('modal-moodle-interactive-login');
+    if (modal) modal.style.display = 'none';
+  },
+
+  async triggerMoodleKeepalive() {
+    try {
+      const resp = await fetch('/api/moodle/keepalive', { method: 'POST' });
+      const data = await resp.json();
+      if (resp.ok && data.alive) {
+        this.showToast("💓 " + (data.message || "Relace Moodle je aktivní."));
+        await this.loadMoodleConfig();
+      } else {
+        this.showToast("⚠️ Relace Moodle vypršela nebo je neplatná.", "error");
+        await this.loadMoodleConfig();
+      }
+    } catch (err) {
+      this.showToast("Chyba keepalive: " + err.message, "error");
+    }
+  },
+
   async openMoodleModal() {
     const modal = document.getElementById('modal-moodle-sync');
     if (!modal) return;
@@ -5206,13 +5359,14 @@ const App = {
     try {
       const resp = await fetch('/api/moodle/course-structure');
       if (resp.status === 401) {
+        const banner = document.getElementById('moodle-session-alert-banner');
+        if (banner) banner.style.display = 'flex';
         if (assignSel) assignSel.innerHTML = '<option value="all">⚠️ Neplatná relace MoodleSession</option>';
-        await AppModal.alert({
-          title: "Moodle relace vypršela",
-          message: "Platnost vaší MoodleSession cookie vypršela. Přejděte do Nastavení ➔ Moodle integrace a vložte novou cookie."
-        });
+        if (groupSel) groupSel.innerHTML = '<option value="all">--</option>';
         return;
       }
+      const banner = document.getElementById('moodle-session-alert-banner');
+      if (banner) banner.style.display = 'none';
       if (!resp.ok) throw new Error("Chyba při komunikaci s Moodle.");
 
       const data = await resp.json();
@@ -5282,10 +5436,22 @@ const App = {
       if (group && group !== 'all') q.set('group', group);
 
       const resp = await fetch(`/api/moodle/pending-submissions?${q.toString()}`);
+      if (resp.status === 401) {
+        const banner = document.getElementById('moodle-session-alert-banner');
+        if (banner) banner.style.display = 'flex';
+        if (tbody) {
+          tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:28px; color:var(--accent-red);">
+            ⚠️ Moodle relace vypršela. Klikněte prosím na <strong>Přihlásit se do Moodle</strong> v horním pruhu pro rychlé obnovení.
+          </td></tr>`;
+        }
+        return;
+      }
       if (!resp.ok) {
         const err = await resp.json();
         throw new Error(err.detail || "Chyba při vyhledávání.");
       }
+      const banner = document.getElementById('moodle-session-alert-banner');
+      if (banner) banner.style.display = 'none';
 
       const items = await resp.json();
       this.moodlePendingItems = items;

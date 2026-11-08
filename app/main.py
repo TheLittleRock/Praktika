@@ -46,8 +46,10 @@ from app.moodle_service import (
     get_moodle_config, save_moodle_setting, check_moodle_session_validity,
     fetch_course_structure, fetch_pending_submissions, submit_moodle_grade, calculate_cvut_grade,
     fetch_course_user_groups_map, download_moodle_assignment_zip, extract_submissions_from_zip,
-    build_moodle_feedback_zip, parse_moodle_submission_filename, MoodleAuthError, MoodleServiceError
+    build_moodle_feedback_zip, parse_moodle_submission_filename, MoodleAuthError, MoodleServiceError,
+    moodle_keepalive_ping
 )
+from app.moodle_login_service import MoodleInteractiveLoginManager
 from app.storage import save_source_file, save_corrected_file, save_bodovani_file, slugify, format_slot_folder, format_semester_folder
 from app.pdf_service import extract_pdf_annotations, burn_annotations_to_pdf, format_points, calculate_grade_letter
 from app.ai_service import (
@@ -77,6 +79,32 @@ app.add_middleware(
 static_dir = BASE_DIR / "app" / "static"
 static_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+# ==========================================
+# MOODLE BACKGROUND KEEP-ALIVE WORKER
+# ==========================================
+
+async def _moodle_keepalive_loop():
+    """Periodically sends keep-alive request to Moodle every 15 minutes to prevent idle session timeout."""
+    await asyncio.sleep(30)  # Initial delay after server boot
+    while True:
+        try:
+            alive, msg = await moodle_keepalive_ping()
+            if alive:
+                logger.info("Moodle keep-alive heartbeat successful.")
+            else:
+                logger.warning(f"Moodle keep-alive heartbeat returned inactive: {msg}")
+        except Exception as e:
+            logger.warning(f"Moodle keep-alive exception: {e}")
+
+        try:
+            await asyncio.sleep(15 * 60)
+        except asyncio.CancelledError:
+            break
+
+@app.on_event("startup")
+async def start_background_workers():
+    asyncio.create_task(_moodle_keepalive_loop())
 
 # ==========================================
 # STRING & FILENAME NORMALIZATION HELPERS
@@ -3415,6 +3443,52 @@ async def test_moodle_connection_endpoint(user: dict = Depends(get_current_user)
     if not is_valid:
         raise HTTPException(status_code=400, detail=msg)
     return {"status": "ok", "course_title": msg, "message": f"Spojení s kurzem '{msg}' je plně funkční."}
+
+
+@app.post("/api/moodle/interactive-login/start")
+def start_interactive_moodle_login(user: dict = Depends(get_current_user)):
+    mgr = MoodleInteractiveLoginManager.get_instance()
+    result = mgr.start_login()
+    log_event(
+        level="INFO",
+        category="moodle",
+        user_id=user["id"],
+        user_name=user["username"],
+        action="interactive_login_started",
+        details="Spuštěn proces interaktivního přihlašování do Moodle"
+    )
+    return result
+
+
+@app.get("/api/moodle/interactive-login/status")
+def get_interactive_moodle_login_status(user: dict = Depends(get_current_user)):
+    mgr = MoodleInteractiveLoginManager.get_instance()
+    return mgr.get_status()
+
+
+@app.post("/api/moodle/interactive-login/cancel")
+def cancel_interactive_moodle_login(user: dict = Depends(get_current_user)):
+    mgr = MoodleInteractiveLoginManager.get_instance()
+    result = mgr.cancel()
+    log_event(
+        level="INFO",
+        category="moodle",
+        user_id=user["id"],
+        user_name=user["username"],
+        action="interactive_login_cancelled",
+        details="Zrušen proces interaktivního přihlašování do Moodle"
+    )
+    return result
+
+
+@app.post("/api/moodle/keepalive")
+async def trigger_moodle_keepalive(user: dict = Depends(get_current_user)):
+    alive, msg = await moodle_keepalive_ping()
+    return {
+        "status": "ok" if alive else "expired",
+        "alive": alive,
+        "message": msg
+    }
 
 
 @app.get("/api/moodle/course-structure", response_model=MoodleCourseStructureResponse)

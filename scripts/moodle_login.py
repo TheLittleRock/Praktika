@@ -14,7 +14,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.database import init_db, save_moodle_setting, log_event
+from app.database import init_db, log_event
+from app.moodle_service import save_moodle_setting
 
 def run_interactive_login(moodle_url: str = "https://moodle-vyuka.cvut.cz", course_id: str = "16880"):
     try:
@@ -34,11 +35,16 @@ def run_interactive_login(moodle_url: str = "https://moodle-vyuka.cvut.cz", cour
 
     init_db()
 
+    profile_dir = PROJECT_ROOT / "data" / "moodle_browser_profile"
+    profile_dir.mkdir(parents=True, exist_ok=True)
+
     with sync_playwright() as p:
-        # Launch visible browser for interactive SSO
-        browser = p.chromium.launch(headless=False)
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        # Launch visible browser with persistent SSO profile
+        context = p.chromium.launch_persistent_context(
+            user_data_dir=str(profile_dir),
+            headless=False,
+            user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            viewport={"width": 1100, "height": 780}
         )
         page = context.new_page()
 
@@ -67,7 +73,7 @@ def run_interactive_login(moodle_url: str = "https://moodle-vyuka.cvut.cz", cour
 
         if not moodle_session_value:
             print("\n❌ Časový limit pro přihlášení vypršel nebo nebyla cookie MoodleSession nalezena.")
-            browser.close()
+            context.close()
             sys.exit(1)
 
         print("\n✅ Úspěšně zachycena cookie MoodleSession!")
@@ -99,7 +105,7 @@ def run_interactive_login(moodle_url: str = "https://moodle-vyuka.cvut.cz", cour
         print("\n🎉 Hotovo! Nyní můžete v Praktika automaticky stahovat i nahrávat protokoly.")
 
         time.sleep(2)
-        browser.close()
+        context.close()
 
 if __name__ == "__main__":
     url = sys.argv[1] if len(sys.argv) > 1 else "https://moodle-vyuka.cvut.cz"

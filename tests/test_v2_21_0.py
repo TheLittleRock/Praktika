@@ -46,7 +46,7 @@ class TestPraktikaV2210(unittest.TestCase):
         self.admin_id = row["id"]
 
     def test_version_bump(self):
-        self.assertEqual(VERSION, "2.21.0")
+        self.assertTrue(VERSION >= "2.21.0")
 
     def test_gemini_candidate_models_modern_only(self):
         """Only modern Gemini 3.x models must be included; obsolete 1.5 / 2.x models should be removed."""

@@ -4,6 +4,25 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.22.0] - 2026-11-08
+
+### 🚀 Novinky a vylepšení ve verzi 2.22.0
+
+#### 🎓 Interaktivní přihlašování do Moodle & Trvalá relace
+- **Interaktivní přihlašování jedním kliknutím z webového rozhraní**:
+  - V **Nastavení ➔ Moodle integrace** i přímo v dialogu pro synchronizaci přibylo tlačítko **`🌐 Přihlásit se do Moodle`**.
+  - Aplikace automaticky spustí řízený prohlížeč Playwright Chromium na ploše, kde se uživatel přihlásí přes ČVUT SSO (Microsoft Entra ID / 2FA Authenticator).
+  - Po přihlášení skript automaticky detekuje a extrahuje `MoodleSession`, uloží ji do SQLite i do záložního souboru `data/moodle_session.json`, ověří přístup ke kurzu a okno prohlížeče samo zavře.
+- **Perzistentní profil prohlížeče (`data/moodle_browser_profile`)**:
+  - Přihlášení si pamatuje autentizační tokeny Microsoft SSO.
+  - Při požadavku na obnovení relace aplikace nejprve vyzkouší **tichý pokus na pozadí** (cca 2 sekundy). Pokud je SSO token stále platný, získá novou `MoodleSession` bez nutnosti otevírat jakékoliv okno na obrazovce.
+- **Automatický Keep-Alive Heartbeat (Maximální výdrž relace)**:
+  - Na pozadí serveru běží periodická asynchronní úloha (každých 15 minut), která do Moodle posílá lehký požadavek s aktuální cookie `MoodleSession`.
+  - Tím účinně brání vypršení PHP session v Moodle z důvodu nečinnosti (idle session timeout).
+  - Přidáno tlačítko **`💓 Prodloužit relaci (Keep-Alive)`** pro okamžité ruční ověření a prodloužení.
+- **Okamžitá obnova při expiraci přímo v Moodle okně**:
+  - Pokud Moodle vrátí chybu vypršení relace (HTTP 401), v dialogu se zobrazí varovný pruh s tlačítkem **`🌐 Přihlásit se do Moodle`**. Po dokončení přihlášení se okno automaticky obnoví a načte protokoly bez nutnosti přecházet do Nastavení.
+
 ## [2.21.0] - 2026-11-04
 
 ### 🚀 Novinky a vylepšení ve verzi 2.21.0
