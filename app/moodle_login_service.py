@@ -231,18 +231,38 @@ class MoodleInteractiveLoginManager:
                                 break
 
                 if not cookie_found and not self._cancel_flag.is_set():
-                    # 2. Enter Email / Username
+                    # 2. Enter Email / Username or select existing Account Tile
+                    user_short = username.split("@")[0].lower()
+                    tile = page.locator(f'#tilesHolder .tile-container, div[data-test-id*="{user_short}"], div.table-row:has-text("{user_short}"), small:has-text("{user_short}")').first
+                    other_tile = page.locator('#otherTile, div:has-text("Use another account"), div:has-text("Použít jiný účet")').first
+
                     try:
-                        email_input = page.wait_for_selector('input[type="email"], #i0116, input[name="loginfmt"], #userNameInput', timeout=15000)
+                        if tile.is_visible():
+                            tile.click()
+                            time.sleep(2.0)
+                        elif other_tile.is_visible():
+                            other_tile.click()
+                            time.sleep(1.5)
+                    except Exception:
+                        pass
+
+                    # If still on username screen, fill email
+                    email_input = None
+                    try:
+                        email_input = page.wait_for_selector('input[type="email"], #i0116, input[name="loginfmt"], #userNameInput', timeout=6000)
                     except Exception:
                         email_input = None
 
                     if email_input:
-                        email_input.fill(username)
-                        submit_btn = page.locator('#idSIButton9, input[type="submit"]').first
-                        if submit_btn.is_visible():
-                            submit_btn.click()
-                        time.sleep(2.5)
+                        try:
+                            if email_input.is_visible():
+                                email_input.fill(username)
+                                submit_btn = page.locator('#idSIButton9, input[type="submit"]').first
+                                if submit_btn.is_visible():
+                                    submit_btn.click()
+                                time.sleep(2.5)
+                        except Exception:
+                            pass
 
                         # Check for username error
                         user_err = page.locator('#usernameError').first
@@ -250,32 +270,32 @@ class MoodleInteractiveLoginManager:
                             err_txt = user_err.inner_text().strip()
                             raise RuntimeError(f"Chyba uživatelského jména: {err_txt}")
 
-                        # 3. Enter Password (supports ČVUT ADFS logon.ms.cvut.cz and Microsoft SSO)
-                        try:
-                            pwd_input = page.wait_for_selector('#passwordInput, input[type="password"], #i0118, input[name="passwd"]', timeout=15000)
-                        except Exception:
-                            pwd_input = None
+                    # 3. Enter Password (supports ČVUT ADFS logon.ms.cvut.cz and Microsoft SSO)
+                    try:
+                        pwd_input = page.wait_for_selector('#passwordInput, input[type="password"], #i0118, input[name="passwd"]', timeout=15000)
+                    except Exception:
+                        pwd_input = None
 
-                        if pwd_input:
-                            # If on ADFS and username is empty, fill it as well
-                            adfs_user = page.locator('#userNameInput').first
-                            if adfs_user.is_visible() and not adfs_user.input_value().strip():
-                                adfs_user.fill(username)
+                    if pwd_input:
+                        # If on ADFS and username is empty, fill it as well
+                        adfs_user = page.locator('#userNameInput').first
+                        if adfs_user.is_visible() and not adfs_user.input_value().strip():
+                            adfs_user.fill(username)
 
-                            pwd_input.fill(password)
-                            password = ""  # Immediate memory erase
-                            submit_pwd = page.locator('#submitButton, #idSIButton9, input[type="submit"], button[type="submit"]').first
-                            if submit_pwd.is_visible():
-                                submit_pwd.click()
-                            time.sleep(3.0)
+                        pwd_input.fill(password)
+                        password = ""  # Immediate memory erase
+                        submit_pwd = page.locator('#submitButton, #idSIButton9, input[type="submit"], button[type="submit"]').first
+                        if submit_pwd.is_visible():
+                            submit_pwd.click()
+                        time.sleep(3.0)
 
-                            # Check for password error across ADFS and Microsoft
-                            for err_sel in ['#passwordError', '#errorText', '#errorMessage', '.error']:
-                                pwd_err = page.locator(err_sel).first
-                                if pwd_err.is_visible():
-                                    err_txt = pwd_err.inner_text().strip()
-                                    if err_txt:
-                                        raise RuntimeError(f"Neplatné heslo: {err_txt}")
+                        # Check for password error across ADFS and Microsoft
+                        for err_sel in ['#passwordError', '#errorText', '#errorMessage', '.error']:
+                            pwd_err = page.locator(err_sel).first
+                            if pwd_err.is_visible():
+                                err_txt = pwd_err.inner_text().strip()
+                                if err_txt:
+                                    raise RuntimeError(f"Neplatné heslo: {err_txt}")
 
                     # Memory hygiene
                     password = ""
