@@ -5227,7 +5227,7 @@ const App = {
       } else if (data.status === 'awaiting_2fa_number') {
         if (iconEl) iconEl.textContent = '📱';
         if (titleEl) titleEl.textContent = 'Dvoufázové ověření (2FA)';
-        if (descEl) descEl.textContent = 'V aplikaci Microsoft Authenticator na svém telefonu vyberte toto číslo:';
+        if (descEl) descEl.textContent = 'V aplikaci Microsoft Authenticator / Outlook na svém telefonu vyberte toto číslo:';
         if (progressBox) progressBox.style.display = 'none';
         if (twoFaNumBox) twoFaNumBox.style.display = 'block';
         if (twoFaNumBadge) twoFaNumBadge.textContent = data.two_factor_number || '--';
@@ -5239,7 +5239,7 @@ const App = {
       } else if (data.status === 'awaiting_2fa_push') {
         if (iconEl) iconEl.textContent = '📱';
         if (titleEl) titleEl.textContent = 'Dvoufázové ověření (2FA)';
-        if (descEl) descEl.innerHTML = 'Schvalte žádost o přihlášení v aplikaci <strong>Microsoft Authenticator</strong> na svém telefonu.';
+        if (descEl) descEl.innerHTML = 'Schvalte žádost o přihlášení v aplikaci <strong>Microsoft Authenticator / Outlook</strong> na svém telefonu.';
         if (progressBox) progressBox.style.display = 'none';
         if (twoFaNumBox) twoFaNumBox.style.display = 'none';
         if (twoFaPushBox) twoFaPushBox.style.display = 'block';

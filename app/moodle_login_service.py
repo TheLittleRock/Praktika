@@ -233,7 +233,7 @@ class MoodleInteractiveLoginManager:
                 if not cookie_found and not self._cancel_flag.is_set():
                     # 2. Enter Email / Username
                     try:
-                        email_input = page.wait_for_selector('input[type="email"], #i0116, input[name="loginfmt"]', timeout=15000)
+                        email_input = page.wait_for_selector('input[type="email"], #i0116, input[name="loginfmt"], #userNameInput', timeout=15000)
                     except Exception:
                         email_input = None
 
@@ -242,7 +242,7 @@ class MoodleInteractiveLoginManager:
                         submit_btn = page.locator('#idSIButton9, input[type="submit"]').first
                         if submit_btn.is_visible():
                             submit_btn.click()
-                        time.sleep(2.0)
+                        time.sleep(2.5)
 
                         # Check for username error
                         user_err = page.locator('#usernameError').first
@@ -250,25 +250,32 @@ class MoodleInteractiveLoginManager:
                             err_txt = user_err.inner_text().strip()
                             raise RuntimeError(f"Chyba uživatelského jména: {err_txt}")
 
-                        # 3. Enter Password
+                        # 3. Enter Password (supports ČVUT ADFS logon.ms.cvut.cz and Microsoft SSO)
                         try:
-                            pwd_input = page.wait_for_selector('input[type="password"], #i0118, input[name="passwd"]', timeout=15000)
+                            pwd_input = page.wait_for_selector('#passwordInput, input[type="password"], #i0118, input[name="passwd"]', timeout=15000)
                         except Exception:
                             pwd_input = None
 
                         if pwd_input:
+                            # If on ADFS and username is empty, fill it as well
+                            adfs_user = page.locator('#userNameInput').first
+                            if adfs_user.is_visible() and not adfs_user.input_value().strip():
+                                adfs_user.fill(username)
+
                             pwd_input.fill(password)
                             password = ""  # Immediate memory erase
-                            submit_pwd = page.locator('#idSIButton9, input[type="submit"]').first
+                            submit_pwd = page.locator('#submitButton, #idSIButton9, input[type="submit"], button[type="submit"]').first
                             if submit_pwd.is_visible():
                                 submit_pwd.click()
-                            time.sleep(2.5)
+                            time.sleep(3.0)
 
-                            # Check for password error
-                            pwd_err = page.locator('#passwordError').first
-                            if pwd_err.is_visible():
-                                err_txt = pwd_err.inner_text().strip()
-                                raise RuntimeError(f"Neplatné heslo: {err_txt}")
+                            # Check for password error across ADFS and Microsoft
+                            for err_sel in ['#passwordError', '#errorText', '#errorMessage', '.error']:
+                                pwd_err = page.locator(err_sel).first
+                                if pwd_err.is_visible():
+                                    err_txt = pwd_err.inner_text().strip()
+                                    if err_txt:
+                                        raise RuntimeError(f"Neplatné heslo: {err_txt}")
 
                     # Memory hygiene
                     password = ""
@@ -288,7 +295,7 @@ class MoodleInteractiveLoginManager:
                             if c.get("name") == "MoodleSession" and c.get("value"):
                                 c_domain = c.get("domain", "")
                                 if moodle_host in c_domain or c_domain in moodle_host:
-                                    if "login" not in curr_url and "microsoft" not in curr_url:
+                                    if "login" not in curr_url and "microsoft" not in curr_url and "adfs" not in curr_url:
                                         cookie_found = c["value"]
                                         break
                         if cookie_found:
@@ -303,22 +310,41 @@ class MoodleInteractiveLoginManager:
                             except Exception:
                                 pass
 
+                        # If user submitted a 2FA code but OTC input is not visible yet, switch method
+                        if self._submitted_code:
+                            alt_method_btn = page.locator('#signInAnotherWay, text="Use a verification code", text="Použít ověřovací kód", text="I can\'t use my Outlook mobile app right now"').first
+                            if alt_method_btn.is_visible():
+                                try:
+                                    alt_method_btn.click()
+                                    time.sleep(1.5)
+                                except Exception:
+                                    pass
+
+                        # Check for 2FA method choice screen (e.g. CompanionAppsNotification)
+                        approve_choice = page.locator('div:has-text("Approve a request on my Outlook mobile app"), div:has-text("Schválit žádost v aplikaci Outlook"), div:has-text("Approve a request in Microsoft Authenticator"), div:has-text("Approve a request")').last
+                        if approve_choice.is_visible() and not self._submitted_code:
+                            try:
+                                approve_choice.click()
+                                time.sleep(2.0)
+                            except Exception:
+                                pass
+
                         # Check for 2FA Number Matching
-                        rich_challenge = page.locator('#richChallange, #displaySign, .displaySign').first
+                        rich_challenge = page.locator('#idRichContext_DisplaySign, #richChallange, #displaySign, .displaySign').first
                         if rich_challenge.is_visible():
                             num_val = rich_challenge.inner_text().strip()
                             with self._lock:
                                 self.state["status"] = "awaiting_2fa_number"
                                 self.state["two_factor_type"] = "number"
                                 self.state["two_factor_number"] = num_val
-                                self.state["message"] = f"Zadejte v aplikaci Microsoft Authenticator číslo: {num_val}"
+                                self.state["message"] = f"Zadejte v aplikaci Microsoft Authenticator / Outlook číslo: {num_val}"
 
                         # Check for 2FA Push notification
-                        elif page.locator('#idDiv_SAOTCAS_Title, text="Schvalte žádost o přihlášení", text="Approve a request"').first.is_visible():
+                        elif page.locator('#idDiv_SAOTCAS_Title, text="Schvalte žádost o přihlášení", text="Approve sign in request", text="Approve a request"').first.is_visible():
                             with self._lock:
                                 self.state["status"] = "awaiting_2fa_push"
                                 self.state["two_factor_type"] = "push"
-                                self.state["message"] = "Odesláno oznámení do aplikace Microsoft Authenticator. Potvrďte jej prosím na telefonu."
+                                self.state["message"] = "Odesláno oznámení do aplikace Microsoft Authenticator / Outlook. Potvrďte jej prosím na telefonu."
 
                         # Check for 2FA Code input (SMS / TOTP)
                         otc_input = page.locator('#idTxtBx_SAOTCC_OTC, input[name="otc"]').first
@@ -333,7 +359,7 @@ class MoodleInteractiveLoginManager:
                                 otc_input.fill(self._submitted_code)
                                 self._submitted_code = None
                                 self._code_event.clear()
-                                cont_btn = page.locator('#idSubmit_SAOTCC_Continue, #idSIButton9, input[type="submit"]').first
+                                cont_btn = page.locator('#idSubmit_SAOTCC_Continue, #idSIButton9, input[type="submit"], #submitButton').first
                                 if cont_btn.is_visible():
                                     cont_btn.click()
                                 time.sleep(2.0)
