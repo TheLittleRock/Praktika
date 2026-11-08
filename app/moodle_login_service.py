@@ -312,26 +312,32 @@ class MoodleInteractiveLoginManager:
 
                         # If user submitted a 2FA code but OTC input is not visible yet, switch method
                         if self._submitted_code:
-                            alt_method_btn = page.locator('#signInAnotherWay, text="Use a verification code", text="Použít ověřovací kód", text="I can\'t use my Outlook mobile app right now"').first
-                            if alt_method_btn.is_visible():
-                                try:
+                            alt_method_btn = page.locator('#signInAnotherWay, :text("Use a verification code"), :text("Použít ověřovací kód"), :text("I can\'t use my Outlook mobile app right now")').first
+                            try:
+                                if alt_method_btn.is_visible():
                                     alt_method_btn.click()
                                     time.sleep(1.5)
-                                except Exception:
-                                    pass
-
-                        # Check for 2FA method choice screen (e.g. CompanionAppsNotification)
-                        approve_choice = page.locator('div:has-text("Approve a request on my Outlook mobile app"), div:has-text("Schválit žádost v aplikaci Outlook"), div:has-text("Approve a request in Microsoft Authenticator"), div:has-text("Approve a request")').last
-                        if approve_choice.is_visible() and not self._submitted_code:
-                            try:
-                                approve_choice.click()
-                                time.sleep(2.0)
                             except Exception:
                                 pass
 
+                        # Check for 2FA method choice screen (e.g. CompanionAppsNotification)
+                        approve_choice = page.locator('div:has-text("Approve a request on my Outlook mobile app"), div:has-text("Schválit žádost v aplikaci Outlook"), div:has-text("Approve a request in Microsoft Authenticator"), div:has-text("Approve a request")').last
+                        try:
+                            if approve_choice.is_visible() and not self._submitted_code:
+                                approve_choice.click()
+                                time.sleep(2.0)
+                        except Exception:
+                            pass
+
                         # Check for 2FA Number Matching
                         rich_challenge = page.locator('#idRichContext_DisplaySign, #richChallange, #displaySign, .displaySign').first
-                        if rich_challenge.is_visible():
+                        is_number_challenge = False
+                        try:
+                            is_number_challenge = rich_challenge.is_visible()
+                        except Exception:
+                            is_number_challenge = False
+
+                        if is_number_challenge:
                             num_val = rich_challenge.inner_text().strip()
                             with self._lock:
                                 self.state["status"] = "awaiting_2fa_number"
@@ -340,11 +346,19 @@ class MoodleInteractiveLoginManager:
                                 self.state["message"] = f"Zadejte v aplikaci Microsoft Authenticator / Outlook číslo: {num_val}"
 
                         # Check for 2FA Push notification
-                        elif page.locator('#idDiv_SAOTCAS_Title, text="Schvalte žádost o přihlášení", text="Approve sign in request", text="Approve a request"').first.is_visible():
-                            with self._lock:
-                                self.state["status"] = "awaiting_2fa_push"
-                                self.state["two_factor_type"] = "push"
-                                self.state["message"] = "Odesláno oznámení do aplikace Microsoft Authenticator / Outlook. Potvrďte jej prosím na telefonu."
+                        else:
+                            is_push = False
+                            try:
+                                push_loc = page.locator('#idDiv_SAOTCAS_Title, :text("Schvalte žádost o přihlášení"), :text("Approve sign in request"), :text("Approve a request")').first
+                                is_push = push_loc.is_visible()
+                            except Exception:
+                                is_push = False
+
+                            if is_push:
+                                with self._lock:
+                                    self.state["status"] = "awaiting_2fa_push"
+                                    self.state["two_factor_type"] = "push"
+                                    self.state["message"] = "Odesláno oznámení do aplikace Microsoft Authenticator / Outlook. Potvrďte jej prosím na telefonu."
 
                         # Check for 2FA Code input (SMS / TOTP)
                         otc_input = page.locator('#idTxtBx_SAOTCC_OTC, input[name="otc"]').first

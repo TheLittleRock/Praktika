@@ -133,6 +133,32 @@ class TestPraktikaV2230(unittest.TestCase):
         # Clean up
         mgr.cancel()
 
+    def test_changelog_endpoint(self):
+        """Test GET /api/changelog returns valid changelog content."""
+        resp = self.client.get("/api/changelog")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("content", data)
+        self.assertIn("2.23.0", data["content"])
+
+    def test_playwright_selector_syntax(self):
+        """Verify Playwright selectors used in moodle_login_service are syntactically valid."""
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.set_content('<div id="idDiv_SAOTCAS_Title">Test</div><a id="signInAnotherWay">Alt</a>')
+
+            # Push prompt selector
+            push_loc = page.locator('#idDiv_SAOTCAS_Title, :text("Schvalte žádost o přihlášení"), :text("Approve sign in request"), :text("Approve a request")').first
+            self.assertTrue(push_loc.is_visible())
+
+            # Alt method selector
+            alt_loc = page.locator('#signInAnotherWay, :text("Use a verification code"), :text("Použít ověřovací kód"), :text("I can\'t use my Outlook mobile app right now")').first
+            self.assertTrue(alt_loc.is_visible())
+
+            browser.close()
+
     def test_ui_template_elements_for_v2_23_0(self):
         """Verify that index.html contains all required v2.23.0 credential and 2FA DOM elements."""
         index_path = Path(__file__).resolve().parent.parent / "app" / "templates" / "index.html"

@@ -75,6 +75,7 @@ nav:
       - Správa databáze & Diagnostika: guide/database-admin.md
   - Architektura systému:
       - Architektura & Struktura: architecture/overview.md
+      - Příručka pro AI agenty (Agent Guide): agent_guide.md
       - Backend & Datové modely: architecture/backend.md
       - PDF & Grafické jádro: architecture/pdf-engine.md
       - AI Analytická pipeline: architecture/ai-pipeline.md

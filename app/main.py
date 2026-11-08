@@ -2441,9 +2441,20 @@ def set_ai_settings(req: AISettingsRequest, user: dict = Depends(get_current_use
 # Changelog API
 @app.get("/api/changelog")
 def get_changelog():
-    changelog_path = BASE_DIR / "CHANGELOG.md"
-    if changelog_path.is_file():
-        return {"content": changelog_path.read_text(encoding="utf-8")}
+    candidates = [
+        BASE_DIR / "CHANGELOG.md",
+        BASE_DIR / "docs" / "changelog.md",
+        Path(__file__).resolve().parent.parent / "CHANGELOG.md",
+        Path(__file__).resolve().parent / "CHANGELOG.md",
+        Path("/app/CHANGELOG.md"),
+        Path("/app/docs/changelog.md")
+    ]
+    for p in candidates:
+        if p.is_file():
+            try:
+                return {"content": p.read_text(encoding="utf-8")}
+            except Exception:
+                pass
     return {"content": "# Changelog\nSoubor changelogu nebyl nalezen."}
 
 # Bulk ZIP Export of corrected PDFs and bodovani.txt

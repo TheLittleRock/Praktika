@@ -12,7 +12,8 @@
 
 Nabízí interaktivní korekční studio s vektorovými kreslícími nástroji (zvýrazňovač, pero, tvary, šipky, poznámky kompatibilní s Adobe Acrobatem), asistenci jazykových modelů **Google Gemini (3.6 Flash / 3.8 Flash / 3.5 Flash-Lite)** s českými fyzikálními rubrikami a export hodnocení připravený pro LMS Moodle.
 
-📖 **Kompletní dokumentace projektu:** [https://thelittlerock.github.io/Praktika/](https://thelittlerock.github.io/Praktika/)
+📖 **Kompletní dokumentace projektu:** [https://thelittlerock.github.io/Praktika/](https://thelittlerock.github.io/Praktika/)  
+🤖 **Průvodce architekturou pro AI agenty:** [AGENT_GUIDE.md](AGENT_GUIDE.md)
 
 ---
 

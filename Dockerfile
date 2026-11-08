@@ -12,8 +12,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 RUN playwright install --with-deps chromium
 
-# Copy application source
+# Copy application source and documentation
 COPY app/ ./app/
+COPY CHANGELOG.md .
+COPY docs/ ./docs/
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
