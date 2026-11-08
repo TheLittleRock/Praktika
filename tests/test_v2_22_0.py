@@ -43,7 +43,7 @@ class TestPraktikaV2220(unittest.TestCase):
         self.auth_headers = {"Authorization": f"Bearer {self.admin_token}"}
 
     def test_version_bump(self):
-        self.assertEqual(VERSION, "2.22.0")
+        self.assertTrue(VERSION >= "2.22.0")
 
     def test_interactive_login_endpoints_status_and_cancel(self):
         """Test GET /api/moodle/interactive-login/status and POST /api/moodle/interactive-login/cancel."""

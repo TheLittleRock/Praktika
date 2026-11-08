@@ -4,6 +4,27 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.23.0] - 2026-11-08
+
+### 🚀 Novinky a vylepšení ve verzi 2.23.0
+
+#### 🔐 Serverové Moodle přihlašování s 2FA bez nutnosti GUI na serveru
+- **Přímo z webového prohlížeče (Server & Docker Ready)**:
+  - Odstraněna závislost na lokálním grafickém zobrazení (`$DISPLAY` / X11 / Wayland), které na serverech a v kontejneru Dockeru neexistovalo.
+  - V rozhraní Praktika se po kliknutí na `🌐 Přihlásit se do Moodle` otevře přihlašovací formulář přímo v aplikaci.
+  - Vyučující zadá své ČVUT uživatelské jméno a heslo, server na pozadí spustí headless Playwright instanci a provede bezpečné přihlášení do ČVUT Microsoft SSO.
+- **Plná podpora Microsoft Authenticatoru a 2FA (Dvoufázové ověření)**:
+  - **Číselná shoda (Number matching)**: Pokud Microsoft Authenticator vyžaduje zadání čísla, server detekuje výzvu a zobrazí velké zřetelné číslo (např. `42`) přímo v dialogu aplikace.
+  - **Push notifikace**: Podpora potvrzení klepnutím na telefonu ("Schválit").
+  - **Jednorázové kódy (SMS / TOTP)**: Integrovaný vstup pro bezpečné předání 6místného kódu do běžícího headless prohlížeče na serveru.
+- **Striktní bezpečnost a zero-storage hesla**:
+  - Heslo se **nikdy neukládá** do databáze, konfiguračních souborů ani logů.
+  - Heslo je drženo výhradně v dočasné operační paměti procesu během vyplnění formuláře a okamžitě přepsáno prázdným řetězcem.
+  - Do databáze se ukládá výhradně výsledná bezpečnostní cookie `MoodleSession`.
+- **Automatická instalace v Dockeru**:
+  - `playwright>=1.40.0` integrován do `requirements.txt`.
+  - Dockerfile doplněn o `RUN playwright install --with-deps chromium` pro připravenost ihned po nasazení.
+
 ## [2.22.0] - 2026-11-08
 
 ### 🚀 Novinky a vylepšení ve verzi 2.22.0

@@ -44,7 +44,7 @@ from app.models import (
     StudentHeartbeatRequest, ProtocolViewsResponse, StudentViewSession,
     MoodleConfig, MoodleCourseStructureResponse, MoodleDownloadRequest, MoodleUploadRequest,
     MoodlePendingSubmissionItem, MoodleDownloadSelectedRequest, MoodleGradableProtocolItem,
-    AssignedTasksUpdateRequest
+    AssignedTasksUpdateRequest, MoodleCredentialLoginRequest, Moodle2FACodeRequest
 )
 from app.moodle_service import (
     get_moodle_config, save_moodle_setting, check_moodle_session_validity,
@@ -3447,6 +3447,33 @@ async def test_moodle_connection_endpoint(user: dict = Depends(get_current_user)
     if not is_valid:
         raise HTTPException(status_code=400, detail=msg)
     return {"status": "ok", "course_title": msg, "message": f"Spojení s kurzem '{msg}' je plně funkční."}
+
+
+@app.post("/api/moodle/interactive-login/credentials")
+def start_credential_moodle_login(req: MoodleCredentialLoginRequest, user: dict = Depends(get_current_user)):
+    mgr = MoodleInteractiveLoginManager.get_instance()
+    result = mgr.start_credential_login(
+        username=req.username,
+        password=req.password,
+        moodle_url=req.moodle_url,
+        course_id=req.course_id
+    )
+    log_event(
+        level="INFO",
+        category="moodle",
+        user_id=user["id"],
+        user_name=user["username"],
+        action="moodle_credential_login_started",
+        details="Spuštěno přihlášení do ČVUT Moodle přes formulář"
+    )
+    return result
+
+
+@app.post("/api/moodle/interactive-login/submit-2fa")
+def submit_moodle_2fa_code(req: Moodle2FACodeRequest, user: dict = Depends(get_current_user)):
+    mgr = MoodleInteractiveLoginManager.get_instance()
+    result = mgr.submit_2fa_code(req.code)
+    return result
 
 
 @app.post("/api/moodle/interactive-login/start")

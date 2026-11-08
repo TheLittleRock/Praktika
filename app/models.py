@@ -395,4 +395,13 @@ class MoodleUploadRequest(BaseModel):
     upload_comment: bool = True
     students: List[MoodleUploadStudentItem]
 
+class MoodleCredentialLoginRequest(BaseModel):
+    username: str
+    password: str
+    moodle_url: Optional[str] = None
+    course_id: Optional[str] = None
+
+class Moodle2FACodeRequest(BaseModel):
+    code: str
+
 

@@ -2046,17 +2046,92 @@
   <!-- Modal: Interaktivní Moodle přihlášení -->
   <div class="modal-backdrop" id="modal-moodle-interactive-login" style="display:none; z-index:9998;">
     <div class="modal-box" style="max-width:520px; width:92vw; text-align:center; padding:24px;">
-      <div style="font-size:2.4rem; margin-bottom:10px;" id="moodle-login-modal-icon">🌐</div>
-      <h3 style="font-size:1.15rem; font-weight:700; margin-bottom:8px;" id="moodle-login-modal-title">Přihlašování do ČVUT Moodle</h3>
+      <div style="font-size:2.4rem; margin-bottom:10px;" id="moodle-login-modal-icon">🔐</div>
+      <h3 style="font-size:1.2rem; font-weight:700; margin-bottom:8px;" id="moodle-login-modal-title">Přihlášení do ČVUT Moodle</h3>
       <p style="font-size:0.85rem; color:var(--text-muted); line-height:1.5; margin-bottom:16px;" id="moodle-login-modal-desc">
-        Inicializuji proces přihlášení...
+        Zadejte své ČVUT přihlašovací údaje pro bezpečné získání relace MoodleSession.
       </p>
-      <div id="moodle-login-modal-spinner" style="display:inline-block; margin-bottom:16px;">
-        <div class="spinner" style="width:36px; height:36px; border:3px solid rgba(0,122,204,0.2); border-top-color:var(--primary); border-radius:50%; animation:spin 1s linear infinite; margin:0 auto;"></div>
+
+      <!-- View 1: Formulář pro zadání jména a hesla -->
+      <div id="moodle-login-form-container">
+        <form id="form-moodle-credentials" onsubmit="App.submitMoodleCredentials(event)" style="display:flex; flex-direction:column; gap:12px; text-align:left;">
+          <div class="form-group">
+            <label class="form-label" for="moodle-login-username" style="font-size:0.82rem; font-weight:600; display:block; margin-bottom:4px;">
+              ČVUT uživatelské jméno / e-mail:
+            </label>
+            <input type="text" id="moodle-login-username" class="form-control" placeholder="např. novakja8 nebo novakja8@cvut.cz" required autocomplete="username" style="font-size:0.9rem;">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="moodle-login-password" style="font-size:0.82rem; font-weight:600; display:block; margin-bottom:4px;">
+              ČVUT heslo:
+            </label>
+            <div style="position:relative; display:flex; align-items:center;">
+              <input type="password" id="moodle-login-password" class="form-control" placeholder="Heslo k ČVUT účtu" required autocomplete="current-password" style="padding-right:38px; font-size:0.9rem;">
+              <button type="button" onclick="App.toggleMoodlePasswordVisibility()" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; color:var(--text-muted); padding:4px;" title="Zobrazit / skrýt heslo" id="btn-toggle-moodle-pwd">👁️</button>
+            </div>
+          </div>
+          <div style="font-size:0.75rem; color:var(--text-muted); background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:8px 10px; line-height:1.4;">
+            🛡️ <strong>Bezpečnost:</strong> Vaše heslo se <strong>nikdy neukládá</strong> do databáze ani do souborů. Použije se výhradně v paměti serveru pro jednorázové přihlášení a okamžitě se smaže.
+          </div>
+          <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:8px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="App.closeInteractiveMoodleLoginModal()">Zrušit</button>
+            <button type="submit" class="btn btn-primary btn-sm" id="btn-submit-moodle-credentials">
+              🔐 Přihlásit se
+            </button>
+          </div>
+        </form>
       </div>
-      <div id="moodle-login-modal-details" style="display:none; font-size:0.8rem; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px; margin-bottom:16px; text-align:left; font-family:'JetBrains Mono',monospace;"></div>
-      <div style="display:flex; justify-content:center; gap:10px;">
+
+      <!-- View 2: Průběh a kontrola (Spinner) -->
+      <div id="moodle-login-progress-container" style="display:none; margin:16px 0;">
+        <div id="moodle-login-modal-spinner" style="display:inline-block; margin-bottom:12px;">
+          <div class="spinner" style="width:38px; height:38px; border:3px solid rgba(0,122,204,0.2); border-top-color:var(--primary); border-radius:50%; animation:spin 1s linear infinite; margin:0 auto;"></div>
+        </div>
+      </div>
+
+      <!-- View 3: 2FA Number Matching (Microsoft Authenticator číselná shoda) -->
+      <div id="moodle-login-2fa-number-container" style="display:none; margin:14px 0;">
+        <div style="font-size:0.85rem; font-weight:600; color:var(--text-main); margin-bottom:6px;">
+          V aplikaci Microsoft Authenticator vyberte toto číslo:
+        </div>
+        <div class="moodle-2fa-badge" id="moodle-login-2fa-number-badge">--</div>
+        <p style="font-size:0.8rem; color:var(--text-muted); margin-top:6px;">
+          Otevřete oznámení v telefonu a klepněte na zobrazené číslo.
+        </p>
+      </div>
+
+      <!-- View 4: 2FA Push oznámení (Schválení bez čísla) -->
+      <div id="moodle-login-2fa-push-container" style="display:none; margin:14px 0;">
+        <div style="font-size:2rem; margin-bottom:6px;">📱</div>
+        <div style="font-size:0.85rem; font-weight:600; color:var(--text-main); margin-bottom:6px;">
+          Schvalte žádost o přihlášení
+        </div>
+        <p style="font-size:0.8rem; color:var(--text-muted);">
+          V aplikaci Microsoft Authenticator na svém telefonu klepněte na <strong>Schválit</strong>.
+        </p>
+        <div class="spinner" style="width:28px; height:28px; border:3px solid rgba(0,122,204,0.2); border-top-color:var(--primary); border-radius:50%; animation:spin 1s linear infinite; margin:10px auto 0 auto;"></div>
+      </div>
+
+      <!-- View 5: 2FA Jednorázový kód (SMS / TOTP kód) -->
+      <div id="moodle-login-2fa-code-container" style="display:none; margin:14px 0;">
+        <form id="form-moodle-2fa-code" onsubmit="App.submitMoodle2FACode(event)" style="display:flex; flex-direction:column; gap:10px;">
+          <label class="form-label" for="moodle-login-2fa-code-input" style="font-size:0.85rem; font-weight:600; text-align:left;">
+            Zadejte ověřovací kód z SMS nebo Authenticatoru:
+          </label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="moodle-login-2fa-code-input" class="form-control" placeholder="6místný kód" maxlength="10" autocomplete="one-time-code" style="font-size:1.15rem; text-align:center; letter-spacing:2px; font-family:'JetBrains Mono',monospace;">
+            <button type="submit" class="btn btn-primary" id="btn-submit-2fa-code">Odeslat</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Error / Technical details display -->
+      <div id="moodle-login-modal-details" style="display:none; font-size:0.8rem; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px; margin:12px 0; text-align:left; font-family:'JetBrains Mono',monospace; word-break:break-word;"></div>
+
+      <!-- Footer Buttons for progress/2fa/error/success states -->
+      <div id="moodle-login-footer-actions" style="display:none; justify-content:center; gap:10px; margin-top:16px;">
         <button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-moodle-login" onclick="App.cancelInteractiveMoodleLogin()">Zrušit</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-retry-moodle-login" style="display:none;" onclick="App.resetMoodleLoginForm()">Zkusit znovu</button>
         <button type="button" class="btn btn-primary btn-sm" id="btn-close-moodle-login" style="display:none;" onclick="App.closeInteractiveMoodleLoginModal()">Zavřít</button>
       </div>
     </div>

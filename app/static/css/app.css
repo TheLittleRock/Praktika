@@ -3315,6 +3315,27 @@ tr:hover td {
   accent-color: var(--primary);
 }
 
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.moodle-2fa-badge {
+  display: inline-block;
+  font-size: 3.2rem;
+  font-weight: 800;
+  color: var(--primary);
+  letter-spacing: 4px;
+  background: rgba(0, 122, 204, 0.1);
+  border: 2px dashed var(--primary);
+  border-radius: 12px;
+  padding: 8px 24px;
+  margin: 12px auto;
+  font-family: 'JetBrains Mono', monospace;
+  box-shadow: 0 4px 14px rgba(0, 122, 204, 0.15);
+}
+
+
 
 
 

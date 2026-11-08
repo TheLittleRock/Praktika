@@ -5011,42 +5011,183 @@ const App = {
   moodleLoginPollTimer: null,
   moodleLoginResumeModal: false,
 
-  async startInteractiveMoodleLogin(resumeMoodleModal = false) {
-    this.moodleLoginResumeModal = !!resumeMoodleModal;
-    const modal = document.getElementById('modal-moodle-interactive-login');
-    const titleEl = document.getElementById('moodle-login-modal-title');
+  resetMoodleLoginForm() {
     const iconEl = document.getElementById('moodle-login-modal-icon');
+    const titleEl = document.getElementById('moodle-login-modal-title');
     const descEl = document.getElementById('moodle-login-modal-desc');
-    const spinner = document.getElementById('moodle-login-modal-spinner');
+    const formBox = document.getElementById('moodle-login-form-container');
+    const progressBox = document.getElementById('moodle-login-progress-container');
+    const twoFaNumBox = document.getElementById('moodle-login-2fa-number-container');
+    const twoFaPushBox = document.getElementById('moodle-login-2fa-push-container');
+    const twoFaCodeBox = document.getElementById('moodle-login-2fa-code-container');
     const details = document.getElementById('moodle-login-modal-details');
+    const footerActions = document.getElementById('moodle-login-footer-actions');
     const btnCancel = document.getElementById('btn-cancel-moodle-login');
+    const btnRetry = document.getElementById('btn-retry-moodle-login');
     const btnClose = document.getElementById('btn-close-moodle-login');
 
-    if (modal) modal.style.display = 'flex';
-    if (titleEl) titleEl.textContent = 'Přihlašování do ČVUT Moodle';
-    if (iconEl) iconEl.textContent = '🌐';
-    if (descEl) descEl.innerHTML = 'Inicializuji proces přihlášení...';
-    if (spinner) spinner.style.display = 'inline-block';
+    if (iconEl) iconEl.textContent = '🔐';
+    if (titleEl) titleEl.textContent = 'Přihlášení do ČVUT Moodle';
+    if (descEl) descEl.textContent = 'Zadejte své ČVUT přihlašovací údaje pro bezpečné získání relace MoodleSession.';
+
+    if (formBox) formBox.style.display = 'block';
+    if (progressBox) progressBox.style.display = 'none';
+    if (twoFaNumBox) twoFaNumBox.style.display = 'none';
+    if (twoFaPushBox) twoFaPushBox.style.display = 'none';
+    if (twoFaCodeBox) twoFaCodeBox.style.display = 'none';
     if (details) { details.style.display = 'none'; details.textContent = ''; }
-    if (btnCancel) { btnCancel.style.display = 'inline-block'; btnCancel.disabled = false; }
+    if (footerActions) footerActions.style.display = 'none';
+
+    if (btnCancel) btnCancel.style.display = 'inline-block';
+    if (btnRetry) btnRetry.style.display = 'none';
     if (btnClose) btnClose.style.display = 'none';
 
+    const pwdInput = document.getElementById('moodle-login-password');
+    if (pwdInput) {
+      pwdInput.value = '';
+      pwdInput.type = 'password';
+    }
+    const pwdBtn = document.getElementById('btn-toggle-moodle-pwd');
+    if (pwdBtn) pwdBtn.textContent = '👁️';
+
+    const userInput = document.getElementById('moodle-login-username');
+    if (userInput && !userInput.value.trim() && this.currentUser && this.currentUser.username) {
+      userInput.value = this.currentUser.username;
+    }
+  },
+
+  toggleMoodlePasswordVisibility() {
+    const pwdInput = document.getElementById('moodle-login-password');
+    const pwdBtn = document.getElementById('btn-toggle-moodle-pwd');
+    if (!pwdInput) return;
+    if (pwdInput.type === 'password') {
+      pwdInput.type = 'text';
+      if (pwdBtn) pwdBtn.textContent = '🙈';
+    } else {
+      pwdInput.type = 'password';
+      if (pwdBtn) pwdBtn.textContent = '👁️';
+    }
+  },
+
+  startInteractiveMoodleLogin(resumeMoodleModal = false) {
+    this.moodleLoginResumeModal = !!resumeMoodleModal;
+    if (this.moodleLoginPollTimer) {
+      clearInterval(this.moodleLoginPollTimer);
+      this.moodleLoginPollTimer = null;
+    }
+
+    const modal = document.getElementById('modal-moodle-interactive-login');
+    if (modal) modal.style.display = 'flex';
+
+    this.resetMoodleLoginForm();
+
+    const userInput = document.getElementById('moodle-login-username');
+    const pwdInput = document.getElementById('moodle-login-password');
+    if (userInput && userInput.value) {
+      if (pwdInput) pwdInput.focus();
+    } else if (userInput) {
+      userInput.focus();
+    }
+  },
+
+  async submitMoodleCredentials(event) {
+    if (event) event.preventDefault();
+
+    const userInput = document.getElementById('moodle-login-username');
+    const pwdInput = document.getElementById('moodle-login-password');
+    const urlInput = document.getElementById('moodle-url-input');
+    const courseInput = document.getElementById('moodle-course-id-input');
+
+    const username = userInput ? userInput.value.trim() : '';
+    let password = pwdInput ? pwdInput.value : '';
+    const moodle_url = urlInput ? urlInput.value.trim() : 'https://moodle-vyuka.cvut.cz';
+    const course_id = courseInput ? courseInput.value.trim() : '16880';
+
+    if (!username || !password) {
+      this.showToast("Zadejte prosím uživatelské jméno i heslo.", "warning");
+      return;
+    }
+
+    const formBox = document.getElementById('moodle-login-form-container');
+    const progressBox = document.getElementById('moodle-login-progress-container');
+    const footerActions = document.getElementById('moodle-login-footer-actions');
+    const btnCancel = document.getElementById('btn-cancel-moodle-login');
+    const btnRetry = document.getElementById('btn-retry-moodle-login');
+    const btnClose = document.getElementById('btn-close-moodle-login');
+    const iconEl = document.getElementById('moodle-login-modal-icon');
+    const titleEl = document.getElementById('moodle-login-modal-title');
+    const descEl = document.getElementById('moodle-login-modal-desc');
+    const details = document.getElementById('moodle-login-modal-details');
+
+    if (formBox) formBox.style.display = 'none';
+    if (progressBox) progressBox.style.display = 'block';
+    if (footerActions) footerActions.style.display = 'flex';
+    if (btnCancel) { btnCancel.style.display = 'inline-block'; btnCancel.disabled = false; }
+    if (btnRetry) btnRetry.style.display = 'none';
+    if (btnClose) btnClose.style.display = 'none';
+    if (details) { details.style.display = 'none'; details.textContent = ''; }
+
+    if (iconEl) iconEl.textContent = '⏳';
+    if (titleEl) titleEl.textContent = 'Probíhá přihlašování...';
+    if (descEl) descEl.textContent = 'Odesílám přihlašovací údaje do ČVUT Microsoft SSO...';
+
     try {
-      const resp = await fetch('/api/moodle/interactive-login/start', { method: 'POST' });
+      const resp = await fetch('/api/moodle/interactive-login/credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: username,
+          password: password,
+          moodle_url: moodle_url,
+          course_id: course_id
+        })
+      });
+      password = ""; // Immediate client-side zeroing
+      if (pwdInput) pwdInput.value = "";
+
       const data = await resp.json();
       if (!resp.ok) {
-        throw new Error(data.detail || data.message || "Nepodařilo se spustit přihlašování.");
+        throw new Error(data.detail || data.message || "Nepodařilo se spustit přihlášení.");
       }
 
       if (this.moodleLoginPollTimer) clearInterval(this.moodleLoginPollTimer);
       this.moodleLoginPollTimer = setInterval(() => this.pollInteractiveMoodleLogin(), 1000);
       this.pollInteractiveMoodleLogin();
     } catch (err) {
+      password = "";
+      if (pwdInput) pwdInput.value = "";
       if (iconEl) iconEl.textContent = '❌';
-      if (descEl) descEl.textContent = `Chyba spuštění: ${err.message}`;
-      if (spinner) spinner.style.display = 'none';
+      if (titleEl) titleEl.textContent = 'Chyba přihlašování';
+      if (descEl) descEl.textContent = err.message || "Chyba při komunikaci se serverem.";
+      if (progressBox) progressBox.style.display = 'none';
       if (btnCancel) btnCancel.style.display = 'none';
+      if (btnRetry) btnRetry.style.display = 'inline-block';
       if (btnClose) btnClose.style.display = 'inline-block';
+    }
+  },
+
+  async submitMoodle2FACode(event) {
+    if (event) event.preventDefault();
+    const codeInput = document.getElementById('moodle-login-2fa-code-input');
+    const code = codeInput ? codeInput.value.trim() : '';
+    if (!code) return;
+
+    const descEl = document.getElementById('moodle-login-modal-desc');
+    if (descEl) descEl.textContent = 'Ověřuji zadaný kód v Microsoft Authenticatoru...';
+
+    try {
+      const resp = await fetch('/api/moodle/interactive-login/submit-2fa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code })
+      });
+      if (codeInput) codeInput.value = '';
+      if (!resp.ok) {
+        const data = await resp.json();
+        this.showToast(data.detail || data.message || "Chyba při odeslání kódu", "error");
+      }
+    } catch (e) {
+      this.showToast("Chyba při odesílání 2FA kódu: " + e.message, "error");
     }
   },
 
@@ -5059,26 +5200,83 @@ const App = {
       const titleEl = document.getElementById('moodle-login-modal-title');
       const iconEl = document.getElementById('moodle-login-modal-icon');
       const descEl = document.getElementById('moodle-login-modal-desc');
-      const spinner = document.getElementById('moodle-login-modal-spinner');
+      const progressBox = document.getElementById('moodle-login-progress-container');
+      const twoFaNumBox = document.getElementById('moodle-login-2fa-number-container');
+      const twoFaNumBadge = document.getElementById('moodle-login-2fa-number-badge');
+      const twoFaPushBox = document.getElementById('moodle-login-2fa-push-container');
+      const twoFaCodeBox = document.getElementById('moodle-login-2fa-code-container');
       const details = document.getElementById('moodle-login-modal-details');
+      const footerActions = document.getElementById('moodle-login-footer-actions');
       const btnCancel = document.getElementById('btn-cancel-moodle-login');
+      const btnRetry = document.getElementById('btn-retry-moodle-login');
       const btnClose = document.getElementById('btn-close-moodle-login');
 
-      if (data.status === 'silent_checking') {
-        if (iconEl) iconEl.textContent = '🔍';
-        if (descEl) descEl.innerHTML = 'Zkouším rychlé tiché obnovení přes uložený profil Microsoft SSO na pozadí...';
-      } else if (data.status === 'awaiting_user') {
-        if (iconEl) iconEl.textContent = '🖥️';
-        if (descEl) descEl.innerHTML = 'Na ploše se otevřelo okno prohlížeče.<br><strong>Přihlaste se prosím svým ČVUT účtem</strong> (heslo / 2FA Authenticator).<br><span style="font-size:0.8rem; color:var(--text-muted); margin-top:4px; display:inline-block;">Po úspěšném přihlášení se okno automaticky zavře.</span>';
+      if (footerActions) footerActions.style.display = 'flex';
+
+      if (data.status === 'starting' || data.status === 'authenticating') {
+        if (iconEl) iconEl.textContent = '⏳';
+        if (titleEl) titleEl.textContent = 'Probíhá přihlašování...';
+        if (descEl) descEl.textContent = data.message || 'Ověřuji přihlašovací údaje na ČVUT Microsoft SSO...';
+        if (progressBox) progressBox.style.display = 'block';
+        if (twoFaNumBox) twoFaNumBox.style.display = 'none';
+        if (twoFaPushBox) twoFaPushBox.style.display = 'none';
+        if (twoFaCodeBox) twoFaCodeBox.style.display = 'none';
+        if (btnCancel) { btnCancel.style.display = 'inline-block'; btnCancel.disabled = false; }
+        if (btnRetry) btnRetry.style.display = 'none';
+        if (btnClose) btnClose.style.display = 'none';
+      } else if (data.status === 'awaiting_2fa_number') {
+        if (iconEl) iconEl.textContent = '📱';
+        if (titleEl) titleEl.textContent = 'Dvoufázové ověření (2FA)';
+        if (descEl) descEl.textContent = 'V aplikaci Microsoft Authenticator na svém telefonu vyberte toto číslo:';
+        if (progressBox) progressBox.style.display = 'none';
+        if (twoFaNumBox) twoFaNumBox.style.display = 'block';
+        if (twoFaNumBadge) twoFaNumBadge.textContent = data.two_factor_number || '--';
+        if (twoFaPushBox) twoFaPushBox.style.display = 'none';
+        if (twoFaCodeBox) twoFaCodeBox.style.display = 'none';
+        if (btnCancel) { btnCancel.style.display = 'inline-block'; btnCancel.disabled = false; }
+        if (btnRetry) btnRetry.style.display = 'none';
+        if (btnClose) btnClose.style.display = 'none';
+      } else if (data.status === 'awaiting_2fa_push') {
+        if (iconEl) iconEl.textContent = '📱';
+        if (titleEl) titleEl.textContent = 'Dvoufázové ověření (2FA)';
+        if (descEl) descEl.innerHTML = 'Schvalte žádost o přihlášení v aplikaci <strong>Microsoft Authenticator</strong> na svém telefonu.';
+        if (progressBox) progressBox.style.display = 'none';
+        if (twoFaNumBox) twoFaNumBox.style.display = 'none';
+        if (twoFaPushBox) twoFaPushBox.style.display = 'block';
+        if (twoFaCodeBox) twoFaCodeBox.style.display = 'none';
+        if (btnCancel) { btnCancel.style.display = 'inline-block'; btnCancel.disabled = false; }
+        if (btnRetry) btnRetry.style.display = 'none';
+        if (btnClose) btnClose.style.display = 'none';
+      } else if (data.status === 'awaiting_2fa_code') {
+        if (iconEl) iconEl.textContent = '🔑';
+        if (titleEl) titleEl.textContent = 'Zadání ověřovacího kódu (2FA)';
+        if (descEl) descEl.textContent = data.message || 'Zadejte ověřovací kód z SMS nebo Authenticatoru:';
+        if (progressBox) progressBox.style.display = 'none';
+        if (twoFaNumBox) twoFaNumBox.style.display = 'none';
+        if (twoFaPushBox) twoFaPushBox.style.display = 'none';
+        if (twoFaCodeBox) {
+          twoFaCodeBox.style.display = 'block';
+          const codeIn = document.getElementById('moodle-login-2fa-code-input');
+          if (codeIn && document.activeElement !== codeIn) codeIn.focus();
+        }
+        if (btnCancel) { btnCancel.style.display = 'inline-block'; btnCancel.disabled = false; }
+        if (btnRetry) btnRetry.style.display = 'none';
+        if (btnClose) btnClose.style.display = 'none';
       } else if (data.status === 'success') {
         if (this.moodleLoginPollTimer) {
           clearInterval(this.moodleLoginPollTimer);
           this.moodleLoginPollTimer = null;
         }
         if (iconEl) iconEl.textContent = '✅';
-        if (descEl) descEl.innerHTML = `<strong>Přihlášení úspěšné!</strong><br>Relace MoodleSession byla bezpečně uložena (${this.escape(data.cookie_preview || '')}).`;
-        if (spinner) spinner.style.display = 'none';
+        if (titleEl) titleEl.textContent = 'Přihlášení úspěšné!';
+        if (descEl) descEl.innerHTML = `<strong>Relace MoodleSession byla úspěšně získána a uložena!</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">Klíč: ${this.escape(data.cookie_preview || '')}</span>`;
+        if (progressBox) progressBox.style.display = 'none';
+        if (twoFaNumBox) twoFaNumBox.style.display = 'none';
+        if (twoFaPushBox) twoFaPushBox.style.display = 'none';
+        if (twoFaCodeBox) twoFaCodeBox.style.display = 'none';
+        if (details) details.style.display = 'none';
         if (btnCancel) btnCancel.style.display = 'none';
+        if (btnRetry) btnRetry.style.display = 'none';
         if (btnClose) btnClose.style.display = 'inline-block';
 
         this.showToast("MoodleSession byla úspěšně získána a uložena!");
@@ -5098,13 +5296,18 @@ const App = {
           this.moodleLoginPollTimer = null;
         }
         if (iconEl) iconEl.textContent = '❌';
+        if (titleEl) titleEl.textContent = 'Přihlášení se nezdařilo';
         if (descEl) descEl.textContent = data.message || "Při přihlašování došlo k chybě.";
         if (data.error_detail && details) {
           details.style.display = 'block';
           details.textContent = data.error_detail;
         }
-        if (spinner) spinner.style.display = 'none';
+        if (progressBox) progressBox.style.display = 'none';
+        if (twoFaNumBox) twoFaNumBox.style.display = 'none';
+        if (twoFaPushBox) twoFaPushBox.style.display = 'none';
+        if (twoFaCodeBox) twoFaCodeBox.style.display = 'none';
         if (btnCancel) btnCancel.style.display = 'none';
+        if (btnRetry) btnRetry.style.display = 'inline-block';
         if (btnClose) btnClose.style.display = 'inline-block';
       } else if (data.status === 'cancelled') {
         if (this.moodleLoginPollTimer) {
@@ -5112,9 +5315,14 @@ const App = {
           this.moodleLoginPollTimer = null;
         }
         if (iconEl) iconEl.textContent = '⚠️';
-        if (descEl) descEl.textContent = "Přihlašování bylo zrušeno.";
-        if (spinner) spinner.style.display = 'none';
+        if (titleEl) titleEl.textContent = 'Přihlašování zrušeno';
+        if (descEl) descEl.textContent = data.message || "Přihlašování bylo zrušeno.";
+        if (progressBox) progressBox.style.display = 'none';
+        if (twoFaNumBox) twoFaNumBox.style.display = 'none';
+        if (twoFaPushBox) twoFaPushBox.style.display = 'none';
+        if (twoFaCodeBox) twoFaCodeBox.style.display = 'none';
         if (btnCancel) btnCancel.style.display = 'none';
+        if (btnRetry) btnRetry.style.display = 'inline-block';
         if (btnClose) btnClose.style.display = 'inline-block';
       }
     } catch (e) {
