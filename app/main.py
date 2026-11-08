@@ -8,10 +8,14 @@ import time
 import secrets
 import traceback
 import unicodedata
+import asyncio
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
 import httpx
+
+logger = logging.getLogger("uvicorn.error")
 
 try:
     import pymupdf
