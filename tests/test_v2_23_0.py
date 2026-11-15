@@ -40,7 +40,7 @@ class TestPraktikaV2230(unittest.TestCase):
         self.auth_headers = {"Authorization": f"Bearer {self.admin_token}"}
 
     def test_version_bump(self):
-        self.assertEqual(VERSION, "2.23.0")
+        self.assertTrue(VERSION >= "2.23.0")
 
     def test_credential_login_endpoint_unauthorized(self):
         """POST /api/moodle/interactive-login/credentials requires valid auth token."""

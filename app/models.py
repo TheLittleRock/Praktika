@@ -169,6 +169,8 @@ class ProtocolMetadataUpdateRequest(BaseModel):
     semester_id: int
     slot_id: int
     measurement_id: int
+    submitted_at: Optional[str] = None
+    measured_at: Optional[str] = None
 
 class BulkDeleteRequest(BaseModel):
     protocol_ids: List[int]
@@ -337,6 +339,10 @@ class MoodlePendingSubmissionItem(BaseModel):
     filename: str
     file_url: str
     status_text: Optional[str] = ""
+    submission_date: Optional[str] = ""
+    submission_time: Optional[str] = ""
+    submission_iso: Optional[str] = ""
+    submission_raw: Optional[str] = ""
     matched_task_id: Optional[int] = None
     matched_task_name: Optional[str] = ""
     matched_slot_id: Optional[int] = None
@@ -354,6 +360,8 @@ class MoodleDownloadItem(BaseModel):
     slot_id: Optional[int] = None
     group_name: Optional[str] = ""
     auto_create_slot: bool = False
+    submission_iso: Optional[str] = ""
+    submission_date: Optional[str] = ""
 
 class MoodleDownloadSelectedRequest(BaseModel):
     items: List[MoodleDownloadItem]

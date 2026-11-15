@@ -2,9 +2,10 @@ import sqlite3
 import bcrypt
 import secrets
 import json
+import re
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, Tuple
 from app.config import DB_PATH, BACKUPS_DIR
 
 # 12 Standard physics lab measurements for Winter Semester (FPRA1 / ZS)
@@ -88,6 +89,84 @@ INITIAL_COMMENT_PRESETS = [
     {"type": "comment", "category": "obecne", "pts": 0.0, "text": "Diskuze není jen o shrnutí výsledků. Měla by více diskutovat co proč a jak vyšlo/nevyšlo."},
     {"type": "comment", "category": "obecne", "pts": 0.0, "text": "Texty v grafu jsou moc malé a je v rastrové grafice."}
 ]
+
+def extract_dates_from_pdf_text(text: str) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Extracts (measured_at, submitted_at) from protocol PDF text.
+    Returns (meas_date_str, sub_date_str) in normalized Czech date format (e.g. '23. 3. 2026').
+    """
+    if not text:
+        return None, None
+    t = text
+    # Measurement date (e.g. "Datum měření: 21.11.2022", "Měřeno:\n30.9.2026", "Dátum merania: 23. 3. 2026")
+    m_meas = re.search(
+        r"(?:d[aá]tum\s+m[^\n:]{1,10}en[ií]|d[aá]tum\s+merania|m[eě][rř][eě]no(?:\s+dne)?)\s*[:=]?\s*(\d{1,2}\s*[\./\-]\s*\d{1,2}\s*[\./\-]\s*\d{2,4})",
+        t, re.I
+    )
+    meas_date = m_meas.group(1).strip() if m_meas else None
+
+    # Submission date (e.g. "Datum odevzdání: 28.11.2022", "Odevzdáno: 14. 11. 2026")
+    m_sub = re.search(
+        r"(?:d[aá]tum\s+odevzd[aá]n[ií]|d[aá]tum\s+odovzdan[ií]a|odevzd[aá]no(?:\s+dne)?)\s*[:=]?\s*(\d{1,2}\s*[\./\-]\s*\d{1,2}\s*[\./\-]\s*\d{2,4})",
+        t, re.I
+    )
+    sub_date = m_sub.group(1).strip() if m_sub else None
+
+    def _clean_date(d: Optional[str]) -> Optional[str]:
+        if not d:
+            return None
+        parts = re.split(r"[\./\-]", d)
+        if len(parts) == 3:
+            try:
+                day = int(parts[0].strip())
+                month = int(parts[1].strip())
+                year = int(parts[2].strip())
+                if year < 100:
+                    year += 2000
+                return f"{day}. {month}. {year}"
+            except Exception:
+                pass
+        return d.strip()
+
+    return _clean_date(meas_date), _clean_date(sub_date)
+
+def backfill_protocol_dates(cur):
+    """
+    Backfills submitted_at and measured_at for existing protocols in the database:
+    - Extracts measured_at from page 0 text of the PDF if source_path exists.
+    - If submitted_at is missing, extracts from PDF or falls back to created_at.
+    """
+    cur.execute("SELECT id, source_path, created_at, submitted_at, measured_at FROM protocols WHERE submitted_at IS NULL OR measured_at IS NULL")
+    rows = cur.fetchall()
+    for row in rows:
+        pid = row["id"]
+        source_path = row["source_path"]
+        created_at = row["created_at"]
+        existing_sub = row["submitted_at"]
+        existing_meas = row["measured_at"]
+
+        meas_date = existing_meas
+        sub_date = existing_sub
+
+        if source_path and Path(source_path).exists():
+            try:
+                import pymupdf
+                doc = pymupdf.open(source_path)
+                if len(doc) > 0:
+                    p0 = doc[0].get_text()
+                    parsed_meas, parsed_sub = extract_dates_from_pdf_text(p0)
+                    if not meas_date and parsed_meas:
+                        meas_date = parsed_meas
+                    if not sub_date and parsed_sub:
+                        sub_date = parsed_sub
+                doc.close()
+            except Exception:
+                pass
+
+        if not sub_date:
+            sub_date = created_at
+
+        cur.execute("UPDATE protocols SET submitted_at = ?, measured_at = ? WHERE id = ?", (sub_date, meas_date, pid))
 
 def remove_accents(text: Any) -> str:
     if text is None:
@@ -192,6 +271,8 @@ def init_db():
         total_points REAL DEFAULT 10.0,
         grade TEXT DEFAULT 'A',
         graded_at TEXT,
+        submitted_at TEXT,
+        measured_at TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         FOREIGN KEY(semester_id) REFERENCES semesters(id),
@@ -389,6 +470,27 @@ def init_db():
             cur.execute(f"ALTER TABLE protocols ADD COLUMN {col} {col_def}")
         except Exception:
             pass
+
+    # Protocol submission & measurement dates
+    try:
+        cur.execute("ALTER TABLE protocols ADD COLUMN submitted_at TEXT DEFAULT NULL")
+    except Exception:
+        pass
+
+    try:
+        cur.execute("ALTER TABLE protocols ADD COLUMN measured_at TEXT DEFAULT NULL")
+    except Exception:
+        pass
+
+    try:
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_protocols_submitted_at ON protocols(submitted_at DESC)")
+    except Exception:
+        pass
+
+    try:
+        backfill_protocol_dates(cur)
+    except Exception as e:
+        print("Protocol dates backfill warning:", e)
 
     # Seed Moodle Settings defaults
     try:

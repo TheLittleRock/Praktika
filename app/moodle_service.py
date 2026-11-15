@@ -15,6 +15,8 @@ import zipfile
 import shutil
 import tempfile
 import urllib.parse
+import threading
+import time
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
@@ -29,6 +31,112 @@ class MoodleAuthError(Exception):
 class MoodleServiceError(Exception):
     """General Moodle service error."""
     pass
+
+
+CZECH_MONTHS = {
+    "ledna": 1, "února": 2, "unora": 2, "března": 3, "brezna": 3, "dubna": 4,
+    "května": 5, "kvetna": 5, "června": 6, "cervna": 6, "července": 7, "cervence": 7,
+    "srpna": 8, "září": 9, "zari": 9, "října": 10, "rijna": 10,
+    "listopadu": 11, "prosince": 12,
+    # Slovak variants
+    "januára": 1, "februára": 2, "marca": 3, "apríla": 4, "mája": 5, "júna": 6,
+    "júla": 7, "augusta": 8, "septembra": 9, "októbra": 10, "novembra": 11, "decembra": 12
+}
+
+
+def parse_czech_moodle_date(raw_str: Optional[str]) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """
+    Parses dates scraped from Moodle (e.g. 'sobota, 14. listopadu 2026, 14.32' or '30.9.2026 15:16').
+    Returns (iso_string, formatted_date_cs, formatted_time).
+    """
+    if not raw_str or raw_str.strip() in ("-", ""):
+        return None, None, None
+    s = raw_str.strip()
+
+    # Match named months: e.g. "sobota, 14. listopadu 2026, 14.32" or "14. listopadu 2026, 14.32"
+    m = re.search(r"(\d{1,2})\.\s*([a-zA-Zá-žÁ-Ž]+)\s+(\d{4})(?:,\s*(\d{1,2})[:.](\d{2}))?", s)
+    if m:
+        day = int(m.group(1))
+        month_name = m.group(2).lower()
+        year = int(m.group(3))
+        hour = int(m.group(4)) if m.group(4) else 0
+        minute = int(m.group(5)) if m.group(5) else 0
+        month = CZECH_MONTHS.get(month_name)
+        if month:
+            iso_val = f"{year:04d}-{month:02d}-{day:02d}T{hour:02d}:{minute:02d}:00"
+            formatted_date = f"{day}. {month}. {year}"
+            formatted_time = f"{hour:02d}:{minute:02d}"
+            return iso_val, formatted_date, formatted_time
+
+    # Match numeric dates: "30.9.2026 14:32" or "30. 9. 2026"
+    m_num = re.search(r"(\d{1,2})\s*[\./\-]\s*(\d{1,2})\s*[\./\-]\s*(\d{2,4})(?:[,\s]+(\d{1,2})[:.](\d{2}))?", s)
+    if m_num:
+        day = int(m_num.group(1))
+        month = int(m_num.group(2))
+        year = int(m_num.group(3))
+        if year < 100:
+            year += 2000
+        hour = int(m_num.group(4)) if m_num.group(4) else 0
+        minute = int(m_num.group(5)) if m_num.group(5) else 0
+        iso_val = f"{year:04d}-{month:02d}-{day:02d}T{hour:02d}:{minute:02d}:00"
+        formatted_date = f"{day}. {month}. {year}"
+        formatted_time = f"{hour:02d}:{minute:02d}"
+        return iso_val, formatted_date, formatted_time
+
+    return None, None, None
+
+
+class MoodlePendingCache:
+    """
+    Thread-safe in-memory cache for Moodle pending submissions per course.
+    Avoids slow sequential re-scraping of Moodle pages when user changes filters in the UI.
+    Default TTL: 600s (10 minutes).
+    """
+    def __init__(self, ttl_seconds: int = 600):
+        self._lock = threading.Lock()
+        self._cache: Dict[str, Dict[str, Any]] = {}
+        self.ttl = ttl_seconds
+
+    def get(self, course_id: str) -> Optional[List[Dict[str, Any]]]:
+        with self._lock:
+            entry = self._cache.get(str(course_id))
+            if not entry:
+                return None
+            if time.time() - entry["timestamp"] > self.ttl:
+                del self._cache[str(course_id)]
+                return None
+            return [dict(it) for it in entry["items"]]
+
+    def set(self, course_id: str, items: List[Dict[str, Any]]):
+        with self._lock:
+            self._cache[str(course_id)] = {
+                "timestamp": time.time(),
+                "items": [dict(it) for it in items]
+            }
+
+    def invalidate(self, course_id: Optional[str] = None):
+        with self._lock:
+            if course_id:
+                self._cache.pop(str(course_id), None)
+            else:
+                self._cache.clear()
+
+    def mark_downloaded(self, course_id: str, student_name: str, task_id_or_title: Any):
+        with self._lock:
+            entry = self._cache.get(str(course_id))
+            if not entry:
+                return
+            s_clean = student_name.strip().lower()
+            for it in entry["items"]:
+                if it.get("student_name", "").strip().lower() == s_clean:
+                    if (it.get("matched_task_id") == task_id_or_title or 
+                        str(it.get("cmid")) == str(task_id_or_title) or 
+                        str(it.get("task_title")) == str(task_id_or_title)):
+                        it["already_in_db"] = True
+                        it["existing_status"] = "čeká na hodnocení"
+
+
+moodle_pending_cache = MoodlePendingCache()
 
 
 def get_moodle_setting(key: str, default: str = "") -> str:
@@ -389,11 +497,13 @@ async def fetch_pending_submissions(
     moodle_url: Optional[str] = None,
     course_id: Optional[str] = None,
     session_cookie: Optional[str] = None,
-    assigned_task_ids: Optional[List[int]] = None
+    assigned_task_ids: Optional[List[int]] = None,
+    force_refresh: bool = False
 ) -> List[Dict[str, Any]]:
     """
     Finds all submitted protocols that do NOT have a grade yet.
     Matches with student group and auto-matches local measurement and slot.
+    Uses in-memory course cache if force_refresh is False.
     """
     cfg = get_moodle_config()
     m_url = (moodle_url or cfg["moodle_url"]).rstrip("/")
@@ -402,6 +512,21 @@ async def fetch_pending_submissions(
 
     if not s_cookie:
         raise MoodleAuthError("Chybí cookie MoodleSession.")
+
+    # 0. Check in-memory cache if not forcing fresh scrape
+    if not force_refresh:
+        cached_items = moodle_pending_cache.get(c_id)
+        if cached_items is not None:
+            filtered = cached_items
+            if cmid and cmid not in ("all", "my_tasks"):
+                filtered = [it for it in filtered if str(it.get("cmid")) == str(cmid)]
+            elif cmid == "my_tasks":
+                if not assigned_task_ids:
+                    return []
+                filtered = [it for it in filtered if it.get("matched_task_id") in assigned_task_ids]
+            if group and group != "all":
+                filtered = [it for it in filtered if it.get("student_group") == group]
+            return filtered
 
     # 1. Load course structure to know which assignments to check
     structure = await fetch_course_structure(m_url, c_id, s_cookie)
@@ -413,23 +538,12 @@ async def fetch_pending_submissions(
     protocol_assignments = [a for a in structure["assignments"] if a.get("is_protocol")]
     if cmid and cmid not in ("all", "my_tasks"):
         assignments_to_check = [a for a in protocol_assignments if str(a["cmid"]) == str(cmid)]
-    elif cmid == "my_tasks":
-        if not assigned_task_ids:
-            return []
-        conn_t = get_db()
-        cur_t = conn_t.cursor()
-        cur_t.execute("SELECT id, number FROM measurements")
-        meas_map = {r["id"]: r["number"] for r in cur_t.fetchall()}
-        conn_t.close()
-        assigned_numbers = set(meas_map[tid] for tid in assigned_task_ids if tid in meas_map)
-        assignments_to_check = [a for a in protocol_assignments if a.get("task_number") in assigned_numbers]
-        if not assignments_to_check:
-            return []
     else:
         # Check all protocol assignments that have submissions or needs_grading > 0
         assignments_to_check = [a for a in protocol_assignments if a.get("needs_grading_count", 0) > 0]
         if not assignments_to_check:
             # Fallback: check all protocol assignments
+            assignments_to_check = protocol_assignments
             assignments_to_check = protocol_assignments
 
     cookies = {"MoodleSession": s_cookie}
@@ -487,6 +601,12 @@ async def fetch_pending_submissions(
                 grade_text = tds[5]
                 files_text = tds[7]
 
+                submission_raw = tds[6] if len(tds) > 6 else ""
+                files_text = tds[7] if len(tds) > 7 else ""
+                sub_iso, sub_date_str, sub_time_str = parse_czech_moodle_date(submission_raw)
+                if not sub_iso and files_text:
+                    sub_iso, sub_date_str, sub_time_str = parse_czech_moodle_date(files_text)
+
                 # Check if there is an uploaded file
                 file_link_match = re.search(r'href="([^"]*?/pluginfile\.php/[^"]*?/assignsubmission_file/[^"]*?)"[^>]*>(.*?)</a>', tr, re.DOTALL)
                 if not file_link_match:
@@ -517,10 +637,6 @@ async def fetch_pending_submissions(
                         tokens_key = " ".join(sorted(norm_key.split()))
                         if tokens_key in by_name:
                             student_group = by_name[tokens_key].get("group", "")
-
-                # If group filter active and mismatch, skip
-                if group and group != "all" and student_group != group:
-                    continue
 
                 # Auto-match local measurement
                 matched_task = None
@@ -563,6 +679,10 @@ async def fetch_pending_submissions(
                     "filename": filename,
                     "file_url": file_url,
                     "status_text": status_text,
+                    "submission_date": sub_date_str or "",
+                    "submission_time": sub_time_str or "",
+                    "submission_iso": sub_iso or "",
+                    "submission_raw": submission_raw or "",
                     "matched_task_id": matched_task["id"] if matched_task else None,
                     "matched_task_name": matched_task["name"] if matched_task else "",
                     "matched_slot_id": matched_slot["id"] if matched_slot else None,
@@ -572,10 +692,17 @@ async def fetch_pending_submissions(
                     "existing_status": existing_status_label
                 })
 
-    if cmid == "my_tasks" and assigned_task_ids is not None:
-        pending_items = [it for it in pending_items if it.get("matched_task_id") in assigned_task_ids]
+    # Cache full list of pending submissions for this course
+    if cmid in ("all", "my_tasks", None):
+        moodle_pending_cache.set(c_id, pending_items)
 
-    return pending_items
+    filtered_items = pending_items
+    if cmid == "my_tasks" and assigned_task_ids is not None:
+        filtered_items = [it for it in filtered_items if it.get("matched_task_id") in assigned_task_ids]
+    if group and group != "all":
+        filtered_items = [it for it in filtered_items if it.get("student_group") == group]
+
+    return filtered_items
 
 
 async def submit_moodle_grade(

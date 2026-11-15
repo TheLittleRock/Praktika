@@ -4,6 +4,27 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.24.0] - 2026-11-15
+
+### 🚀 Novinky a vylepšení ve verzi 2.24.0
+
+#### ⚡ Bleskový Moodle Caching a filtry bez čekání
+- **Okamžité lokální filtrování**:
+  - Při otevření Moodle dialogu se protokoly načtou jednorázově a uloží do serverové in-memory cache i klientského stavu aplikace.
+  - Jakákoliv změna filtrů (všechny úlohy ➔ ⭐ Moje úlohy, filtry skupin, skrytí duplicit) probíhá okamžitě v paměti (< 1 ms) bez zdlouhavého opětovného scrapování Moodle stránek.
+  - Přidáno tlačítko `🔄 Obnovit` přímo k počítadlu nalezených prací pro vynucené znovunačtení čerstvých dat z Moodle.
+  - Po stažení vybraných protokolů se lokální cache okamžitě označí jako `already_in_db` bez nutnosti znovustahování.
+
+#### 📅 Evidence, zobrazení a řazení podle data odevzdání a měření
+- **Nový sloupec "Odevzdáno" v hlavním přehledu protokolů**:
+  - Zobrazuje datum a čas odevzdání protokolu studentem (např. `14. 11. 2026, 14:32`) a doplňkový údaj o datu měření v laboratoři (`měřeno 30. 9. 2026`).
+  - Plná podpora řazení kliknutím na záhlaví sloupce (`⇅`) vzestupně i sestupně.
+  - Optimalizované paddingy a šířky tabulky pro bezpečné zobrazení bez horizontálního přetékání na běžných displejích.
+- **Automatická extrakce dat a zpětné doplnění (Backfill)**:
+  - Extrakce data měření (`measured_at`) a odevzdání (`submitted_at`) z textu PDF protokolů (podpora českých i slovenských formátů, nového řádku i nestandardních fontů).
+  - Parsování přesných časových razítek odevzdání ze stránek Moodle (`parse_czech_moodle_date`).
+  - Automatická migrace a bezpečný zpětný backfill při startu aplikace pro všechny již existující protokoly v databázi.
+
 ## [2.23.0] - 2026-11-08
 
 ### 🚀 Novinky a vylepšení ve verzi 2.23.0
