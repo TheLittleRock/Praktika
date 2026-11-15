@@ -29,7 +29,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from fastapi.templating import Jinja2Templates
 from app.config import BASE_DIR, DATA_DIR, PROTOCOLS_DIR, DB_PATH, BACKUPS_DIR
-from app.database import get_db, init_db, create_sqlite_backup, perform_daily_auto_backup, log_event
+from app.database import get_db, init_db, create_sqlite_backup, perform_daily_auto_backup, log_event, extract_dates_from_pdf_text
 from app.auth import verify_password, get_password_hash, create_access_token, get_current_user
 from app.models import (
     UserLogin, UserCreate, UserResponse, ChangePasswordRequest,
@@ -51,7 +51,7 @@ from app.moodle_service import (
     fetch_course_structure, fetch_pending_submissions, submit_moodle_grade, calculate_cvut_grade,
     fetch_course_user_groups_map, download_moodle_assignment_zip, extract_submissions_from_zip,
     build_moodle_feedback_zip, parse_moodle_submission_filename, MoodleAuthError, MoodleServiceError,
-    moodle_keepalive_ping
+    moodle_keepalive_ping, moodle_pending_cache
 )
 from app.moodle_login_service import MoodleInteractiveLoginManager
 from app.storage import save_source_file, save_corrected_file, save_bodovani_file, slugify, format_slot_folder, format_semester_folder
@@ -939,7 +939,7 @@ def list_protocols(
     SELECT 
         p.id, p.semester_id, p.slot_id, p.measurement_id, p.student_name,
         p.status, p.source_filename, p.corrected_filename, p.total_points, p.grade,
-        p.evaluator_id, p.share_token, p.graded_at, p.created_at, p.updated_at,
+        p.evaluator_id, p.share_token, p.graded_at, p.submitted_at, p.measured_at, p.created_at, p.updated_at,
         p.student_view_count, p.student_view_total_seconds, p.student_view_first_at, p.student_view_last_at,
         s.code as semester_code, s.name as semester_name,
         sl.name as slot_name, sl.day_of_week, sl.time_start, sl.time_end, sl.room as slot_room,
@@ -1132,6 +1132,10 @@ async def upload_protocol(
         print("Note extraction warning:", e)
 
     now = datetime.now().isoformat()
+    meas_date, detected_sub_date = extract_dates_from_pdf_text(first_page_text)
+    submitted_at_val = detected_sub_date if detected_sub_date else now
+    measured_at_val = meas_date
+
     # Automatically assign current user (assistant or admin) as initial evaluator so it immediately appears in "Moje protokoly"
     evaluator_id = user["id"]
     share_token = secrets.token_urlsafe(16)
@@ -1139,9 +1143,10 @@ async def upload_protocol(
     cur.execute("""
     INSERT INTO protocols (
         semester_id, slot_id, measurement_id, student_name, status,
-        source_filename, source_path, evaluator_id, share_token, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?)
-    """, (semester_id, slot_id, measurement_id, actual_student_name, file.filename, str(source_path), evaluator_id, share_token, now, now))
+        source_filename, source_path, evaluator_id, share_token,
+        submitted_at, measured_at, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (semester_id, slot_id, measurement_id, actual_student_name, file.filename, str(source_path), evaluator_id, share_token, submitted_at_val, measured_at_val, now, now))
     protocol_id = cur.lastrowid
 
     if existing_annots:
@@ -1731,9 +1736,11 @@ def update_protocol_metadata(proto_id: int, req: ProtocolMetadataUpdateRequest, 
         semester_id = ?,
         slot_id = ?,
         measurement_id = ?,
+        submitted_at = CASE WHEN ? IS NOT NULL THEN ? ELSE submitted_at END,
+        measured_at = CASE WHEN ? IS NOT NULL THEN ? ELSE measured_at END,
         updated_at = ?
     WHERE id = ?
-    """, (student_name, req.semester_id, req.slot_id, req.measurement_id, now, proto_id))
+    """, (student_name, req.semester_id, req.slot_id, req.measurement_id, req.submitted_at, req.submitted_at, req.measured_at, req.measured_at, now, proto_id))
     conn.commit()
     conn.close()
     return {
@@ -3554,6 +3561,7 @@ async def get_moodle_course_structure_endpoint(user: dict = Depends(get_current_
 async def get_moodle_pending_submissions_endpoint(
     cmid: Optional[str] = None,
     group: Optional[str] = None,
+    force_refresh: bool = False,
     user: dict = Depends(get_current_user)
 ):
     try:
@@ -3572,7 +3580,7 @@ async def get_moodle_pending_submissions_endpoint(
             else:
                 assigned_ids = []
 
-        items = await fetch_pending_submissions(cmid=cmid, group=group, assigned_task_ids=assigned_ids)
+        items = await fetch_pending_submissions(cmid=cmid, group=group, assigned_task_ids=assigned_ids, force_refresh=force_refresh)
         return [MoodlePendingSubmissionItem(**it) for it in items]
     except MoodleAuthError as ae:
         raise HTTPException(status_code=401, detail=str(ae))
@@ -3681,6 +3689,21 @@ async def download_selected_moodle_submissions_endpoint(
             now_iso = datetime.now().isoformat()
             share_tok = secrets.token_urlsafe(16)
 
+            # Determine submission date from Moodle item or fallback to now_iso
+            sub_date = getattr(it, "submission_iso", None) or getattr(it, "submission_date", None) or now_iso
+            # Extract measured date from the downloaded PDF
+            meas_date = None
+            try:
+                doc = pymupdf.open(stream=file_bytes, filetype="pdf")
+                if len(doc) > 0:
+                    parsed_meas, parsed_sub = extract_dates_from_pdf_text(doc[0].get_text())
+                    meas_date = parsed_meas
+                    if not getattr(it, "submission_iso", None) and parsed_sub:
+                        sub_date = parsed_sub
+                doc.close()
+            except Exception:
+                pass
+
             cur.execute("""
             SELECT id FROM protocols 
             WHERE semester_id = ? AND measurement_id = ? AND student_name = ?
@@ -3691,20 +3714,28 @@ async def download_selected_moodle_submissions_endpoint(
                 proto_id = existing_p[0]
                 cur.execute("""
                 UPDATE protocols SET 
-                    slot_id = ?, source_filename = ?, source_path = ?, updated_at = ?
+                    slot_id = ?, source_filename = ?, source_path = ?,
+                    submitted_at = COALESCE(?, submitted_at),
+                    measured_at = COALESCE(?, measured_at),
+                    updated_at = ?
                 WHERE id = ?
-                """, (slot_id, clean_fn, str(saved_path), now_iso, proto_id))
+                """, (slot_id, clean_fn, str(saved_path), sub_date, meas_date, now_iso, proto_id))
             else:
                 cur.execute("""
                 INSERT INTO protocols (
                     semester_id, slot_id, measurement_id, student_name, status,
-                    source_filename, source_path, evaluator_id, share_token, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?)
+                    source_filename, source_path, evaluator_id, share_token,
+                    submitted_at, measured_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     active_semester_id, slot_id, it.measurement_id, it.student_name,
-                    clean_fn, str(saved_path), user["id"], share_tok, now_iso, now_iso
+                    clean_fn, str(saved_path), user["id"], share_tok,
+                    sub_date, meas_date, now_iso, now_iso
                 ))
                 proto_id = cur.lastrowid
+
+            # Mark in cache as already downloaded
+            moodle_pending_cache.mark_downloaded(cfg.get("course_id", "16880"), it.student_name, it.measurement_id)
 
             imported_items.append({
                 "protocol_id": proto_id,

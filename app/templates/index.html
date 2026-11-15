@@ -208,6 +208,12 @@
                       <span class="sort-indicator" id="sort-ind-slot">⇅</span>
                     </div>
                   </th>
+                  <th class="sortable-th" onclick="App.handleSortClick('submitted')">
+                    <div class="th-content">
+                      <span>Odevzdáno</span>
+                      <span class="sort-indicator" id="sort-ind-submitted">⇅</span>
+                    </div>
+                  </th>
                   <th class="sortable-th" onclick="App.handleSortClick('status')">
                     <div class="th-content">
                       <span>Stav</span>
@@ -1872,6 +1878,7 @@
               <span>Nalezené protokoly k importu:</span>
               <span class="badge" id="moodle-pending-count-badge" style="background:var(--primary); color:#fff; font-size:0.75rem; padding:2px 8px; border-radius:10px;">0</span>
               <span id="moodle-pending-breakdown-badge" style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;"></span>
+              <button type="button" class="btn btn-secondary btn-xs" id="btn-moodle-refresh-pending" style="font-size:0.72rem; padding:2px 8px; display:inline-flex; align-items:center; gap:4px;" onclick="App.loadMoodlePendingSubmissions(true)" title="Vynutit čerstvé načtení z Moodle">🔄 Obnovit</button>
             </div>
             <div style="display:flex; align-items:center; gap:12px; font-size:0.78rem;">
               <label style="display:flex; align-items:center; gap:5px; cursor:pointer; color:var(--text-muted); user-select:none;">
