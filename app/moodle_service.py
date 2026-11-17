@@ -705,18 +705,38 @@ async def fetch_pending_submissions(
     return filtered_items
 
 
+def format_moodle_comment_html(comment_text: str) -> str:
+    """
+    Converts plain-text evaluation feedback comments into formatted HTML for Moodle.
+    Ensures each deduction (-0.125b ...) is on its own line using <br>,
+    preserves blank lines between categories, and escapes special HTML characters.
+    """
+    if not comment_text:
+        return ""
+    import html
+    text = comment_text.replace("\r\n", "\n").replace("\r", "\n").strip()
+    escaped = html.escape(text)
+    lines = escaped.split("\n")
+    return "<br>\n".join(lines)
+
+
 async def submit_moodle_grade(
     cmid: str,
     userid: int,
     grade_letter: str,
     comment_text: str,
+    pdf_bytes: Optional[bytes] = None,
+    pdf_filename: Optional[str] = None,
+    lock_submission: bool = True,
     send_notifications: bool = False,
     moodle_url: Optional[str] = None,
     session_cookie: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Submits student grade and feedback comment using Moodle's internal AJAX service:
-    /lib/ajax/service.php calling method 'mod_assign_submit_grading_form'.
+    Submits student grade, feedback comment (formatted as HTML) and optional corrected PDF to Moodle.
+    Uses Moodle's internal repository AJAX service for feedback file upload,
+    the AJAX service 'mod_assign_submit_grading_form' for grading & comments,
+    and locks the submission (action=lock) to clear draft status.
     """
     cfg = get_moodle_config()
     m_url = (moodle_url or cfg["moodle_url"]).rstrip("/")
@@ -731,42 +751,93 @@ async def submit_moodle_grade(
         "Content-Type": "application/json"
     }
 
-    # 1. Get grader page to retrieve contextid and assignmentid and sesskey
-    grader_url = f"{m_url}/mod/assign/view.php?id={cmid}&action=grader&userid={userid}"
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, cookies=cookies) as client:
-        g_resp = await client.get(grader_url)
+    async with httpx.AsyncClient(timeout=35.0, follow_redirects=True, cookies=cookies) as client:
+        # 1. Fetch grade page (action=grade) to get sesskey, assignment_id, and draftitemid for filemanager
+        grade_url = f"{m_url}/mod/assign/view.php?id={cmid}&action=grade&userid={userid}"
+        g_resp = await client.get(grade_url)
         g_html = g_resp.text
 
-        sesskey_m = re.search(r'["\']sesskey["\']\s*:\s*["\']([a-zA-Z0-9]+)["\']', g_html)
+        sesskey_m = re.search(r'["\']sesskey["\']\s*:\s*["\']([a-zA-Z0-9_-]+)["\']', g_html)
         if not sesskey_m:
-            sesskey_m = re.search(r'sesskey=([a-zA-Z0-9]+)', g_html)
+            sesskey_m = re.search(r'sesskey=["\']?([a-zA-Z0-9_-]+)', g_html)
         sesskey = sesskey_m.group(1) if sesskey_m else ""
 
-        assign_id_m = re.search(r'data-assignmentid="(\d+)"', g_html)
+        assign_id_m = re.search(r'["\']assignmentid["\']\s*:\s*["\']?(\d+)["\']?', g_html)
         if not assign_id_m:
-            assign_id_m = re.search(r'["\']assignmentid["\']\s*:\s*(\d+)', g_html)
+            assign_id_m = re.search(r'data-assignmentid=["\']?(\d+)', g_html)
         assignment_id = int(assign_id_m.group(1)) if assign_id_m else None
+
+        # Fallback to action=grader if assignment_id or sesskey wasn't on action=grade page
+        if not assignment_id or not sesskey:
+            grader_url = f"{m_url}/mod/assign/view.php?id={cmid}&action=grader&userid={userid}"
+            grader_resp = await client.get(grader_url)
+            grader_html = grader_resp.text
+            if not sesskey:
+                sesskey_m = re.search(r'["\']sesskey["\']\s*:\s*["\']([a-zA-Z0-9_-]+)["\']', grader_html)
+                if not sesskey_m:
+                    sesskey_m = re.search(r'sesskey=["\']?([a-zA-Z0-9_-]+)', grader_html)
+                sesskey = sesskey_m.group(1) if sesskey_m else ""
+            if not assignment_id:
+                assign_id_m = re.search(r'data-assignmentid=["\']?(\d+)', grader_html)
+                if not assign_id_m:
+                    assign_id_m = re.search(r'["\']assignmentid["\']\s*:\s*["\']?(\d+)["\']?', grader_html)
+                assignment_id = int(assign_id_m.group(1)) if assign_id_m else None
 
         if not assignment_id or not sesskey:
             raise MoodleServiceError(f"Nepodařilo se zjistit interní ID úlohy nebo sesskey z Moodle (cmid={cmid}).")
 
-        # 2. Map letter grade to scale option
+        # 2. Extract draft item ID for feedback filemanager
+        draft_m = re.search(rf'name=[\"\']files_{userid}_filemanager[\"\'][^>]*value=[\"\'](\d+)[\"\']', g_html)
+        if not draft_m:
+            draft_m = re.search(rf'value=[\"\'](\d+)[\"\'][^>]*name=[\"\']files_{userid}_filemanager[\"\']', g_html)
+        draft_item_id = draft_m.group(1) if draft_m else None
+
+        # 3. Upload corrected PDF to Moodle repository if provided and draftitemid found
+        pdf_uploaded = False
+        if pdf_bytes and draft_item_id and sesskey:
+            upload_url = f"{m_url}/repository/repository_ajax.php?action=upload"
+            safe_filename = pdf_filename or f"opraveno_{userid}.pdf"
+            upload_data = {
+                "repo_id": "4",
+                "itemid": draft_item_id,
+                "sesskey": sesskey,
+                "title": safe_filename,
+                "author": "Vyučující",
+                "license": "allrightsreserved"
+            }
+            upload_files = {
+                "repo_upload_file": (safe_filename, pdf_bytes, "application/pdf")
+            }
+            try:
+                up_resp = await client.post(upload_url, data=upload_data, files=upload_files)
+                if up_resp.status_code == 200:
+                    pdf_uploaded = True
+            except Exception as up_err:
+                print(f"Warning: could not upload feedback PDF to repository: {up_err}")
+
+        # 4. Map letter grade to scale option
         scale_val = moodle_grade_to_scale_id(grade_letter)
 
-        # 3. Build urlencoded form data matching Moodle grading form
+        # 5. Format comment text into HTML
+        comment_html = format_moodle_comment_html(comment_text)
+
+        # 6. Build urlencoded form data matching Moodle grading form
         form_params = {
             "grade": str(scale_val),
-            "assignfeedbackcomments_editor[text]": comment_text,
+            "assignfeedbackcomments_editor[text]": comment_html,
             "assignfeedbackcomments_editor[format]": "1",
             "sendstudentnotifications": "1" if send_notifications else "0",
             "sesskey": sesskey,
             "action": "submitgrade",
             "userid": str(userid),
-            "_qf__mod_assign_grade_form_" + str(userid): "1"
+            f"_qf__mod_assign_grade_form_{userid}": "1"
         }
+        if draft_item_id:
+            form_params[f"files_{userid}_filemanager"] = str(draft_item_id)
+
         urlencoded_form = urllib.parse.urlencode(form_params)
 
-        # 4. Call AJAX web service mod_assign_submit_grading_form
+        # 7. Call AJAX web service mod_assign_submit_grading_form
         service_url = f"{m_url}/lib/ajax/service.php?sesskey={sesskey}&info=mod_assign_submit_grading_form"
         payload = [
             {
@@ -790,12 +861,25 @@ async def submit_moodle_grade(
                 err_msg = exc.get("message", "Neznámá chyba z Moodle AJAX.")
                 raise MoodleServiceError(f"Chyba při ukládání známky: {err_msg}")
 
+        # 8. Lock submission (action=lock) to clear draft status and finalize submission
+        locked = False
+        if lock_submission and sesskey:
+            lock_url = f"{m_url}/mod/assign/view.php?id={cmid}&sesskey={sesskey}&page=0&userid={userid}&action=lock"
+            try:
+                lock_resp = await client.get(lock_url)
+                if lock_resp.status_code == 200:
+                    locked = True
+            except Exception as lock_err:
+                print(f"Warning: could not lock submission for userid={userid}: {lock_err}")
+
         return {
             "success": True,
             "cmid": cmid,
             "userid": userid,
             "grade_letter": grade_letter,
-            "scale_val": scale_val
+            "scale_val": scale_val,
+            "pdf_uploaded": pdf_uploaded,
+            "locked": locked
         }
 
 

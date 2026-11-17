@@ -38,7 +38,7 @@ class TestPraktikaV2241(unittest.TestCase):
         self.auth_headers = {"Authorization": f"Bearer {self.admin_token}"}
 
     def test_version_bump(self):
-        self.assertEqual(VERSION, "2.24.1")
+        self.assertTrue(VERSION >= "2.24.1")
 
     def test_moodle_uploaded_at_schema(self):
         """Verify protocols table has moodle_uploaded_at column."""

@@ -4094,24 +4094,28 @@ async def upload_moodle_feedback_endpoint(req: MoodleUploadRequest, user: dict =
         if not student_cmid or str(student_cmid) in ("all", "my_tasks"):
             student_cmid = req.cmid
 
-        # Submit grade and comment via AJAX if requested and student found
+        # Submit grade, comment and feedback PDF via AJAX if requested and student found
         grade_success = False
         error_msg = None
-        if (req.upload_grade or req.upload_comment) and moodle_uid and student_cmid and str(student_cmid) not in ("all", "my_tasks"):
+        should_submit = (req.upload_grade or req.upload_comment or (req.upload_pdf and pdf_bytes))
+        if should_submit and moodle_uid and student_cmid and str(student_cmid) not in ("all", "my_tasks"):
             try:
-                await submit_moodle_grade(
+                sub_res = await submit_moodle_grade(
                     cmid=str(student_cmid),
                     userid=moodle_uid,
                     grade_letter=grade_letter if req.upload_grade else "",
                     comment_text=comment_text if req.upload_comment else "",
+                    pdf_bytes=pdf_bytes if (req.upload_pdf or item.upload_pdf) else None,
+                    pdf_filename=row["corrected_filename"] or f"{s_name}_opraveno.pdf",
+                    lock_submission=True,
                     send_notifications=False
                 )
-                grade_success = True
+                grade_success = sub_res.get("success", False)
             except Exception as e:
                 error_msg = str(e)
                 print(f"Warning: could not submit grade for {s_name} (uid={moodle_uid}, cmid={student_cmid}):", e)
 
-        # Update moodle_uploaded_at if grade was submitted or if PDF/feedback processed
+        # Update moodle_uploaded_at if grade/comment/pdf was submitted
         if grade_success or (req.upload_pdf and pdf_bytes):
             cur.execute("UPDATE protocols SET moodle_uploaded_at = ? WHERE id = ?", (now_iso, row["id"]))
 

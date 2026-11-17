@@ -1305,8 +1305,8 @@ const App = {
 
       if (p.moodle_uploaded_at) {
         statusBadge += `
-          <div style="margin-top:4px;">
-            <span class="badge" style="background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3); font-size:0.68rem; padding:1px 5px; border-radius:3px; font-weight:600; white-space:nowrap;" title="Hodnocení odesláno do Moodle: ${this.escape(p.moodle_uploaded_at)}">
+          <div style="margin-top:2px;">
+            <span class="badge" style="background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3); font-size:0.64rem; padding:1px 4px; border-radius:2px; font-weight:600; white-space:nowrap;" title="Hodnocení odesláno do Moodle: ${this.escape(p.moodle_uploaded_at)}">
               Moodle ✓
             </span>
           </div>`;
@@ -1315,34 +1315,36 @@ const App = {
       const hasGrade = p.grade && p.grade !== '—';
       const gradeBadge = hasGrade
         ? `<span class="grade-badge-sm" style="background:${GradingEngine.getGradeBg(p.grade)}; color:${GradingEngine.getGradeColor(p.grade)}; border:1px solid ${GradingEngine.getGradeColor(p.grade)};">${p.grade}</span>`
-        : `<span style="color:#94a3b8;">—</span>`;
+        : `<span style="color:#94a3b8; font-size:0.72rem;">—</span>`;
 
       const scoreDisplay = (p.total_points !== null && p.total_points !== undefined)
-        ? `<strong style="font-family:'JetBrains Mono';">${GradingEngine.formatPoints(p.total_points)}</strong> / 10`
-        : `<span style="color:#94a3b8;">—</span>`;
+        ? `<span style="font-family:'JetBrains Mono'; font-weight:700; font-size:0.75rem;">${GradingEngine.formatPoints(p.total_points)}</span> <span style="font-size:0.68rem; color:var(--text-muted);">/ 10</span>`
+        : `<span style="color:#94a3b8; font-size:0.72rem;">—</span>`;
 
-      const slotDisplay = `${p.day_of_week} ${p.time_start}–${p.time_end}${p.slot_room ? ' (' + p.slot_room + ')' : ''}`;
+      const slotDisplay = `${p.day_of_week} ${p.time_start}–${p.time_end}`;
+      const slotSub = (p.slot_room || (p.slot_name && p.slot_name !== p.slot_room))
+        ? (p.slot_room ? `${p.slot_room}${p.slot_name && p.slot_name !== p.slot_room ? ' • ' + p.slot_name : ''}` : p.slot_name)
+        : '';
 
       // Format date display for Odevzdáno
-      let submittedDisplay = '—';
+      let submittedDisplay = '<span style="color:var(--text-muted); font-size:0.72rem;">—</span>';
       if (p.submitted_at) {
         const d = new Date(p.submitted_at);
         if (!isNaN(d.getTime())) {
           const dayStr = d.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric', year: 'numeric' });
           const timeStr = d.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
-          const measSub = p.measured_at ? `<div style="font-size:0.72rem; color:var(--text-muted);" title="Datum fyzického měření v laboratoři">měřeno ${this.escape(p.measured_at)}</div>` : '';
+          const measSub = p.measured_at ? `<div style="font-size:0.66rem; color:var(--text-muted); line-height:1.1;" title="Datum fyzického měření v laboratoři">měřeno ${this.escape(p.measured_at)}</div>` : '';
           submittedDisplay = `
-            <div style="font-weight:600; font-size:0.82rem; white-space:nowrap;">${dayStr}</div>
-            <div style="font-size:0.74rem; color:var(--text-muted);">${timeStr}</div>
+            <div style="font-weight:600; font-size:0.73rem; white-space:nowrap; line-height:1.2;">${dayStr} <span style="color:var(--text-muted); font-size:0.68rem; font-weight:normal;">${timeStr}</span></div>
             ${measSub}
           `;
         } else {
-          submittedDisplay = `<span style="font-size:0.82rem;">${this.escape(p.submitted_at)}</span>`;
+          submittedDisplay = `<span style="font-size:0.72rem;">${this.escape(p.submitted_at)}</span>`;
         }
       } else if (p.created_at) {
         const d = new Date(p.created_at);
         const dayStr = isNaN(d.getTime()) ? p.created_at : d.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric', year: 'numeric' });
-        submittedDisplay = `<div style="font-weight:600; font-size:0.82rem;">${dayStr}</div>`;
+        submittedDisplay = `<div style="font-weight:600; font-size:0.73rem;">${dayStr}</div>`;
       }
 
       const isOwner = (this.currentUser && p.evaluator_id === this.currentUser.id);
@@ -1352,27 +1354,27 @@ const App = {
       let evaluatorDisplay = '';
       if (isAdmin && this.allUsers && this.allUsers.length > 0) {
         evaluatorDisplay = `
-          <select class="form-control" style="font-size:0.75rem; padding:2px 4px; max-width:140px; display:inline-block;" onchange="App.assignProtocol(${p.id}, this.value)" title="Přiřadit asistenta">
+          <select class="form-control" style="font-size:0.70rem; padding:1px 3px; max-width:115px; display:inline-block;" onchange="App.assignProtocol(${p.id}, this.value)" title="Přiřadit asistenta">
             <option value="">Nepřiřazeno</option>
             ${this.allUsers.map(u => `<option value="${u.id}" ${p.evaluator_id === u.id ? 'selected' : ''}>${this.escape(u.full_name)}</option>`).join('')}
           </select>`;
       } else {
         if (isOwner) {
           evaluatorDisplay = `
-            <div style="display:inline-flex; align-items:center; gap:4px;">
-              <span style="font-size:0.8rem; font-weight:600; color:var(--primary);">${this.escape(p.evaluator_name || 'Moje')}</span>
-              <button class="btn btn-secondary btn-sm" style="font-size:0.68rem; padding:1px 5px;" onclick="App.assignProtocol(${p.id}, '')" title="Uvolnit protokol ze svých">Uvolnit</button>
+            <div style="display:inline-flex; align-items:center; gap:3px;">
+              <span style="font-size:0.73rem; font-weight:600; color:var(--primary); max-width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${this.escape(p.evaluator_name || 'Moje')}</span>
+              <button class="btn btn-secondary btn-xs" style="padding:1px 4px;" onclick="App.assignProtocol(${p.id}, '')" title="Uvolnit protokol ze svých">✕</button>
             </div>
           `;
         } else if (isUnassigned) {
           evaluatorDisplay = `
-            <div style="display:inline-flex; align-items:center; gap:4px;">
-              <em style="color:#94a3b8; font-size:0.8rem;">Nepřiřazeno</em>
-              <button class="btn btn-secondary btn-sm" style="font-size:0.68rem; padding:1px 5px;" onclick="App.assignProtocol(${p.id}, ${this.currentUser ? this.currentUser.id : 'null'})" title="Přiřadit tento protokol sobě">Přiřadit sobě</button>
+            <div style="display:inline-flex; align-items:center; gap:3px;">
+              <em style="color:#94a3b8; font-size:0.70rem;">Nepřiřazeno</em>
+              <button class="btn btn-secondary btn-xs" style="padding:1px 4px;" onclick="App.assignProtocol(${p.id}, ${this.currentUser ? this.currentUser.id : 'null'})" title="Přiřadit tento protokol sobě">+ Moje</button>
             </div>
           `;
         } else {
-          evaluatorDisplay = `<span style="font-size:0.82rem;">${this.escape(p.evaluator_name)}</span>`;
+          evaluatorDisplay = `<span style="font-size:0.73rem; max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block;" title="${this.escape(p.evaluator_name)}">${this.escape(p.evaluator_name)}</span>`;
         }
       }
 
@@ -1381,57 +1383,76 @@ const App = {
 
       return `
         <tr>
-          <td style="text-align:center;">
+          <td style="text-align:center; width:28px;">
             <input type="checkbox" class="protocol-checkbox" value="${p.id}" ${isChecked} onchange="App.handleProtocolCheckboxChange()">
           </td>
           <td>
-            <div style="font-weight:700; color:var(--text-main);">${this.escape(p.student_name)}</div>
-            <div style="font-size:0.75rem; color:var(--text-muted);">${this.escape(p.source_filename)}</div>
+            <div style="font-weight:700; color:var(--text-main); font-size:0.78rem; line-height:1.2; max-width:145px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${this.escape(p.student_name)}">${this.escape(p.student_name)}</div>
+            <div style="font-size:0.67rem; color:var(--text-muted); line-height:1.1; max-width:145px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${this.escape(p.source_filename)}">${this.escape(p.source_filename)}</div>
           </td>
           <td>
-            <span style="font-weight:600; font-size:0.85rem;">Úloha ${p.measurement_number}</span>
-            <div style="font-size:0.75rem; color:var(--text-muted);">${this.escape(p.measurement_name)}</div>
+            <div style="font-weight:700; font-size:0.75rem; line-height:1.2;">Úloha ${p.measurement_number}</div>
+            <div style="font-size:0.67rem; color:var(--text-muted); line-height:1.1; max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${this.escape(p.measurement_name)}">${this.escape(p.measurement_name)}</div>
           </td>
           <td>
-            <span style="font-size:0.85rem;">${slotDisplay}</span>
-            ${p.slot_name && p.slot_name !== p.slot_room ? `<div style="font-size:0.75rem; color:var(--text-muted);">${this.escape(p.slot_name)}</div>` : ''}
+            <div style="font-size:0.73rem; white-space:nowrap; font-weight:500;">${slotDisplay}</div>
+            ${slotSub ? `<div style="font-size:0.67rem; color:var(--text-muted); line-height:1.1; max-width:115px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${this.escape(slotSub)}">${this.escape(slotSub)}</div>` : ''}
           </td>
           <td>
             ${submittedDisplay}
           </td>
           <td>${statusBadge}</td>
-          <td>${scoreDisplay} ${gradeBadge}</td>
+          <td>
+            <div style="display:inline-flex; align-items:center; gap:4px; white-space:nowrap;">
+              ${scoreDisplay} ${gradeBadge}
+            </div>
+          </td>
           <td>${evaluatorDisplay}</td>
           <td>
             ${(p.student_view_count || 0) > 0 ? `
-              <span class="badge-student-view viewed" onclick="App.openStudentViewsModal(${p.id})" title="Zobrazeno ${p.student_view_count}× (aktivní čas ${this.formatDuration(p.student_view_total_seconds)}). Klikněte pro detailní historii.">
+              <span class="badge-student-view viewed" style="font-size:0.67rem; padding:1px 5px;" onclick="App.openStudentViewsModal(${p.id})" title="Zobrazeno ${p.student_view_count}× (aktivní čas ${this.formatDuration(p.student_view_total_seconds)}). Klikněte pro detailní historii.">
                 👁️ ${p.student_view_count}× • ${this.formatDuration(p.student_view_total_seconds)}
               </span>
             ` : `
-              <span class="badge-student-view unviewed" title="Student si opravený protokol zatím nezobrazil">
+              <span class="badge-student-view unviewed" style="font-size:0.67rem; padding:1px 5px;" title="Student si opravený protokol zatím nezobrazil">
                 👁️ 0×
               </span>
             `}
           </td>
-          <td style="text-align:right;">
-            <div style="display:inline-flex; gap:6px;">
-              <button class="btn btn-primary btn-sm" onclick="App.openStudio(${p.id})">
+          <td style="text-align:right; white-space:nowrap;">
+            <div style="display:inline-flex; align-items:center; gap:3px;">
+              <button class="btn btn-primary btn-xs" onclick="App.openStudio(${p.id})">
                 ${p.status === 'graded' ? 'Upravit' : 'Opravit'}
               </button>
               ${p.status === 'graded' ? `
-                <button class="btn btn-secondary btn-sm" onclick="App.openMoodleUploadForProtocol(${p.id})" title="${p.moodle_uploaded_at ? 'Znovu odeslat hodnocení do Moodle (odesláno ' + this.formatDateTime(p.moodle_uploaded_at) + ')' : 'Nahrát hodnocení do Moodle'}">
-                  🎓${p.moodle_uploaded_at ? ' ✓' : ''}
+                <button class="btn btn-secondary btn-xs" onclick="App.openMoodleUploadForProtocol(${p.id})" title="${p.moodle_uploaded_at ? 'Znovu odeslat hodnocení do Moodle (odesláno ' + this.formatDateTime(p.moodle_uploaded_at) + ')' : 'Nahrát hodnocení do Moodle'}">
+                  🎓${p.moodle_uploaded_at ? '✓' : ''}
                 </button>
               ` : ''}
-              <button class="btn btn-secondary btn-sm" onclick="App.openEditMetadataModal(${p.id})" title="Upravit studenta, termín či úlohu">✏️</button>
-              ${p.share_token ? `
-                <button class="btn btn-secondary btn-sm btn-student-link" onclick="App.copyStudentLink('${p.share_token}')" title="Kopírovat odkaz pro studenta">🔗</button>
-              ` : ''}
+              <button class="btn btn-secondary btn-xs" onclick="App.openEditMetadataModal(${p.id})" title="Upravit studenta, termín či úlohu">✏️</button>
               ${p.corrected_filename ? `
-                <a class="btn btn-secondary btn-sm" href="/api/protocols/${p.id}/pdf/corrected" target="_blank" title="Zobrazit opravené PDF">PDF</a>
-                <a class="btn btn-secondary btn-sm" href="/api/protocols/${p.id}/export/bodovani.txt" download title="Stáhnout bodovani.txt">.txt</a>
+                <a class="btn btn-secondary btn-xs" href="/api/protocols/${p.id}/pdf/corrected" target="_blank" title="Zobrazit opravené PDF">PDF</a>
               ` : ''}
-              ${canDelete ? `<button class="btn btn-danger btn-sm" onclick="App.deleteProtocol(${p.id})" title="Smazat">🗑</button>` : ''}
+              <div class="action-dropdown" id="action-dropdown-${p.id}">
+                <button class="btn btn-secondary btn-xs" onclick="App.toggleRowActionMenu(${p.id}, event)" title="Další akce">⋮</button>
+                <div class="action-dropdown-menu" id="action-menu-${p.id}">
+                  ${p.share_token ? `
+                    <button type="button" class="action-dropdown-item" onclick="App.copyStudentLink('${p.share_token}'); App.closeAllActionMenus();">
+                      <span>🔗</span> Kopírovat odkaz
+                    </button>
+                  ` : ''}
+                  ${p.corrected_filename ? `
+                    <a class="action-dropdown-item" href="/api/protocols/${p.id}/export/bodovani.txt" download onclick="App.closeAllActionMenus();">
+                      <span>📄</span> Stáhnout .txt
+                    </a>
+                  ` : ''}
+                  ${canDelete ? `
+                    <button type="button" class="action-dropdown-item danger" onclick="App.deleteProtocol(${p.id}); App.closeAllActionMenus();">
+                      <span>🗑️</span> Smazat protokol
+                    </button>
+                  ` : ''}
+                </div>
+              </div>
             </div>
           </td>
         </tr>
@@ -1456,6 +1477,35 @@ const App = {
     } catch (e) {
       window.prompt("Odkaz pro studenta:", url);
     }
+  },
+
+  toggleRowActionMenu(protoId, event) {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    const menu = document.getElementById(`action-menu-${protoId}`);
+    if (!menu) return;
+    const isShown = menu.classList.contains('show');
+    this.closeAllActionMenus();
+    if (!isShown) {
+      const btn = event ? event.currentTarget : null;
+      if (btn) {
+        const rect = btn.getBoundingClientRect();
+        if (window.innerHeight - rect.bottom < 150) {
+          menu.classList.add('drop-up');
+        } else {
+          menu.classList.remove('drop-up');
+        }
+      }
+      menu.classList.add('show');
+    }
+  },
+
+  closeAllActionMenus() {
+    document.querySelectorAll('.action-dropdown-menu.show').forEach(m => {
+      m.classList.remove('show');
+    });
   },
 
   async assignProtocol(protoId, evaluatorId) {
@@ -4931,6 +4981,9 @@ const App = {
         if (!menu.contains(e.target) && e.target !== toggleBtn && !toggleBtn?.contains(e.target)) {
           menu.style.display = 'none';
         }
+      }
+      if (!e.target.closest('.action-dropdown')) {
+        this.closeAllActionMenus();
       }
     });
   },

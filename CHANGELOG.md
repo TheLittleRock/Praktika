@@ -8,6 +8,29 @@ Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/
 
 ### 🚀 Novinky a vylepšení ve verzi 2.24.2
 
+#### 🎓 Moodle Feedback: Nahrávání opraveného PDF, formátování srážek na nové řádky a uzamčení odevzdání
+- **Nahrávání opraveného PDF do Moodle**:
+  - Opravené PDF se nyní automaticky nahrává přímo do oblasti souborů se zpětnou vazbou (`assignfeedback_file`) daného studenta přes Moodle AJAX repository API.
+  - V Moodle přehledu se soubor okamžitě objeví ve sloupci *Soubory se zpětnou vazbou*.
+- **Formátování komentářů se srážkami na nových řádcích**:
+  - Komentáře hodnocení jsou nově odesílány ve formátu HTML (`<br>`), díky čemuž jsou jednotlivé bodové srážky (`-0.125b ...`) zobrazeny přehledně na samostatných řádcích jak v tabulce, tak v editoru Moodle.
+  - Speciální znaky jsou bezpečně escapovány, mezikategoriální mezery jsou zachovány.
+- **Automatické uzamčení odevzdání (`action=lock`)**:
+  - Po odeslání hodnocení se odevzdání studenta automaticky uzamkne proti dalším úpravám, čímž se odstraní stav „Návrh (neodesláno)“ a hodnocení se v Moodle definitivně zfinalizuje („Udělena známka“).
+
+#### 🖥️ Zeštíhlení a modernizace tabulky protokolů (Zero Overflow Redesign)
+- **Kompaktní typografie a rozestupy**:
+  - Velikost písma v tabulce snížena na `0.76rem` (hlavičky `0.68rem`), padding buněk zredukován na `5px 8px`.
+  - Nová třída `.btn-xs` (`padding: 2px 6px; font-size: 0.70rem`) pro všechna řádková tlačítka.
+  - Zmenšené známkové štítky (`20x20px`, `font-size: 0.72rem`) a stavové odznáčky.
+- **Sdružení vedlejších akcí do menu `⋮`**:
+  - Tlačítka *Kopírovat odkaz pro studenta*, *Stáhnout bodovani.txt* a *Smazat protokol* byla přesunuta do přehledného rozbalovacího menu `⋮`.
+  - Šířka sloupce *Akce* klesla z původních ~280 px na ~125 px, což eliminuje horizontální přetékání celé tabulky.
+- **Dvouřádkové kompaktní zobrazení**:
+  - Jméno studenta a název souboru, název úlohy i termín jsou zobrazeny ve dvou kompaktních řádcích s omezenou šířkou a `text-overflow: ellipsis`.
+  - Datum odevzdání i případné datum laboratorního měření jsou zformátovány úsporně do dvou řádků.
+  - Celková šířka tabulky se zmenšila pod 1000 px a pohodlně se vejde na standardní monitory i notebooky bez nutnosti horizontálního posouvání.
+
 #### 🤖 AI Asistent: Podpora modelu Gemini 4 Hydrogen, oprava renderování matematických vzorců a stabilizace chyb
 - **Přidání modelu `gemini-4-hydrogen`**:
   - Model `gemini-4-hydrogen` byl zařazen na 1. místo do nabídky modelů v Nastavení AI i jako preferovaný kandidát v backendu.

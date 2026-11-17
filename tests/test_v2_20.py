@@ -20,6 +20,7 @@ from app.moodle_service import (
     parse_moodle_submission_filename,
     build_moodle_feedback_zip,
     get_moodle_config,
+    get_moodle_setting,
     save_moodle_setting
 )
 from starlette.testclient import TestClient
@@ -209,20 +210,21 @@ class TestPraktikaV220(unittest.TestCase):
         self.assertEqual(cfg_data["course_id"], "16880")
         self.assertEqual(cfg_data["moodle_url"], "https://moodle-vyuka.cvut.cz")
 
-        # 2. Config endpoint POST
-        res_save = self.client.post("/api/moodle/config", json={
-            "moodle_url": "https://moodle-vyuka.cvut.cz",
-            "course_id": "16880",
-            "moodle_session": "test_mock_cookie_12345"
-        }, headers=self.auth_headers)
-        self.assertEqual(res_save.status_code, 200)
+        orig_c = get_moodle_setting("moodle_session_cookie", "")
+        try:
+            # 2. Config endpoint POST
+            res_save = self.client.post("/api/moodle/config", json={
+                "moodle_url": "https://moodle-vyuka.cvut.cz",
+                "course_id": "16880",
+                "moodle_session": "test_mock_cookie_12345"
+            }, headers=self.auth_headers)
+            self.assertEqual(res_save.status_code, 200)
 
-        # Verify saved
-        cfg = get_moodle_config()
-        self.assertEqual(cfg["moodle_session"], "test_mock_cookie_12345")
-
-        # Reset cookie to empty for safety
-        save_moodle_setting("moodle_session_cookie", "")
+            # Verify saved
+            cfg = get_moodle_config()
+            self.assertEqual(cfg["moodle_session"], "test_mock_cookie_12345")
+        finally:
+            save_moodle_setting("moodle_session_cookie", orig_c)
 
 if __name__ == "__main__":
     unittest.main()
