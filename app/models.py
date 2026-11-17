@@ -272,6 +272,8 @@ class AIChatResponse(BaseModel):
     reply: str
     annotations: List[AIAnnotationSuggestion] = []
     history: List[AIChatMessage] = []
+    model_used: Optional[str] = None
+    model: Optional[str] = None
 
 # ==========================================
 # STUDENT ANALYTICS & HEARTBEAT MODELS

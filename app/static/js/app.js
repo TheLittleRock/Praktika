@@ -2543,7 +2543,19 @@ const App = {
 
     try {
       const resp = await fetch('/api/system/test-ai', { method: 'POST' });
-      const data = await resp.json();
+      let data;
+      const contentType = resp.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await resp.json();
+      } else {
+        const text = await resp.text();
+        const cleanText = text.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+        data = {
+          success: false,
+          error: cleanText.slice(0, 180) || `Server vrátil HTTP ${resp.status}`,
+          message: cleanText.slice(0, 180) || `Server vrátil nečekaný formát (HTTP ${resp.status})`
+        };
+      }
       if (!resultBox) return;
 
       if (resp.ok && data.success) {
@@ -3685,9 +3697,19 @@ const App = {
         method: 'POST'
       });
       if (resp.ok) {
-        const data = await resp.json();
+        const contentType = resp.headers.get('content-type') || '';
+        let data;
+        if (contentType.includes('application/json')) {
+          data = await resp.json();
+        } else {
+          const raw = await resp.text();
+          throw new Error("Server vrátil neočekávaný ne-JSON formát.");
+        }
         this.currentProtocol.ai_proposals = data;
         this.setAIResult(data);
+        if (data.model_used) {
+          this.updateAllAIModelBadges(data.model_used);
+        }
         if (window.PDFStudio) {
           window.PDFStudio.setAIProposals(data.annotations || []);
           window.PDFStudio.renderAIProposals();
@@ -3697,13 +3719,34 @@ const App = {
         this.ensureOppositePanels('ai');
         this.showToast(mode === 'replace' ? "AI analýza byla kompletně přegenerována!" : "Nové návrhy AI byly přidány k protokolu!");
       } else {
-        const err = await resp.json();
+        let errMessage = "Chyba při volání AI analýzy.";
+        const contentType = resp.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          try {
+            const err = await resp.json();
+            errMessage = err.detail || err.message || JSON.stringify(err);
+          } catch (jsonErr) {
+            errMessage = `Server vrátil HTTP ${resp.status}`;
+          }
+        } else {
+          const rawHtml = await resp.text();
+          if (resp.status === 504 || rawHtml.includes('Gateway Time-out') || rawHtml.includes('Gateway Timeout')) {
+            errMessage = "Vypršel časový limit serveru nebo proxy (HTTP 504 Gateway Timeout). AI model neodpověděl včas nebo je přetížen. Zkuste to prosím za chvíli.";
+          } else if (resp.status === 503) {
+            errMessage = "AI model je dočasně přetížen (HTTP 503 Service Unavailable). Zkuste to prosím za okamžik nebo zvolte jiný model v Nastavení.";
+          } else if (resp.status === 502) {
+            errMessage = "AI služba je dočasně nedostupná (HTTP 502 Bad Gateway). Zkuste požadavek zopakovat za chvíli.";
+          } else {
+            const cleanErr = rawHtml.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+            errMessage = cleanErr.slice(0, 200) || `Server vrátil HTTP ${resp.status} (${resp.statusText})`;
+          }
+        }
         const fallbackCont = document.getElementById('ai-drawer-fallback-container');
         if (fallbackCont) {
-          fallbackCont.innerHTML = `<div class="ai-fallback-alert" style="background:rgba(239,68,68,0.12); border:1px solid var(--accent-red); color:var(--accent-red); padding:8px 10px; border-radius:6px; font-size:0.8rem; margin-bottom:8px;">⚠️ ${this.escape(err.detail || "Chyba při volání AI analýzy.")}</div>`;
+          fallbackCont.innerHTML = `<div class="ai-fallback-alert" style="background:rgba(239,68,68,0.12); border:1px solid var(--accent-red); color:var(--accent-red); padding:8px 10px; border-radius:6px; font-size:0.8rem; margin-bottom:8px;">⚠️ ${this.escape(errMessage)}</div>`;
           fallbackCont.style.display = 'block';
         }
-        await AppModal.alert({ title: "Chyba AI analýzy", message: err.detail || "Chyba při volání AI analýzy." });
+        await AppModal.alert({ title: "Chyba AI analýzy", message: errMessage });
       }
     } catch (e) {
       const fallbackCont = document.getElementById('ai-drawer-fallback-container');
@@ -3717,12 +3760,58 @@ const App = {
     }
   },
 
+  getActiveAIModelName() {
+    if (this.currentAIResult && this.currentAIResult.model_used) {
+      return this.currentAIResult.model_used;
+    }
+    if (this.aiSettings) {
+      if (this.aiSettings.ai_provider === 'openai_compatible') {
+        return this.aiSettings.openai_model || 'llama-3.3-70b-versatile';
+      }
+      return this.aiSettings.model_name || 'gemini-4-hydrogen';
+    }
+    const select = document.getElementById('ai-model-select');
+    if (select && select.value) {
+      if (select.value === 'custom') {
+        return document.getElementById('ai-custom-model-input')?.value || 'gemini-4-hydrogen';
+      }
+      return select.value;
+    }
+    return 'gemini-4-hydrogen';
+  },
+
+  updateAllAIModelBadges(modelName) {
+    const rawName = modelName || this.getActiveAIModelName();
+    let display = rawName;
+    if (display.startsWith('Google Gemini (')) {
+      display = display.replace('Google Gemini (', '').replace(')', '');
+    } else if (display.startsWith('OpenAI-Compatible (')) {
+      display = display.replace('OpenAI-Compatible (', '').replace(')', '');
+    }
+    const drawerBadge = document.getElementById('ai-drawer-model-badge');
+    if (drawerBadge) {
+      drawerBadge.textContent = display;
+      drawerBadge.title = `Aktivní AI model: ${rawName}`;
+    }
+    const chatBadge = document.getElementById('ai-chat-model-badge');
+    if (chatBadge) {
+      chatBadge.textContent = display;
+      chatBadge.title = `Model v chatu: ${rawName}`;
+    }
+    const propBadge = document.getElementById('ai-proposals-model-badge');
+    if (propBadge) {
+      propBadge.textContent = display;
+      propBadge.title = `Model pro hodnocení: ${rawName}`;
+    }
+  },
+
   toggleAIDrawer() {
     const drawer = document.getElementById('studio-ai-drawer');
     if (!drawer) return;
     const isHidden = (drawer.style.display === 'none' || !drawer.style.display);
     drawer.style.display = isHidden ? 'flex' : 'none';
     if (isHidden) {
+      this.updateAllAIModelBadges();
       this.updateAIDockSideButton();
       this.updateAIDrawerLists();
       this.ensureOppositePanels('ai');
@@ -3804,16 +3893,13 @@ const App = {
   },
 
   updateAIDrawerLists() {
+    this.updateAllAIModelBadges();
     if (!this.currentAIResult) return;
     const data = this.currentAIResult;
 
     // Model badge & fallback info
-    const modelBadge = document.getElementById('ai-drawer-model-badge');
-    if (modelBadge) {
-      modelBadge.textContent = data.model_used ? `Model: ${data.model_used}` : 'Gemini Flash';
-      if (data.preferred_model) {
-        modelBadge.title = `Požadovaný model: ${data.preferred_model}`;
-      }
+    if (data.model_used) {
+      this.updateAllAIModelBadges(data.model_used);
     }
 
     const fallbackCont = document.getElementById('ai-drawer-fallback-container');
@@ -4019,6 +4105,7 @@ const App = {
 
   // AI Drawer Tab Switching (Proposals vs Chat)
   switchAITab(tabName) {
+    this.updateAllAIModelBadges();
     const proposalsBtn = document.getElementById('ai-tab-btn-proposals');
     const chatBtn = document.getElementById('ai-tab-btn-chat');
     const proposalsView = document.getElementById('ai-drawer-proposals-view');
@@ -4067,6 +4154,17 @@ const App = {
     if (!content) return '';
     try {
       let text = String(content);
+
+      // Sanitize unescaped LaTeX control characters (e.g. from JSON decodes of older messages)
+      text = text
+        .replace(/\x0crac/g, '\\frac')
+        .replace(/\x08ar/g, '\\bar')
+        .replace(/\x08eta/g, '\\beta')
+        .replace(/\x0c/g, '')
+        .replace(/\x08/g, '')
+        .replace(/\r(?=(?:ight|ho|angle|ef)\b)/g, '\\r')
+        .replace(/\t(?=(?:ext|heta|au|imes|o\b|an|ilde|riangle))/g, '\\t');
+
       const mathTokens = [];
 
       // 1. Extract and stash display math: $$...$$ and \[...\]
@@ -4255,15 +4353,36 @@ const App = {
       if (typingEl) typingEl.remove();
 
       if (!resp.ok) {
-        let err;
-        try { err = await resp.json(); } catch(e) { err = { detail: resp.statusText }; }
-        const errMsg = err && (err.detail || err.message) ? (err.detail || err.message) : `Chyba serveru HTTP ${resp.status}`;
+        let errMsg = `Chyba serveru HTTP ${resp.status}`;
+        const contentType = resp.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          try {
+            const err = await resp.json();
+            errMsg = err.detail || err.message || JSON.stringify(err);
+          } catch(e) {
+            errMsg = `Chyba serveru HTTP ${resp.status}`;
+          }
+        } else {
+          const rawHtml = await resp.text();
+          if (resp.status === 504 || rawHtml.includes('Gateway Time-out') || rawHtml.includes('Gateway Timeout')) {
+            errMsg = "Vypršel časový limit požadavku (HTTP 504 Gateway Timeout). AI model neodpověděl včas nebo je přetížen. Zkuste dotaz zopakovat.";
+          } else if (resp.status === 503) {
+            errMsg = "AI model je momentálně přetížen (HTTP 503). Zkuste to prosím za okamžik.";
+          } else {
+            const cleanErr = rawHtml.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+            errMsg = cleanErr.slice(0, 180) || `Chyba serveru HTTP ${resp.status} (${resp.statusText})`;
+          }
+        }
         throw new Error(errMsg);
       }
 
       const resData = await resp.json();
       const reply = resData.reply || "";
       const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      if (resData.model_used || resData.model) {
+        this.updateAllAIModelBadges(resData.model_used || resData.model);
+      }
 
       if (container) {
         const assistantMsgEl = document.createElement('div');
@@ -4476,9 +4595,15 @@ const App = {
         if (autoAnalyzeToggle) autoAnalyzeToggle.checked = (data.auto_analyze_on_upload !== false);
         if (langSelect && data.ai_language) langSelect.value = data.ai_language;
 
+        this.aiSettings = data;
+        const activeM = (data.ai_provider === 'openai_compatible')
+          ? (data.openai_model || 'llama-3.3-70b-versatile')
+          : (data.model_name || 'gemini-4-hydrogen');
+        this.updateAllAIModelBadges(activeM);
+
         if (modelSelect) {
-          const m = data.model_name || 'gemini-3.8-flash';
-          const validModels = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
+          const m = data.model_name || 'gemini-4-hydrogen';
+          const validModels = ['gemini-4-hydrogen', 'gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
           if (validModels.includes(m)) {
             modelSelect.value = m;
             if (customInput) customInput.style.display = 'none';

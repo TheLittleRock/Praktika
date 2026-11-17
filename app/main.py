@@ -2354,7 +2354,7 @@ def get_ai_settings(user: dict = Depends(get_current_user)):
     personal_key = user.get("custom_gemini_api_key") or ""
     active_key = personal_key or global_key
     masked_key = f"{active_key[:6]}...{active_key[-4:]}" if len(active_key) > 10 else ("***" if active_key else "")
-    model_name = get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.8-flash")
+    model_name = get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-4-hydrogen")
     auto_analyze = get_ai_setting("auto_analyze_on_upload", "true").lower() in ("true", "1", "yes")
     ai_language = get_ai_setting("ai_language", "cs")
 
@@ -2839,7 +2839,7 @@ def get_system_diagnostics(user: dict = Depends(get_current_user)):
     else:
         api_key = (user.get("custom_gemini_api_key") or get_gemini_api_key()).strip()
         masked_key = f"{api_key[:6]}...{api_key[-4:]}" if len(api_key) > 10 else ("Nastaven" if api_key else "Není nastaven")
-        preferred_model = get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.8-flash")
+        preferred_model = get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-4-hydrogen")
 
     return {
         "python_version": sys.version.split(" ")[0],
@@ -2906,7 +2906,7 @@ async def test_ai_connection(user: dict = Depends(get_current_user)):
         if not api_key:
             raise HTTPException(status_code=400, detail="Není nastaven platný Gemini API klíč.")
             
-        model_name = get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.8-flash")
+        model_name = get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-4-hydrogen")
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
         try:
             async with httpx.AsyncClient(timeout=25.0) as client:
@@ -2928,29 +2928,49 @@ async def test_ai_connection(user: dict = Depends(get_current_user)):
                         "message": f"Spojení s Google Gemini ({model_name}) je plně funkční (odezva {latency_ms} ms)."
                     }
                 else:
-                    err_msg = resp.text
+                    err_msg = ""
                     try:
-                        err_msg = resp.json().get("error", {}).get("message", err_msg)
+                        err_msg = resp.json().get("error", {}).get("message", "")
                     except Exception:
                         pass
+                    if not err_msg:
+                        err_msg = resp.text[:150]
+                    
+                    if resp.status_code == 503:
+                        user_hint = f"Model {model_name} je dočasně přetížen (HTTP 503 Service Unavailable). Zkuste to za okamžik nebo zvolte jiný model."
+                    elif resp.status_code == 429:
+                        user_hint = "Byl vyčerpán limit požadavků / kvóta (HTTP 429 Too Many Requests)."
+                    elif resp.status_code in (400, 403):
+                        user_hint = f"Neplatný API klíč nebo model {model_name} není pro tento klíč dostupný (HTTP {resp.status_code})."
+                    else:
+                        user_hint = f"HTTP {resp.status_code} ({err_msg})"
+
                     return {
                         "success": False,
                         "status_code": resp.status_code,
                         "latency_ms": latency_ms,
                         "provider": "gemini",
                         "model": model_name,
-                        "error": err_msg[:120],
-                        "message": f"Chyba od Gemini API: HTTP {resp.status_code} ({err_msg[:120]})"
+                        "error": err_msg or user_hint,
+                        "message": f"Chyba od Gemini API: {user_hint}"
                     }
         except Exception as e:
             latency_ms = int((time.time() - t0) * 1000)
+            err_desc = str(e).strip()
+            if not err_desc:
+                if isinstance(e, httpx.TimeoutException):
+                    err_desc = "Vypršel časový limit spojení (timeout po 25 s). Model neodpověděl včas."
+                elif isinstance(e, httpx.ConnectError):
+                    err_desc = "Nelze navázat síťové spojení se serverem Google API (ConnectError). Zkontrolujte připojení k internetu."
+                else:
+                    err_desc = type(e).__name__
             return {
                 "success": False,
                 "latency_ms": latency_ms,
                 "provider": "gemini",
                 "model": model_name,
-                "error": str(e),
-                "message": f"Chyba spojení s Gemini: {str(e)}"
+                "error": err_desc,
+                "message": f"Chyba spojení s Gemini: {err_desc}"
             }
 
 # ==========================================

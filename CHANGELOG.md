@@ -4,6 +4,31 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.24.2] - 2026-11-17
+
+### 🚀 Novinky a vylepšení ve verzi 2.24.2
+
+#### 🤖 AI Asistent: Podpora modelu Gemini 4 Hydrogen, oprava renderování matematických vzorců a stabilizace chyb
+- **Přidání modelu `gemini-4-hydrogen`**:
+  - Model `gemini-4-hydrogen` byl zařazen na 1. místo do nabídky modelů v Nastavení AI i jako preferovaný kandidát v backendu.
+  - Plná podpora v kandidátních modelech, diagnostice i interaktivním chatu.
+- **Zobrazení aktuálně používaného modelu v okně AI asistenta**:
+  - V záhlaví panelu AI asistenta je dynamicky zobrazován právě používaný model namísto statického nápisu.
+  - V hlavičce AI chatu přibyl informační štítek (`badge`) s názvem modelu, který odpovídá na dotazy.
+  - V přehledu návrhů hodnocení se v kartě souhrnu zobrazuje model použitý k analýze.
+- **Kompletní oprava vykreslování matematických vzorců v KaTeXu**:
+  - Vyřešena chyba, kdy zpětná lomítka v LaTeXu (`\frac`, `\text`, `\right`, `\theta`, `\times`, `\sigma`) byla v JSONu parsována jako řídicí znaky (`\f` form feed, `\t` tabulátor, `\r` carriage return), což způsobovalo zobrazení červených chybových hlášení a paznaků v chatu.
+  - Zavedena inteligentní oprava unescaped LaTeX sekvencí v backendovém JSON parseru `robust_json_loads`.
+  - Prompt AI nově striktně vyžaduje zdvojená zpětná lomítka (`\\frac`, `\\text`) pro bezpečný přenos v JSONu.
+  - Klientská funkce `renderFormattedText` nyní automaticky sanitizuje řídicí znaky i pro dříve uložené konverzace.
+- **Ošetření HTML chybových stránek (504 Gateway Timeout / 502 / 503)**:
+  - Odstraněna chyba `Unexpected token '<', "<!DOCTYPE "... is not valid JSON` při přetížení modelu nebo timeoutu proxy.
+  - Frontend nyní bezpečně kontroluje `Content-Type` a zobrazuje uživatelsky přívětivé chybové hlášení s doporučením k opakování.
+  - Optimalizováno řetězení fallbacků (zkouší se preferovaný model s 1 rychlým opakováním při 503, následně max 1 záložní model s per-request timeoutem 50 s), což eliminuje vznik 504 Gateway Timeout.
+- **Zpřesnění diagnostiky dostupnosti AI API**:
+  - Opravena prázdná chybová hláška `"Chyba spojení s Gemini:"` při vypršení časového limitu (`httpx.TimeoutException` / `ConnectError`).
+  - Systém nově explicitně rozlišuje timeout (25 s), přetížení (HTTP 503), vyčerpání kvóty (429) i síťové chyby.
+
 ## [2.24.1] - 2026-11-17
 
 ### 🚀 Novinky a vylepšení ve verzi 2.24.1
