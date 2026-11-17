@@ -418,7 +418,7 @@
                 <span style="font-size:1.05rem;">✨</span>
                 <div>
                   <h4 style="margin:0; font-size:0.88rem; font-weight:700;">AI Asistent</h4>
-                  <div style="font-size:0.68rem; color:var(--text-muted);" id="ai-drawer-model-badge">Gemini Flash Ready</div>
+                  <div style="font-size:0.68rem; color:var(--text-muted); font-family:'JetBrains Mono',monospace;" id="ai-drawer-model-badge">gemini-4-hydrogen</div>
                 </div>
               </div>
               <div style="display:flex; align-items:center; gap:4px; margin-left:auto;">
@@ -466,7 +466,10 @@
             <div class="ai-drawer-body" id="ai-drawer-proposals-view">
               <div id="ai-drawer-fallback-container"></div>
               <div class="ai-drawer-summary-card">
-                <div style="font-weight:700; font-size:0.82rem; margin-bottom:4px;">Souhrn hodnocení AI:</div>
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+                  <span style="font-weight:700; font-size:0.82rem;">Souhrn hodnocení AI:</span>
+                  <span id="ai-proposals-model-badge" style="font-size:0.68rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted);">gemini-4-hydrogen</span>
+                </div>
                 <div id="ai-drawer-summary-text" style="font-size:0.8rem; color:var(--text-muted); line-height:1.4;">Zatím nebyla provedena analýza protokolu.</div>
               </div>
 
@@ -496,7 +499,10 @@
             <!-- AI Chat View -->
             <div class="ai-drawer-chat-view" id="ai-drawer-chat-view" style="display:none;">
               <div class="ai-chat-header-actions">
-                <span class="ai-chat-meta-info">Konverzace s AI asistentem</span>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span class="ai-chat-meta-info">Konverzace s AI</span>
+                  <span class="badge" id="ai-chat-model-badge" style="font-size:0.68rem; font-family:'JetBrains Mono',monospace; padding:1px 6px; background:rgba(99,102,241,0.12); color:var(--primary); border:1px solid rgba(99,102,241,0.25); border-radius:4px;">gemini-4-hydrogen</span>
+                </div>
                 <div style="display:flex; align-items:center; gap:6px;">
                   <button type="button" class="btn btn-secondary btn-sm" onclick="App.showAIChatGuideModal()" style="font-size:0.7rem; padding:2px 8px;" title="Jak funguje AI chat a zadávání úkolů">ℹ️ Návod k chatu</button>
                   <button type="button" class="btn btn-secondary btn-sm" onclick="App.clearAIChatHistory()" style="font-size:0.7rem; padding:2px 8px;" title="Vymazat historii chatu">Smazat chat</button>
@@ -1029,13 +1035,14 @@
               <div class="form-group">
                 <label class="form-label">Preferovaný Gemini model:</label>
                 <select id="ai-model-select" class="form-control" onchange="App.handleAIModelSelectChange(this.value)">
+                  <option value="gemini-4-hydrogen" selected>Gemini 4 Hydrogen (Nejnovější experimentální model)</option>
                   <option value="gemini-3.8-flash">Gemini 3.8 Flash (Vysoká přesnost a komplexní úlohy)</option>
-                  <option value="gemini-3.6-flash" selected>Gemini 3.6 Flash (Doporučeno pro Free Tier – rychlý, stabilní)</option>
+                  <option value="gemini-3.6-flash">Gemini 3.6 Flash (Doporučeno pro Free Tier – rychlý, stabilní)</option>
                   <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite (Extrémně rychlý, úsporný)</option>
                   <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
                   <option value="custom">Vlastní název modelu...</option>
                 </select>
-                <input type="text" id="ai-custom-model-input" class="form-control" placeholder="např. gemini-3.8-flash" style="display:none; margin-top:6px; font-family:'JetBrains Mono',monospace;">
+                <input type="text" id="ai-custom-model-input" class="form-control" placeholder="např. gemini-4-hydrogen" style="display:none; margin-top:6px; font-family:'JetBrains Mono',monospace;">
               </div>
             </div>
 

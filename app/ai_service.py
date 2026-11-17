@@ -106,13 +106,13 @@ def get_gemini_api_key() -> str:
 def save_gemini_api_key(key: str):
     save_ai_setting("gemini_api_key", key)
 
-def robust_json_loads(text: str) -> dict:
+def repair_json_latex(raw: str) -> str:
     """
-    Safely parses JSON emitted by Gemini, automatically stripping code fences
-    and repairing unescaped LaTeX backslashes (e.g. \sigma, \Delta, \frac) that cause
-    json.decoder.JSONDecodeError: Invalid \escape.
+    Escapes unescaped LaTeX backslashes in JSON strings emitted by LLMs (e.g. \\frac, \\text, \\right, \\sqrt, \\sigma)
+    so that standard JSON escape sequences (\\f -> form feed, \\r -> carriage return, \\t -> tab, \\b -> backspace)
+    and invalid escape chars do not corrupt mathematical formulas.
     """
-    cleaned = (text or "").strip()
+    cleaned = (raw or "").strip()
     if cleaned.startswith("```json"):
         cleaned = cleaned[7:]
     elif cleaned.startswith("```"):
@@ -121,29 +121,64 @@ def robust_json_loads(text: str) -> dict:
         cleaned = cleaned[:-3]
     cleaned = cleaned.strip()
 
-    try:
-        return json.loads(cleaned)
-    except Exception:
-        pass
+    # Escape LaTeX command backslashes that would otherwise be parsed as JSON escapes or cause syntax errors:
+    # \f -> \frac, \footnotesize, etc.
+    cleaned = re.sub(r"(?<!\\)\\f(?=[a-zA-Z])", r"\\\\f", cleaned)
+    # \b -> \beta, \bar, \begin, etc.
+    cleaned = re.sub(r"(?<!\\)\\b(?=[a-zA-Z])", r"\\\\b", cleaned)
+    # \r -> \right, \rho, \rangle, etc.
+    cleaned = re.sub(r"(?<!\\)\\r(?=[a-zA-Z])", r"\\\\r", cleaned)
+    # \t -> \text, \theta, \tau, \times, \to, \tan, \tilde, \triangle, \top, etc.
+    cleaned = re.sub(r"(?<!\\)\\t(?=[a-zA-Z])", r"\\\\t", cleaned)
+    # \u not followed by 4 hex digits (e.g. \uparrow, \underline, \underbrace, \upsilon)
+    cleaned = re.sub(r"(?<!\\)\\u(?![0-9a-fA-F]{4})", r"\\\\u", cleaned)
+    # \n followed by specific LaTeX command names (nabla, nu, neq, neg, notin, ne)
+    cleaned = re.sub(r"(?<!\\)\\n(?=(?:abla|u|eq|eg|otin|e|ot|atural)\b)", r"\\\\n", cleaned)
+    # Any other backslash not followed by valid JSON escape char (" \ / b f n r t u)
+    cleaned = re.sub(r"(?<!\\)\\(?![/\"\\bfnrtu])", r"\\\\", cleaned)
+    return cleaned
 
-    # Regex repair: escape any backslash that is not followed by a valid JSON escape char (" \ / b f n r t u)
-    repaired = re.sub(r'\\(?![/"\\bfnrtu])', r'\\\\', cleaned)
+def clean_decoded_obj(val: Any) -> Any:
+    """Recursively cleans any residual control characters in decoded JSON values caused by unescaped LaTeX."""
+    if isinstance(val, str):
+        s = val
+        if "\x0c" in s:
+            s = s.replace("\x0crac", "\\frac").replace("\x0c", "")
+        if "\x08" in s:
+            s = s.replace("\x08ar", "\\bar").replace("\x08eta", "\\beta").replace("\x08", "")
+        s = re.sub(r"\t(?=(?:ext|heta|au|imes|o\b|an|ilde|riangle))", r"\\t", s)
+        s = re.sub(r"\r(?=(?:ight|ho|angle|ef))", r"\\r", s)
+        return s
+    elif isinstance(val, dict):
+        return {k: clean_decoded_obj(v) for k, v in val.items()}
+    elif isinstance(val, list):
+        return [clean_decoded_obj(x) for x in val]
+    return val
+
+def robust_json_loads(text: str) -> dict:
+    """
+    Safely parses JSON emitted by Gemini / LLMs, automatically stripping code fences
+    and repairing unescaped LaTeX backslashes (e.g. \\sigma, \\Delta, \\frac, \\text) that cause
+    json.decoder.JSONDecodeError: Invalid \\escape or control char corruption.
+    """
+    cleaned = repair_json_latex(text)
+
     try:
-        return json.loads(repaired)
+        return clean_decoded_obj(json.loads(cleaned))
     except Exception:
         pass
 
     # Try extracting outermost JSON object {...}
-    match = re.search(r'(\{[\s\S]*\})', repaired)
+    match = re.search(r'(\{[\s\S]*\})', cleaned)
     if match:
         try:
-            return json.loads(match.group(1))
+            return clean_decoded_obj(json.loads(match.group(1)))
         except Exception:
             pass
 
     # Final attempt with strict=False
     try:
-        return json.loads(repaired, strict=False)
+        return clean_decoded_obj(json.loads(cleaned, strict=False))
     except Exception as ex:
         raise ValueError(f"Nelze analyzovat JSON z odpovědi AI modelu: {ex}")
 
@@ -218,6 +253,7 @@ def get_candidate_models(preferred: Optional[str] = None) -> List[str]:
     if pref:
         candidates.append(pref)
     for m in [
+        "gemini-4-hydrogen",
         "gemini-3.8-flash",
         "gemini-3.6-flash",
         "gemini-3.5-flash-lite",
@@ -557,6 +593,7 @@ ZÁVAZNÁ PRAVIDLA:
 2. Pro každou anotaci musí 'search_text' obsahovat PŘESNÝ fragment textu (2 až 6 po sobě jdoucích slov) přímo z odevzdaného protokolu na dané straně 'page'.
 3. Všechny anotace MUSÍ mít type: "highlight".
 4. Vytvoř anotace v textu POUZE pro skutečné chyby a nedostatky. Každá anotace musí studentovi věcně sdělovat, co má špatně a jak to opravit. Žádná prázdná konstatování ani komentáře k věcem, které jsou v pořádku.
+5. FORMÁT JSON A LATEX: Veškerá zpětná lomítka v matematických výrazech, jednotkách a LaTeXových příkazech v JSON řetězcích musí být VŽDY striktně zdvojena (např. \\\\frac, \\\\sqrt, \\\\text, \\\\right, \\\\times, \\\\sigma, \\\\rho, \\\\theta), nikdy ne samotná jednoduchá lomítka jako '\\frac' nebo '\\text'!
 """
 
     if provider == "openai_compatible":
@@ -568,7 +605,7 @@ ZÁVAZNÁ PRAVIDLA:
             messages=messages,
             temperature=0.35,
             json_mode=True,
-            timeout=90.0,
+            timeout=50.0,
             user=user
         )
         parsed = robust_json_loads(res["content"])
@@ -606,16 +643,22 @@ ZÁVAZNÁ PRAVIDLA:
     }
 
     preferred_model = (custom_model or get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.8-flash")).strip()
-    models_to_try = get_candidate_models(custom_model)
+    all_candidates = get_candidate_models(custom_model)
+    # Try preferred model + at most 1 fallback model to keep execution quick and avoid 504 Gateway Timeout
+    models_to_try = [preferred_model]
+    for m in all_candidates:
+        if m not in models_to_try and len(models_to_try) < 2:
+            models_to_try.append(m)
     last_error = None
     fallback_note = None
 
     for model_name in models_to_try:
         gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-        # Retry up to 2 times on transient spikes
-        for attempt in range(2):
+        # Retry once on transient 503/429 for preferred model; no extra retry for fallback to respect timeout
+        max_attempts = 2 if model_name == preferred_model else 1
+        for attempt in range(max_attempts):
             try:
-                async with httpx.AsyncClient(timeout=90.0) as client:
+                async with httpx.AsyncClient(timeout=50.0) as client:
                     resp = await client.post(gemini_url, json=payload)
                     if resp.status_code == 400 and pdf_b64:
                         # Fallback to text-only payload if multimodal inline_data is rejected
@@ -653,8 +696,8 @@ ZÁVAZNÁ PRAVIDLA:
                             err_msg = resp.json().get("error", {}).get("message", "")
                         except Exception:
                             err_msg = resp.text[:200]
-                        last_error = f"HTTP {resp.status_code} ({err_msg or 'přetížení / vyčerpaný limit kvóty'})"
-                        if attempt == 0:
+                        last_error = f"HTTP {resp.status_code} ({err_msg or ('model je dočasně přetížen' if resp.status_code == 503 else 'vyčerpaný limit kvóty')})"
+                        if attempt == 0 and max_attempts > 1:
                             import asyncio
                             await asyncio.sleep(1.2)
                             continue
@@ -668,10 +711,12 @@ ZÁVAZNÁ PRAVIDLA:
                         last_error = f"HTTP {resp.status_code}: {err_msg}"
                         break
             except Exception as e:
-                err_msg = str(e) or type(e).__name__
+                err_msg = str(e).strip() or type(e).__name__
+                if isinstance(e, httpx.TimeoutException):
+                    err_msg = "vypršel časový limit (timeout po 50 s)"
                 last_error = f"chyba spojení ({err_msg})"
                 print(f"Exception connecting to {model_name} (attempt {attempt+1}):", err_msg)
-                if attempt == 0:
+                if attempt == 0 and max_attempts > 1:
                     import asyncio
                     await asyncio.sleep(1.0)
                     continue
@@ -1006,6 +1051,7 @@ POKYNY PRO ODPOVĚĎ:
 3. FORMÁTOVÁNÍ ODPOVĚDI:
    - V 'reply' používej strukturovaný Markdown (odrážky, tučné písmo).
    - Pro matematické výrazy, symboly a rovnice VŽDY používej standardní LaTeX KaTeX syntax ($...$ pro inline matematiku a $$...$$ pro centrované blokové rovnice).
+   - DŮLEŽITÉ – FORMÁT JSON A LATEX: Veškerá zpětná lomítka v matematických výrazech, jednotkách a LaTeXových příkazech v JSON řetězcích musí být VŽDY striktně zdvojena (např. \\\\frac, \\\\sqrt, \\\\text, \\\\right, \\\\times, \\\\sigma, \\\\rho, \\\\theta), nikdy ne samotná jednoduchá lomítka jako '\\frac' nebo '\\text'!
 
 ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
 {{
@@ -1034,7 +1080,7 @@ ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
             messages=messages,
             temperature=0.3,
             json_mode=True,
-            timeout=90.0,
+            timeout=50.0,
             user=user
         )
         raw_response = robust_json_loads(res["content"])
@@ -1058,13 +1104,19 @@ ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
             }
         }
 
-        models_to_try = get_candidate_models(custom_model)
+        preferred_model = (custom_model or get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.8-flash")).strip()
+        all_candidates = get_candidate_models(custom_model)
+        models_to_try = [preferred_model]
+        for m in all_candidates:
+            if m not in models_to_try and len(models_to_try) < 2:
+                models_to_try.append(m)
 
         for model_name in models_to_try:
             gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-            for attempt in range(2):
+            max_attempts = 2 if model_name == preferred_model else 1
+            for attempt in range(max_attempts):
                 try:
-                    async with httpx.AsyncClient(timeout=90.0) as client:
+                    async with httpx.AsyncClient(timeout=45.0) as client:
                         resp = await client.post(gemini_url, json=payload)
                         if resp.status_code == 400 and pdf_b64:
                             # Fallback to text-only payload if multimodal inline_data is rejected
@@ -1085,8 +1137,8 @@ ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
                                 err_msg = resp.json().get("error", {}).get("message", "")
                             except Exception:
                                 err_msg = resp.text[:200]
-                            last_error = f"Model {model_name} vrátil HTTP {resp.status_code} ({err_msg or 'přetížení / vyčerpaný limit kvóty'})"
-                            if attempt == 0:
+                            last_error = f"Model {model_name} vrátil HTTP {resp.status_code} ({err_msg or ('model je dočasně přetížen' if resp.status_code == 503 else 'vyčerpaný limit kvóty')})"
+                            if attempt == 0 and max_attempts > 1:
                                 import asyncio
                                 await asyncio.sleep(1.0)
                                 continue
@@ -1100,9 +1152,11 @@ ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
                             last_error = f"Model {model_name} vrátil HTTP {resp.status_code}: {err_msg}"
                             break
                 except Exception as e:
-                    err_msg = str(e) or type(e).__name__
+                    err_msg = str(e).strip() or type(e).__name__
+                    if isinstance(e, httpx.TimeoutException):
+                        err_msg = "vypršel časový limit (timeout po 45 s)"
                     last_error = f"Model {model_name} selhal na chybě spojení ({err_msg})"
-                    if attempt == 0:
+                    if attempt == 0 and max_attempts > 1:
                         import asyncio
                         await asyncio.sleep(0.8)
                         continue
@@ -1180,7 +1234,9 @@ ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
     return AIChatResponse(
         reply=reply_text,
         annotations=resolved_annots,
-        history=[AIChatMessage(**m) for m in chat_history]
+        history=[AIChatMessage(**m) for m in chat_history],
+        model_used=successful_model,
+        model=successful_model
     )
 
 def get_protocol_chat_history(proto_id: int) -> List[AIChatMessage]:

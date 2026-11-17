@@ -85,7 +85,7 @@ Praktika/
 
 ### C. AI Asistent (`app/ai_service.py`):
 * Podporuje dva režimy:
-  1. **Google Gemini**: Oficiální modely generace 3.x (`gemini-3.8-flash`, `gemini-3.6-flash`, `gemini-3.5-flash-lite`). Má 90s timeout a automatický fallback při HTTP 429.
+  1. **Google Gemini**: Oficiální modely generace 3.x a 4.x (`gemini-4-hydrogen`, `gemini-3.8-flash`, `gemini-3.6-flash`, `gemini-3.5-flash-lite`). Má 50s timeout a optimalizovaný fallback při HTTP 429/503.
   2. **Univerzální OpenAI-kompatibilní provider**: Libovolné Base URL (např. `https://api.groq.com/openai/v1`). Výchozí doporučený model je `llama-3.3-70b-versatile` na Groq (zdarma, extrémně rychlý).
 
 ---
