@@ -59,6 +59,29 @@ class MoodleInteractiveLoginManager:
             # Return shallow copy, state never holds password
             return dict(self.state)
 
+    def reset(self):
+        with self._lock:
+            self._cancel_flag.set()
+            self._code_event.set()
+            if self._thread and self._thread.is_alive():
+                self._thread.join(timeout=1.0)
+            self._thread = None
+            self.state = {
+                "status": "idle",
+                "message": "Připraveno k přihlášení.",
+                "cookie_preview": None,
+                "started_at": None,
+                "finished_at": None,
+                "error_detail": None,
+                "course_title": None,
+                "two_factor_type": None,
+                "two_factor_number": None
+            }
+            self._cancel_flag = threading.Event()
+            self._code_event = threading.Event()
+            self._submitted_code = None
+            self._active_context = None
+
     def cancel(self) -> Dict[str, Any]:
         with self._lock:
             if self.state["status"] in ("starting", "authenticating", "awaiting_2fa_number", "awaiting_2fa_push", "awaiting_2fa_code", "awaiting_user", "silent_checking"):

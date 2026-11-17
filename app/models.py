@@ -189,7 +189,11 @@ class AnnotationSaveRequest(BaseModel):
 class AISettingsRequest(BaseModel):
     api_key: Optional[str] = None
     gemini_api_key: Optional[str] = None
+    gemini_api_key_paid: Optional[str] = None
     personal_gemini_api_key: Optional[str] = None
+    personal_gemini_api_key_paid: Optional[str] = None
+    gemini_key_mode: Optional[str] = "free_then_paid" # 'free_then_paid', 'free_only', 'paid_only'
+    gemini_thinking_level: Optional[str] = "MEDIUM" # 'MINIMAL', 'LOW', 'MEDIUM', 'HIGH', 'XHIGH'
     model_name: Optional[str] = "gemini-3.8-flash"
     ai_provider: Optional[str] = "gemini" # 'gemini' or 'openai_compatible'
     openai_base_url: Optional[str] = "https://api.groq.com/openai/v1"
@@ -237,6 +241,8 @@ class AIAnalysisResult(BaseModel):
     model_used: Optional[str] = "Gemini Flash"
     preferred_model: Optional[str] = None
     fallback_note: Optional[str] = None
+    key_tier_used: Optional[str] = None # 'free', 'paid', or 'openai'
+    thinking_level_used: Optional[str] = None
 
 class AutodetectResponse(BaseModel):
     student_name: Optional[str] = ""
@@ -267,6 +273,7 @@ class AIChatMessage(BaseModel):
 class AIChatRequest(BaseModel):
     message: str
     language: Optional[str] = None
+    thinking_level: Optional[str] = None
 
 class AIChatResponse(BaseModel):
     reply: str
@@ -274,6 +281,9 @@ class AIChatResponse(BaseModel):
     history: List[AIChatMessage] = []
     model_used: Optional[str] = None
     model: Optional[str] = None
+    key_tier_used: Optional[str] = None # 'free', 'paid', or 'openai'
+    thinking_level_used: Optional[str] = None
+    fallback_note: Optional[str] = None
 
 # ==========================================
 # STUDENT ANALYTICS & HEARTBEAT MODELS

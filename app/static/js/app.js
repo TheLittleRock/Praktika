@@ -1068,7 +1068,7 @@ const App = {
       const resp = await fetch('/api/settings/ai');
       if (resp.ok) {
         const data = await resp.json();
-        const hasKey = !!(data.has_key || (data.gemini_api_key && data.gemini_api_key.trim().length > 0));
+        const hasKey = !!(data.has_key || data.has_free_key || data.has_paid_key || data.has_openai_key || (data.gemini_api_key && data.gemini_api_key.trim().length > 0) || (data.gemini_api_key_paid && data.gemini_api_key_paid.trim().length > 0));
         const warnBanner = document.getElementById('ai-drawer-key-warning');
         if (warnBanner) {
           warnBanner.style.display = hasKey ? 'none' : 'flex';
@@ -3684,6 +3684,10 @@ const App = {
       if (tabProposalsCount) tabProposalsCount.textContent = '0';
       const fallbackCont = document.getElementById('ai-drawer-fallback-container');
       if (fallbackCont) { fallbackCont.innerHTML = ''; fallbackCont.style.display = 'none'; }
+      const thinkBadge = document.getElementById('ai-proposals-thinking-badge');
+      if (thinkBadge) thinkBadge.style.display = 'none';
+      const tierBadge = document.getElementById('ai-proposals-tier-badge');
+      if (tierBadge) tierBadge.style.display = 'none';
       return;
     }
     this.currentAIResult = data;
@@ -3702,6 +3706,39 @@ const App = {
     if (window.PDFStudio) {
       window.PDFStudio.setAIProposals(data.annotations || []);
     }
+
+    const thinkBadge = document.getElementById('ai-proposals-thinking-badge');
+    const tierBadge = document.getElementById('ai-proposals-tier-badge');
+    const fallbackCont = document.getElementById('ai-drawer-fallback-container');
+
+    if (thinkBadge) {
+      if (data.thinking_level_used) {
+        thinkBadge.textContent = data.thinking_level_used;
+        thinkBadge.style.display = 'inline-block';
+      } else {
+        thinkBadge.style.display = 'none';
+      }
+    }
+    if (tierBadge) {
+      if (data.key_tier_used) {
+        tierBadge.textContent = data.key_tier_used.toUpperCase();
+        tierBadge.style.display = 'inline-block';
+        tierBadge.style.background = data.key_tier_used === 'paid' ? 'rgba(245,158,11,0.18)' : 'rgba(16,185,129,0.18)';
+        tierBadge.style.color = data.key_tier_used === 'paid' ? '#d97706' : 'var(--accent-green)';
+      } else {
+        tierBadge.style.display = 'none';
+      }
+    }
+    if (fallbackCont) {
+      if (data.fallback_note) {
+        fallbackCont.innerHTML = `<div class="ai-fallback-alert" style="background:rgba(245,158,11,0.12); border:1px solid #f59e0b; color:#d97706; padding:6px 10px; border-radius:5px; font-size:0.75rem; margin-bottom:8px;">ℹ️ ${this.escape(data.fallback_note)}</div>`;
+        fallbackCont.style.display = 'block';
+      } else {
+        fallbackCont.innerHTML = '';
+        fallbackCont.style.display = 'none';
+      }
+    }
+
     this.updateAIDrawerLists();
   },
 
@@ -3743,7 +3780,13 @@ const App = {
     if (sumText) sumText.innerHTML = '<em>Probíhá hloubková analýza protokolu pomocí AI...</em>';
 
     try {
-      const resp = await fetch(`/api/protocols/${this.currentProtocol.id}/ai-analyze?mode=${mode}`, {
+      const thinkingSelect = document.getElementById('ai-drawer-thinking-select');
+      const thinkingLevel = thinkingSelect ? thinkingSelect.value : '';
+      let url = `/api/protocols/${this.currentProtocol.id}/ai-analyze?mode=${mode}`;
+      if (thinkingLevel) {
+        url += `&thinking_level=${encodeURIComponent(thinkingLevel)}`;
+      }
+      const resp = await fetch(url, {
         method: 'POST'
       });
       if (resp.ok) {
@@ -4393,10 +4436,11 @@ const App = {
     }
 
     try {
+      const chatThinkingVal = document.getElementById('ai-chat-thinking-select')?.value || undefined;
       const resp = await fetch(`/api/protocols/${this.currentProtocol.id}/ai/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text })
+        body: JSON.stringify({ message: text, thinking_level: chatThinkingVal })
       });
 
       const typingEl = document.getElementById('ai-chat-typing');
@@ -4434,11 +4478,33 @@ const App = {
         this.updateAllAIModelBadges(resData.model_used || resData.model);
       }
 
+      const chatThinkBadge = document.getElementById('ai-chat-thinking-badge');
+      if (chatThinkBadge) {
+        if (resData.thinking_level_used) {
+          chatThinkBadge.textContent = resData.thinking_level_used;
+          chatThinkBadge.style.display = 'inline-block';
+        } else {
+          chatThinkBadge.style.display = 'none';
+        }
+      }
+      const chatTierBadge = document.getElementById('ai-chat-tier-badge');
+      if (chatTierBadge) {
+        if (resData.key_tier_used) {
+          chatTierBadge.textContent = resData.key_tier_used.toUpperCase();
+          chatTierBadge.style.display = 'inline-block';
+          chatTierBadge.style.background = resData.key_tier_used === 'paid' ? 'rgba(245,158,11,0.18)' : 'rgba(16,185,129,0.18)';
+          chatTierBadge.style.color = resData.key_tier_used === 'paid' ? '#d97706' : 'var(--accent-green)';
+        } else {
+          chatTierBadge.style.display = 'none';
+        }
+      }
+
       if (container) {
         const assistantMsgEl = document.createElement('div');
         assistantMsgEl.className = 'ai-chat-msg assistant';
+        const fallbackNotice = resData.fallback_note ? `<div style="font-size:0.68rem; color:#d97706; margin-top:4px;">ℹ️ ${this.escape(resData.fallback_note)}</div>` : '';
         assistantMsgEl.innerHTML = `
-          <div class="ai-chat-bubble">${this.renderFormattedText(reply)}</div>
+          <div class="ai-chat-bubble">${this.renderFormattedText(reply)}${fallbackNotice}</div>
           <div class="ai-chat-time">${now}</div>
         `;
         container.appendChild(assistantMsgEl);
@@ -4642,6 +4708,15 @@ const App = {
 
         if (toggle) toggle.checked = !!data.ai_enabled;
         if (keyInput) keyInput.value = data.gemini_api_key || '';
+        const paidKeyInput = document.getElementById('ai-api-key-paid-input');
+        if (paidKeyInput) paidKeyInput.value = data.gemini_api_key_paid || '';
+
+        const keyModeSelect = document.getElementById('ai-key-mode-select');
+        if (keyModeSelect && data.gemini_key_mode) keyModeSelect.value = data.gemini_key_mode;
+
+        const thinkingSelect = document.getElementById('ai-thinking-level-select');
+        if (thinkingSelect && data.gemini_thinking_level) thinkingSelect.value = data.gemini_thinking_level;
+
         if (autoAnalyzeToggle) autoAnalyzeToggle.checked = (data.auto_analyze_on_upload !== false);
         if (langSelect && data.ai_language) langSelect.value = data.ai_language;
 
@@ -4667,15 +4742,28 @@ const App = {
         }
 
         if (keyStatus) {
-          if (data.has_key || (data.gemini_api_key && data.gemini_api_key.trim().length > 0)) {
-            const keyStr = data.gemini_api_key || '••••••••';
-            keyStatus.innerHTML = `✓ API klíč je nastaven (${keyStr.substring(0, 6)}...${keyStr.slice(-4)})`;
+          if (data.has_free_key || (data.gemini_api_key && data.gemini_api_key.trim().length > 0)) {
+            const keyStr = data.masked_free_key || data.gemini_api_key || '••••••••';
+            keyStatus.innerHTML = `✓ Free API klíč je nastaven (${keyStr})`;
             keyStatus.style.color = 'var(--accent-green)';
           } else {
-            keyStatus.innerHTML = `⚠️ API klíč není zadán – AI asistent nemůže fungovat bez Gemini API klíče.`;
+            keyStatus.innerHTML = `⚠️ Bezplatný API klíč není zadán.`;
             keyStatus.style.color = 'var(--accent-red)';
           }
         }
+
+        const paidKeyStatus = document.getElementById('ai-key-paid-status');
+        if (paidKeyStatus) {
+          if (data.has_paid_key || (data.gemini_api_key_paid && data.gemini_api_key_paid.trim().length > 0)) {
+            const keyStr = data.masked_paid_key || data.gemini_api_key_paid || '••••••••';
+            paidKeyStatus.innerHTML = `✓ Placený API klíč je nastaven (${keyStr})`;
+            paidKeyStatus.style.color = 'var(--accent-green)';
+          } else {
+            paidKeyStatus.innerHTML = `ℹ️ Placený záložní klíč není zadán (volitelné – zabraňuje výpadkům při vyčerpání Free kvóty).`;
+            paidKeyStatus.style.color = 'var(--text-muted)';
+          }
+        }
+
         this.checkAIKeyStatus();
       }
     } catch (e) {
@@ -4702,7 +4790,11 @@ const App = {
       }
     }
 
-    const apiKey = document.getElementById('ai-api-key-input').value.trim();
+    const apiKey = (document.getElementById('ai-api-key-input')?.value || '').trim();
+    const apiKeyPaid = (document.getElementById('ai-api-key-paid-input')?.value || '').trim();
+    const keyMode = document.getElementById('ai-key-mode-select')?.value || 'free_then_paid';
+    const thinkingLevel = document.getElementById('ai-thinking-level-select')?.value || 'MEDIUM';
+
     const modelSelect = document.getElementById('ai-model-select').value;
     const customModel = document.getElementById('ai-custom-model-input').value.trim();
     const autoAnalyze = document.getElementById('ai-auto-analyze-toggle').checked;
@@ -4720,6 +4812,9 @@ const App = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           gemini_api_key: apiKey,
+          gemini_api_key_paid: apiKeyPaid,
+          gemini_key_mode: keyMode,
+          gemini_thinking_level: thinkingLevel,
           ai_enabled: enabled,
           model_name: modelName,
           auto_analyze_on_upload: autoAnalyze,
@@ -4743,8 +4838,8 @@ const App = {
     }
   },
 
-  toggleApiKeyVisibility() {
-    const inp = document.getElementById('ai-api-key-input');
+  toggleApiKeyVisibility(targetId = 'ai-api-key-input') {
+    const inp = document.getElementById(targetId);
     if (inp) {
       inp.type = inp.type === 'password' ? 'text' : 'password';
     }
@@ -4759,17 +4854,21 @@ const App = {
       const resp = await fetch('/api/changelog');
       if (resp.ok) {
         const data = await resp.json();
-        let html = data.content
-          .replace(/^### (.*$)/gim, '<h5 style="margin-top:12px; margin-bottom:4px; color:var(--text-main); font-weight:700;">$1</h5>')
-          .replace(/^## (.*$)/gim, '<h4 style="margin-top:16px; margin-bottom:6px; color:var(--primary); font-weight:800; border-bottom:1px solid var(--border); padding-bottom:4px;">$1</h4>')
-          .replace(/^# (.*$)/gim, '<h3 style="margin-bottom:8px; color:var(--text-main);">$1</h3>')
-          .replace(/^\* (.*$)/gim, '<li style="margin-left:16px;">$1</li>')
-          .replace(/^- (.*$)/gim, '<li style="margin-left:16px;">$1</li>')
-          .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
-          .replace(/\*(.*?)\*/gim, '<em>$1</em>')
-          .replace(/`([^`]+)`/gim, '<code style="background:var(--bg); border:1px solid var(--border); padding:1px 4px; border-radius:3px; font-family:\'JetBrains Mono\'; font-size:0.85em;">$1</code>');
-        
-        container.innerHTML = html;
+        if (window.marked && typeof window.marked.parse === 'function') {
+          container.innerHTML = window.marked.parse(data.content);
+        } else {
+          let html = data.content
+            .replace(/^#### (.*$)/gim, '<h5 style="margin-top:10px; margin-bottom:4px; color:var(--text-main); font-weight:700;">$1</h5>')
+            .replace(/^### (.*$)/gim, '<h4 style="margin-top:12px; margin-bottom:4px; color:var(--primary); font-weight:700;">$1</h4>')
+            .replace(/^## (.*$)/gim, '<h3 style="margin-top:16px; margin-bottom:6px; color:var(--primary); font-weight:800; border-bottom:1px solid var(--border); padding-bottom:4px;">$1</h3>')
+            .replace(/^# (.*$)/gim, '<h2 style="margin-bottom:8px; color:var(--text-main); font-weight:800;">$1</h2>')
+            .replace(/^\* (.*$)/gim, '<li style="margin-left:16px;">$1</li>')
+            .replace(/^- (.*$)/gim, '<li style="margin-left:16px;">$1</li>')
+            .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/gim, '<em>$1</em>')
+            .replace(/`([^`]+)`/gim, (m, p1) => `<code style="background:var(--bg); border:1px solid var(--border); padding:1px 4px; border-radius:3px; font-family:'JetBrains Mono'; font-size:0.85em;">${p1.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code>`);
+          container.innerHTML = html;
+        }
       } else {
         container.innerHTML = `<span style="color:var(--text-muted);">Nelze načíst historii změn.</span>`;
       }

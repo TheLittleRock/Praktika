@@ -2,10 +2,12 @@ import os
 import re
 import json
 import base64
+import asyncio
+import random
 import httpx
 import fitz
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from app.database import get_db, log_event
 from app.models import AIAnalysisResult, AIDeductionSuggestion, AIAnnotationSuggestion, AIChatMessage, AIChatResponse
 
@@ -97,7 +99,9 @@ def save_ai_setting(key: str, value: str):
     conn.commit()
     conn.close()
 
-def get_gemini_api_key() -> str:
+def get_gemini_api_key(user: Optional[dict] = None) -> str:
+    if user and user.get("custom_gemini_api_key"):
+        return user["custom_gemini_api_key"].strip()
     val = get_ai_setting("gemini_api_key", "")
     if val:
         return val
@@ -105,6 +109,166 @@ def get_gemini_api_key() -> str:
 
 def save_gemini_api_key(key: str):
     save_ai_setting("gemini_api_key", key)
+
+def get_gemini_paid_key(user: Optional[dict] = None) -> str:
+    if user and user.get("custom_gemini_api_key_paid"):
+        return user["custom_gemini_api_key_paid"].strip()
+    val = get_ai_setting("gemini_api_key_paid", "")
+    if val:
+        return val
+    return os.environ.get("GEMINI_API_KEY_PAID", "").strip()
+
+def save_gemini_paid_key(key: str):
+    save_ai_setting("gemini_api_key_paid", key)
+
+def get_gemini_key_mode() -> str:
+    mode = get_ai_setting("gemini_key_mode", "").strip().lower()
+    if mode in ("free_then_paid", "free_only", "paid_only"):
+        return mode
+    free_k = get_gemini_api_key()
+    paid_k = get_gemini_paid_key()
+    if free_k and paid_k:
+        return "free_then_paid"
+    elif paid_k and not free_k:
+        return "paid_only"
+    return "free_only"
+
+def save_gemini_key_mode(mode: str):
+    m = (mode or "free_then_paid").strip().lower()
+    if m in ("free_then_paid", "free_only", "paid_only"):
+        save_ai_setting("gemini_key_mode", m)
+
+def get_gemini_thinking_level(mode_type: str = "analysis") -> str:
+    val = get_ai_setting("gemini_thinking_level", "").strip().upper()
+    if val in ("MINIMAL", "LOW", "MEDIUM", "HIGH", "XHIGH"):
+        return val
+    return "HIGH" if mode_type == "chat" else "MEDIUM"
+
+def save_gemini_thinking_level(level: str):
+    lvl = (level or "MEDIUM").strip().upper()
+    if lvl in ("MINIMAL", "LOW", "MEDIUM", "HIGH", "XHIGH"):
+        save_ai_setting("gemini_thinking_level", lvl)
+
+def build_gemini_generation_config(
+    model_name: str,
+    desired_level: Optional[str] = None,
+    response_mime_type: str = "application/json"
+) -> dict:
+    """
+    Builds generationConfig safely per model family so invalid thinkingLevel never causes HTTP 400.
+    - gemini-4-*: supports LOW, MEDIUM, HIGH, XHIGH (clamp MINIMAL -> LOW; omit temperature)
+    - gemini-3.8-*: supports LOW, MEDIUM, HIGH (clamp MINIMAL -> LOW, XHIGH -> HIGH; omit temperature)
+    - gemini-3.6-*, gemini-3.5-*, gemini-3.1-*: supports MINIMAL, LOW, MEDIUM, HIGH (clamp XHIGH -> HIGH; omit temperature)
+    - Legacy / *-latest aliases: include temperature: 0.35 only if needed and handle HTTP 400 defensively.
+    """
+    level = (desired_level or "MEDIUM").strip().upper()
+    if level not in ("MINIMAL", "LOW", "MEDIUM", "HIGH", "XHIGH"):
+        level = "MEDIUM"
+
+    m = (model_name or "").lower().strip()
+
+    if "gemini-4" in m:
+        clamped = "LOW" if level == "MINIMAL" else level
+        return {
+            "response_mime_type": response_mime_type,
+            "thinkingConfig": {"thinkingLevel": clamped}
+        }
+    elif "gemini-3.8" in m:
+        if level == "MINIMAL":
+            clamped = "LOW"
+        elif level == "XHIGH":
+            clamped = "HIGH"
+        else:
+            clamped = level
+        return {
+            "response_mime_type": response_mime_type,
+            "thinkingConfig": {"thinkingLevel": clamped}
+        }
+    elif any(x in m for x in ("gemini-3.6", "gemini-3.5", "gemini-3.1")):
+        clamped = "HIGH" if level == "XHIGH" else level
+        return {
+            "response_mime_type": response_mime_type,
+            "thinkingConfig": {"thinkingLevel": clamped}
+        }
+    else:
+        clamped = "HIGH" if level == "XHIGH" else level
+        if clamped == "MINIMAL":
+            clamped = "LOW"
+        return {
+            "response_mime_type": response_mime_type,
+            "temperature": 0.35,
+            "thinkingConfig": {"thinkingLevel": clamped}
+        }
+
+def get_key_tiers_to_try(user: Optional[dict] = None, custom_key: Optional[str] = None) -> List[Tuple[str, str]]:
+    """Returns list of (key_tier, api_key) pairs to try based on key_mode and available keys."""
+    if custom_key and custom_key.strip():
+        return [("custom", custom_key.strip())]
+
+    free_key = get_gemini_api_key(user)
+    paid_key = get_gemini_paid_key(user)
+    mode = get_gemini_key_mode()
+
+    tiers: List[Tuple[str, str]] = []
+    if mode == "paid_only":
+        if paid_key:
+            tiers.append(("paid", paid_key))
+        elif free_key:
+            tiers.append(("free", free_key))
+    elif mode == "free_only":
+        if free_key:
+            tiers.append(("free", free_key))
+    else:  # "free_then_paid"
+        if free_key:
+            tiers.append(("free", free_key))
+        if paid_key:
+            tiers.append(("paid", paid_key))
+
+    return tiers
+
+def extract_gemini_response_text(data: dict) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Safely extracts text content from Gemini API response dictionary.
+    Returns (text_content, error_message).
+    """
+    if not isinstance(data, dict):
+        return None, "Neplatný formát odpovědi (není JSON slovník)."
+
+    candidates = data.get("candidates")
+    if not candidates or not isinstance(candidates, list) or len(candidates) == 0:
+        feedback = data.get("promptFeedback", {})
+        block_reason = feedback.get("blockReason")
+        if block_reason:
+            return None, f"Dotaz byl zablokován bezpečnostním filtrem Gemini ({block_reason})."
+        return None, "Model Gemini vrátil prázdný seznam kandidátů (žádná odpověď)."
+
+    cand = candidates[0]
+    if not isinstance(cand, dict):
+        return None, "Kandidát v odpovědi nemá platný formát."
+
+    finish_reason = cand.get("finishReason")
+    if finish_reason == "MAX_TOKENS":
+        return None, "Odpověď modelu byla useknuta z důvodu dosažení maximálního počtu tokenů (MAX_TOKENS)."
+    elif finish_reason in ("SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT"):
+        return None, f"Odpověď modelu byla zablokována bezpečnostním filtrem ({finish_reason})."
+
+    content = cand.get("content", {})
+    if not isinstance(content, dict):
+        return None, f"Chybí obsah v odpovědi kandidáta (finishReason: {finish_reason or 'neuveden'})."
+
+    parts = content.get("parts", [])
+    if not parts or not isinstance(parts, list) or len(parts) == 0:
+        return None, f"Odpověď modelu neobsahuje žádné části (finishReason: {finish_reason or 'neuveden'})."
+
+    first_part = parts[0]
+    if not isinstance(first_part, dict) or "text" not in first_part:
+        return None, f"V odpovědi modelu chybí text (finishReason: {finish_reason or 'neuveden'})."
+
+    text_val = first_part.get("text", "")
+    if not text_val or not str(text_val).strip():
+        return None, f"Textová odpověď modelu je prázdná (finishReason: {finish_reason or 'neuveden'})."
+
+    return str(text_val).strip(), None
 
 def repair_json_latex(raw: str) -> str:
     """
@@ -310,27 +474,34 @@ Napiš to stručně, jasně, v bodech a odrážkách, bez zbytečné omáčky.
         except Exception as e:
             print(f"Error generating rubric with OpenAI provider: {e}")
 
-    api_key = get_gemini_api_key()
-    if not api_key:
+    key_tiers = get_key_tiers_to_try(user)
+    if not key_tiers:
         return raw_text[:20000]
 
     models_to_try = get_candidate_models()
-    for m in models_to_try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent?key={api_key}"
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                resp = await client.post(url, json={
-                    "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": 0.2}
-                })
-                if resp.status_code == 200:
-                    data = resp.json()
-                    rubric = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-                    if rubric:
-                        return rubric
-        except Exception as e:
-            print(f"Error generating rubric with {m}:", e)
-            continue
+    for tier_name, api_key in key_tiers:
+        for m in models_to_try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent?key={api_key}"
+            cfg = build_gemini_generation_config(m, "MEDIUM", "text/plain")
+            try:
+                async with httpx.AsyncClient(timeout=90.0) as client:
+                    resp = await client.post(url, json={
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": cfg
+                    })
+                    if resp.status_code == 400 and "thinkingConfig" in cfg:
+                        resp = await client.post(url, json={
+                            "contents": [{"parts": [{"text": prompt}]}],
+                            "generationConfig": {"response_mime_type": "text/plain", "temperature": 0.2}
+                        })
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        rubric, extract_err = extract_gemini_response_text(data)
+                        if rubric:
+                            return rubric
+            except Exception as e:
+                print(f"Error generating rubric with {m} ({tier_name}):", e)
+                continue
     return raw_text[:20000]
 
 async def run_background_ai_analysis(proto_id: int):
@@ -346,20 +517,29 @@ async def run_background_ai_analysis(proto_id: int):
 
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("UPDATE protocols SET ai_proposals_json = ?, ai_status = 'ready' WHERE id = ?", (json.dumps(res.dict(), ensure_ascii=False), proto_id))
+        dumped = res.model_dump() if hasattr(res, "model_dump") else res.dict()
+        cur.execute("UPDATE protocols SET ai_proposals_json = ?, ai_status = 'ready' WHERE id = ?", (json.dumps(dumped, ensure_ascii=False), proto_id))
         conn.commit()
         conn.close()
     except Exception as e:
-        print(f"Background AI analysis failed for protocol {proto_id}:", e)
+        err_msg = str(e)
+        print(f"Background AI analysis failed for protocol {proto_id}:", err_msg)
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("UPDATE protocols SET ai_status = 'failed' WHERE id = ?", (proto_id,))
+        err_payload = json.dumps({"error": err_msg, "failed_at": datetime.now().isoformat()}, ensure_ascii=False)
+        cur.execute("UPDATE protocols SET ai_status = 'failed', ai_proposals_json = ? WHERE id = ?", (err_payload, proto_id))
         conn.commit()
         conn.close()
 
-async def analyze_protocol(proto_id: int, custom_key: Optional[str] = None, custom_model: Optional[str] = None, language: Optional[str] = None, user: Optional[dict] = None) -> AIAnalysisResult:
+async def analyze_protocol(
+    proto_id: int, 
+    custom_key: Optional[str] = None, 
+    custom_model: Optional[str] = None, 
+    language: Optional[str] = None, 
+    user: Optional[dict] = None,
+    thinking_level: Optional[str] = None
+) -> AIAnalysisResult:
     provider = get_ai_provider(user)
-    api_key = (custom_key or "").strip() or get_gemini_api_key()
 
     target_lang = (language or get_ai_setting("ai_language", "cs")).strip().lower()
     if target_lang == "sk":
@@ -414,10 +594,6 @@ async def analyze_protocol(proto_id: int, custom_key: Optional[str] = None, cust
         t = page.get_text()
         pages_text.append(f"--- STRANA {idx + 1} ---\n{t}")
     combined_text = "\n\n".join(pages_text)
-
-    # Ensure Gemini API key is configured
-    if not api_key:
-        raise ValueError("Není nastaven platný API klíč pro Google Gemini. Zadejte jej prosím v Nastavení -> AI Asistent.")
 
     instructions = ""
     try:
@@ -605,7 +781,7 @@ ZÁVAZNÁ PRAVIDLA:
             messages=messages,
             temperature=0.35,
             json_mode=True,
-            timeout=50.0,
+            timeout=90.0,
             user=user
         )
         parsed = robust_json_loads(res["content"])
@@ -621,8 +797,23 @@ ZÁVAZNÁ PRAVIDLA:
             doc, 
             model_used=f"OpenAI-Compatible ({res['model']})",
             preferred_model=res['model'],
-            fallback_note=None
+            fallback_note=None,
+            key_tier_used="openai",
+            thinking_level_used=None
         )
+
+    key_tiers = get_key_tiers_to_try(user, custom_key)
+    if not key_tiers:
+        raise ValueError("Není nastaven platný API klíč pro Google Gemini (ani bezplatný, ani placený). Zadejte jej prosím v Nastavení -> AI Asistent.")
+
+    desired_thinking = (thinking_level or get_gemini_thinking_level("analysis")).strip().upper()
+    preferred_model = (custom_model or get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-4-hydrogen")).strip()
+    all_candidates = get_candidate_models(custom_model)
+    # Try preferred model + at most 1 fallback model to keep execution quick and avoid timeouts
+    models_to_try = [preferred_model]
+    for m in all_candidates:
+        if m not in models_to_try and len(models_to_try) < 2:
+            models_to_try.append(m)
 
     parts = []
     if pdf_b64:
@@ -634,95 +825,103 @@ ZÁVAZNÁ PRAVIDLA:
         })
     parts.append({"text": prompt})
 
-    payload = {
-        "contents": [{"parts": parts}],
-        "generationConfig": {
-            "response_mime_type": "application/json",
-            "temperature": 0.35
-        }
-    }
-
-    preferred_model = (custom_model or get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.8-flash")).strip()
-    all_candidates = get_candidate_models(custom_model)
-    # Try preferred model + at most 1 fallback model to keep execution quick and avoid 504 Gateway Timeout
-    models_to_try = [preferred_model]
-    for m in all_candidates:
-        if m not in models_to_try and len(models_to_try) < 2:
-            models_to_try.append(m)
     last_error = None
     fallback_note = None
 
-    for model_name in models_to_try:
-        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-        # Retry once on transient 503/429 for preferred model; no extra retry for fallback to respect timeout
-        max_attempts = 2 if model_name == preferred_model else 1
-        for attempt in range(max_attempts):
-            try:
-                async with httpx.AsyncClient(timeout=50.0) as client:
-                    resp = await client.post(gemini_url, json=payload)
-                    if resp.status_code == 400 and pdf_b64:
-                        # Fallback to text-only payload if multimodal inline_data is rejected
-                        text_payload = {
-                            "contents": [{"parts": [{"text": prompt}]}],
-                            "generationConfig": payload["generationConfig"]
-                        }
-                        resp = await client.post(gemini_url, json=text_payload)
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-                        parsed = robust_json_loads(raw_text)
-                        
-                        if model_name != preferred_model and last_error:
-                            fallback_note = f"Požadovaný model '{preferred_model}' vrátil {last_error}. Byla použita záloha '{model_name}'."
+    for tier_name, api_key in key_tiers:
+        for model_name in models_to_try:
+            cfg = build_gemini_generation_config(model_name, desired_thinking, "application/json")
+            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+            payload = {
+                "contents": [{"parts": parts}],
+                "generationConfig": cfg
+            }
+            # Retry once on transient 503/429 for preferred model; no extra retry for fallback to respect timeout
+            max_attempts = 2 if model_name == preferred_model else 1
+            for attempt in range(max_attempts):
+                try:
+                    async with httpx.AsyncClient(timeout=90.0) as client:
+                        resp = await client.post(gemini_url, json=payload)
+                        if resp.status_code == 400 and "thinkingConfig" in cfg:
+                            # Defensive retry without thinkingConfig if model rejects it
+                            fallback_cfg = dict(cfg)
+                            fallback_cfg.pop("thinkingConfig", None)
+                            fallback_cfg["temperature"] = 0.35
+                            resp = await client.post(gemini_url, json={
+                                "contents": [{"parts": parts}],
+                                "generationConfig": fallback_cfg
+                            })
+                        if resp.status_code == 400 and pdf_b64:
+                            # Fallback to text-only payload if multimodal inline_data is rejected
+                            text_payload = {
+                                "contents": [{"parts": [{"text": prompt}]}],
+                                "generationConfig": cfg
+                            }
+                            resp = await client.post(gemini_url, json=text_payload)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            raw_text, extract_err = extract_gemini_response_text(data)
+                            if extract_err or not raw_text:
+                                last_error = f"{model_name} ({tier_name}): {extract_err or 'Prázdný text'}"
+                                continue
+                            parsed = robust_json_loads(raw_text)
 
-                        log_event(
-                            level="INFO",
-                            category="ai",
-                            action="ai_analysis_success",
-                            details=f"Úspěšná AI analýza protokolu #{proto_id} modelem {model_name} ({len(parsed.get('annotations', []))} anotací, {len(parsed.get('deductions', []))} srážek)."
-                        )
+                            notes = []
+                            if tier_name == "paid" and len(key_tiers) > 1:
+                                notes.append("Placený API klíč (Paid tier fallback)")
+                            if model_name != preferred_model:
+                                notes.append(f"Záložní model '{model_name}' (požadovaný '{preferred_model}' selhal: {last_error})")
+                            fallback_note = "; ".join(notes) if notes else None
 
-                        return build_resolved_result(
-                            proto_id, 
-                            parsed, 
-                            doc, 
-                            model_used=f"Google Gemini ({model_name})",
-                            preferred_model=preferred_model,
-                            fallback_note=fallback_note
-                        )
-                    elif resp.status_code in [503, 429]:
-                        err_msg = ""
-                        try:
-                            err_msg = resp.json().get("error", {}).get("message", "")
-                        except Exception:
-                            err_msg = resp.text[:200]
-                        last_error = f"HTTP {resp.status_code} ({err_msg or ('model je dočasně přetížen' if resp.status_code == 503 else 'vyčerpaný limit kvóty')})"
-                        if attempt == 0 and max_attempts > 1:
-                            import asyncio
-                            await asyncio.sleep(1.2)
-                            continue
-                        break
-                    else:
-                        err_msg = ""
-                        try:
-                            err_msg = resp.json().get("error", {}).get("message", "")
-                        except Exception:
-                            err_msg = resp.text[:300]
-                        last_error = f"HTTP {resp.status_code}: {err_msg}"
-                        break
-            except Exception as e:
-                err_msg = str(e).strip() or type(e).__name__
-                if isinstance(e, httpx.TimeoutException):
-                    err_msg = "vypršel časový limit (timeout po 50 s)"
-                last_error = f"chyba spojení ({err_msg})"
-                print(f"Exception connecting to {model_name} (attempt {attempt+1}):", err_msg)
-                if attempt == 0 and max_attempts > 1:
-                    import asyncio
-                    await asyncio.sleep(1.0)
-                    continue
-                break
+                            log_event(
+                                level="INFO",
+                                category="ai",
+                                action="ai_analysis_success",
+                                details=f"Úspěšná AI analýza protokolu #{proto_id} modelem {model_name} ({tier_name} klíč, {len(parsed.get('annotations', []))} anotací, {len(parsed.get('deductions', []))} srážek)."
+                            )
 
-    err_final = f"AI asistent nemohl protokol vyhodnotit. Modely ({', '.join(models_to_try)}) selhaly: {last_error or 'Chyba připojení nebo vyčerpaná kvóta'}."
+                            effective_thinking = cfg.get("thinkingConfig", {}).get("thinkingLevel") or desired_thinking
+                            return build_resolved_result(
+                                proto_id, 
+                                parsed, 
+                                doc, 
+                                model_used=f"Google Gemini ({model_name})",
+                                preferred_model=preferred_model,
+                                fallback_note=fallback_note,
+                                key_tier_used=tier_name,
+                                thinking_level_used=effective_thinking
+                            )
+                        elif resp.status_code in [503, 429]:
+                            err_msg = ""
+                            try:
+                                err_msg = resp.json().get("error", {}).get("message", "")
+                            except Exception:
+                                err_msg = resp.text[:200]
+                            last_error = f"HTTP {resp.status_code} ({tier_name} klíč, {model_name}: {err_msg or ('model je dočasně přetížen' if resp.status_code == 503 else 'vyčerpaný limit kvóty')})"
+                            if attempt == 0 and max_attempts > 1:
+                                await asyncio.sleep(1.0 + random.uniform(0.1, 0.4))
+                                continue
+                            break
+                        else:
+                            err_msg = ""
+                            try:
+                                err_msg = resp.json().get("error", {}).get("message", "")
+                            except Exception:
+                                err_msg = resp.text[:300]
+                            last_error = f"HTTP {resp.status_code} ({tier_name} klíč, {model_name}): {err_msg}"
+                            break
+                except Exception as e:
+                    err_msg = str(e).strip() or type(e).__name__
+                    if isinstance(e, httpx.TimeoutException):
+                        err_msg = "vypršel časový limit (timeout po 90 s)"
+                    last_error = f"chyba spojení ({tier_name} klíč, {model_name}: {err_msg})"
+                    print(f"Exception connecting to {model_name} ({tier_name}, attempt {attempt+1}):", err_msg)
+                    if attempt == 0 and max_attempts > 1:
+                        await asyncio.sleep(0.8 + random.uniform(0.1, 0.3))
+                        continue
+                    break
+
+    err_final = f"AI asistent nemohl protokol vyhodnotit. Zkoušené klíče a modely ({', '.join(models_to_try)}) selhaly: {last_error or 'Chyba připojení nebo vyčerpaná kvóta'}."
     log_event(
         level="ERROR",
         category="ai",
@@ -802,7 +1001,16 @@ def resolve_single_annotation(a: dict, doc: fitz.Document, idx: int, proto_id: i
         point=point
     )
 
-def build_resolved_result(proto_id: int, parsed: dict, doc: fitz.Document, model_used: str = "Gemini Flash", preferred_model: Optional[str] = None, fallback_note: Optional[str] = None) -> AIAnalysisResult:
+def build_resolved_result(
+    proto_id: int, 
+    parsed: dict, 
+    doc: fitz.Document, 
+    model_used: str = "Gemini Flash", 
+    preferred_model: Optional[str] = None, 
+    fallback_note: Optional[str] = None,
+    key_tier_used: Optional[str] = None,
+    thinking_level_used: Optional[str] = None
+) -> AIAnalysisResult:
     scores = parsed.get("scores", {"vysledky": 2.25, "diskuze": 2.0, "format": 1.5, "chyby": 1.5, "total_points": 7.25})
     raw_deductions = parsed.get("deductions", [])
     raw_annotations = parsed.get("annotations", [])
@@ -858,7 +1066,9 @@ def build_resolved_result(proto_id: int, parsed: dict, doc: fitz.Document, model
         summary=summary,
         model_used=model_used,
         preferred_model=preferred_model,
-        fallback_note=fallback_note
+        fallback_note=fallback_note,
+        key_tier_used=key_tier_used,
+        thinking_level_used=thinking_level_used
     )
 
 def merge_ai_results(existing_data: dict, new_result: AIAnalysisResult) -> AIAnalysisResult:
@@ -935,7 +1145,9 @@ def merge_ai_results(existing_data: dict, new_result: AIAnalysisResult) -> AIAna
         summary=summary,
         model_used=new_result.model_used,
         preferred_model=new_result.preferred_model,
-        fallback_note=new_result.fallback_note
+        fallback_note=new_result.fallback_note,
+        key_tier_used=new_result.key_tier_used,
+        thinking_level_used=new_result.thinking_level_used
     )
 
 async def chat_with_ai(
@@ -944,13 +1156,15 @@ async def chat_with_ai(
     custom_key: Optional[str] = None, 
     custom_model: Optional[str] = None, 
     language: Optional[str] = None,
-    user: Optional[dict] = None
+    user: Optional[dict] = None,
+    thinking_level: Optional[str] = None
 ) -> AIChatResponse:
     """Interactively process a question or grading assignment task in AI chat for a given protocol."""
     provider = get_ai_provider(user)
-    api_key = (custom_key or "").strip() or get_gemini_api_key()
-    if not api_key:
-        raise ValueError("Není nastaven platný API klíč pro Google Gemini. Zadejte jej prosím v Nastavení -> AI Asistent.")
+    models_to_try: List[str] = []
+    key_tier_used: Optional[str] = None
+    thinking_level_used: Optional[str] = None
+    fallback_note: Optional[str] = None
 
     target_lang = (language or get_ai_setting("ai_language", "cs")).strip().lower()
     if target_lang == "sk":
@@ -1072,6 +1286,8 @@ ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
     successful_model = None
 
     if provider == "openai_compatible":
+        model_name = user.get("custom_openai_model") or get_ai_setting("openai_model", "llama-3.3-70b-versatile")
+        models_to_try = [model_name]
         messages = [
             {"role": "system", "content": "Jsi zkušený vysokoškolský pedagog a asistent ve fyzikálním praktiku. Odpovídej věcně a pomáhej hodnotiteli s kontrolou protokolu. Výstup odevzdávej výhradně jako validní JSON objekt dle specifikace."},
             {"role": "user", "content": prompt}
@@ -1080,12 +1296,27 @@ ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
             messages=messages,
             temperature=0.3,
             json_mode=True,
-            timeout=50.0,
+            timeout=60.0,
             user=user
         )
         raw_response = robust_json_loads(res["content"])
         successful_model = f"OpenAI-Compatible ({res['model']})"
+        key_tier_used = "openai"
+        thinking_level_used = None
     else:
+        key_tiers = get_key_tiers_to_try(user, custom_key)
+        if not key_tiers:
+            conn.close()
+            raise ValueError("Není nastaven platný API klíč pro Google Gemini (ani bezplatný, ani placený). Zadejte jej prosím v Nastavení -> AI Asistent.")
+
+        desired_thinking = (thinking_level or get_gemini_thinking_level("chat")).strip().upper()
+        preferred_model = (custom_model or get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-4-hydrogen")).strip()
+        all_candidates = get_candidate_models(custom_model)
+        models_to_try = [preferred_model]
+        for m in all_candidates:
+            if m not in models_to_try and len(models_to_try) < 2:
+                models_to_try.append(m)
+
         chat_parts = []
         if pdf_b64:
             chat_parts.append({
@@ -1096,77 +1327,90 @@ ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
             })
         chat_parts.append({"text": prompt})
 
-        payload = {
-            "contents": [{"parts": chat_parts}],
-            "generationConfig": {
-                "response_mime_type": "application/json",
-                "temperature": 0.3
-            }
-        }
+        for tier_name, api_key in key_tiers:
+            for model_name in models_to_try:
+                cfg = build_gemini_generation_config(model_name, desired_thinking, "application/json")
+                payload = {
+                    "contents": [{"parts": chat_parts}],
+                    "generationConfig": cfg
+                }
+                gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+                max_attempts = 2 if model_name == preferred_model else 1
 
-        preferred_model = (custom_model or get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-3.8-flash")).strip()
-        all_candidates = get_candidate_models(custom_model)
-        models_to_try = [preferred_model]
-        for m in all_candidates:
-            if m not in models_to_try and len(models_to_try) < 2:
-                models_to_try.append(m)
+                for attempt in range(max_attempts):
+                    try:
+                        async with httpx.AsyncClient(timeout=60.0) as client:
+                            resp = await client.post(gemini_url, json=payload)
+                            if resp.status_code == 400 and "thinkingConfig" in cfg:
+                                fallback_cfg = dict(cfg)
+                                fallback_cfg.pop("thinkingConfig", None)
+                                fallback_cfg["temperature"] = 0.3
+                                resp = await client.post(gemini_url, json={
+                                    "contents": [{"parts": chat_parts}],
+                                    "generationConfig": fallback_cfg
+                                })
+                            if resp.status_code == 400 and pdf_b64:
+                                # Fallback to text-only payload if multimodal inline_data is rejected
+                                text_payload = {
+                                    "contents": [{"parts": [{"text": prompt}]}],
+                                    "generationConfig": cfg
+                                }
+                                resp = await client.post(gemini_url, json=text_payload)
+                            if resp.status_code == 200:
+                                data = resp.json()
+                                raw_text, extract_err = extract_gemini_response_text(data)
+                                if extract_err or not raw_text:
+                                    last_error = f"{model_name} ({tier_name}): {extract_err or 'Prázdný text'}"
+                                    continue
+                                raw_response = robust_json_loads(raw_text)
+                                successful_model = model_name
+                                key_tier_used = tier_name
+                                thinking_level_used = cfg.get("thinkingConfig", {}).get("thinkingLevel") or desired_thinking
 
-        for model_name in models_to_try:
-            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-            max_attempts = 2 if model_name == preferred_model else 1
-            for attempt in range(max_attempts):
-                try:
-                    async with httpx.AsyncClient(timeout=45.0) as client:
-                        resp = await client.post(gemini_url, json=payload)
-                        if resp.status_code == 400 and pdf_b64:
-                            # Fallback to text-only payload if multimodal inline_data is rejected
-                            text_payload = {
-                                "contents": [{"parts": [{"text": prompt}]}],
-                                "generationConfig": payload["generationConfig"]
-                            }
-                            resp = await client.post(gemini_url, json=text_payload)
-                        if resp.status_code == 200:
-                            data = resp.json()
-                            raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-                            raw_response = robust_json_loads(raw_text)
-                            successful_model = model_name
-                            break
-                        elif resp.status_code in [503, 429]:
-                            err_msg = ""
-                            try:
-                                err_msg = resp.json().get("error", {}).get("message", "")
-                            except Exception:
-                                err_msg = resp.text[:200]
-                            last_error = f"Model {model_name} vrátil HTTP {resp.status_code} ({err_msg or ('model je dočasně přetížen' if resp.status_code == 503 else 'vyčerpaný limit kvóty')})"
-                            if attempt == 0 and max_attempts > 1:
-                                import asyncio
-                                await asyncio.sleep(1.0)
-                                continue
-                            break
-                        else:
-                            err_msg = ""
-                            try:
-                                err_msg = resp.json().get("error", {}).get("message", "")
-                            except Exception:
-                                err_msg = resp.text[:300]
-                            last_error = f"Model {model_name} vrátil HTTP {resp.status_code}: {err_msg}"
-                            break
-                except Exception as e:
-                    err_msg = str(e).strip() or type(e).__name__
-                    if isinstance(e, httpx.TimeoutException):
-                        err_msg = "vypršel časový limit (timeout po 45 s)"
-                    last_error = f"Model {model_name} selhal na chybě spojení ({err_msg})"
-                    if attempt == 0 and max_attempts > 1:
-                        import asyncio
-                        await asyncio.sleep(0.8)
-                        continue
+                                notes = []
+                                if tier_name == "paid" and len(key_tiers) > 1:
+                                    notes.append("Placený API klíč (Paid tier fallback)")
+                                if model_name != preferred_model:
+                                    notes.append(f"Záložní model '{model_name}' (místo '{preferred_model}')")
+                                fallback_note = "; ".join(notes) if notes else None
+                                break
+                            elif resp.status_code in [503, 429]:
+                                err_msg = ""
+                                try:
+                                    err_msg = resp.json().get("error", {}).get("message", "")
+                                except Exception:
+                                    err_msg = resp.text[:200]
+                                last_error = f"Model {model_name} ({tier_name} klíč) vrátil HTTP {resp.status_code} ({err_msg or ('model je dočasně přetížen' if resp.status_code == 503 else 'vyčerpaný limit kvóty')})"
+                                if attempt == 0 and max_attempts > 1:
+                                    await asyncio.sleep(1.0 + random.uniform(0.1, 0.4))
+                                    continue
+                                break
+                            else:
+                                err_msg = ""
+                                try:
+                                    err_msg = resp.json().get("error", {}).get("message", "")
+                                except Exception:
+                                    err_msg = resp.text[:300]
+                                last_error = f"Model {model_name} ({tier_name} klíč) vrátil HTTP {resp.status_code}: {err_msg}"
+                                break
+                    except Exception as e:
+                        err_msg = str(e).strip() or type(e).__name__
+                        if isinstance(e, httpx.TimeoutException):
+                            err_msg = "vypršel časový limit (timeout po 60 s)"
+                        last_error = f"Model {model_name} ({tier_name} klíč) selhal na chybě spojení ({err_msg})"
+                        if attempt == 0 and max_attempts > 1:
+                            await asyncio.sleep(0.8 + random.uniform(0.1, 0.3))
+                            continue
+                        break
+                if raw_response:
                     break
             if raw_response:
                 break
 
     if not raw_response or not isinstance(raw_response, dict):
         conn.close()
-        err_final = f"AI asistent neodpověděl. Zkoušené modely ({', '.join(models_to_try)}) selhaly: {last_error or 'Neznámá chyba'}"
+        models_str = ", ".join(models_to_try) if models_to_try else "žádný model"
+        err_final = f"AI asistent neodpověděl. Zkoušené modely ({models_str}) selhaly: {last_error or 'Neznámá chyba'}"
         log_event(
             level="ERROR",
             category="ai",
@@ -1236,7 +1480,10 @@ ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
         annotations=resolved_annots,
         history=[AIChatMessage(**m) for m in chat_history],
         model_used=successful_model,
-        model=successful_model
+        model=successful_model,
+        key_tier_used=key_tier_used,
+        thinking_level_used=thinking_level_used,
+        fallback_note=fallback_note
     )
 
 def get_protocol_chat_history(proto_id: int) -> List[AIChatMessage]:

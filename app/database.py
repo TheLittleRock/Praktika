@@ -416,6 +416,11 @@ def init_db():
         pass
 
     try:
+        cur.execute("ALTER TABLE users ADD COLUMN custom_gemini_api_key_paid TEXT DEFAULT NULL")
+    except Exception:
+        pass
+
+    try:
         cur.execute("ALTER TABLE slots ADD COLUMN course_code TEXT NOT NULL DEFAULT 'FPRA1'")
     except Exception:
         pass

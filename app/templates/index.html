@@ -425,7 +425,7 @@
                 <div style="position:relative; display:inline-flex;" id="ai-run-dropdown-wrapper">
                   <button class="btn btn-secondary btn-sm" id="btn-run-ai-action" onclick="App.runAIAnalysis('merge')" title="Spustit doplňující AI analýzu (přidat nové chyby)">↻ Spustit</button>
                   <button class="btn btn-secondary btn-sm" id="btn-run-ai-menu" onclick="App.toggleAIRunMenu(event)" style="padding:0 5px; margin-left:-2px;" title="Možnosti spuštění AI">▾</button>
-                  <div class="dropdown-menu" id="ai-run-menu" style="display:none; position:absolute; right:0; top:calc(100% + 4px); z-index:100; min-width:215px; background:var(--card-bg); border:1px solid var(--border); border-radius:6px; box-shadow:0 4px 14px rgba(0,0,0,0.3); padding:4px;">
+                  <div class="dropdown-menu" id="ai-run-menu" style="display:none; position:absolute; right:0; top:calc(100% + 4px); z-index:100; min-width:220px; background:var(--card-bg); border:1px solid var(--border); border-radius:6px; box-shadow:0 4px 14px rgba(0,0,0,0.3); padding:4px;">
                     <button type="button" class="dropdown-item" onclick="App.runAIAnalysis('merge')" style="display:flex; align-items:center; gap:6px; width:100%; text-align:left; padding:6px 8px; border:none; background:transparent; color:var(--text-main); font-size:0.75rem; border-radius:4px; cursor:pointer;">
                       <span>✨</span>
                       <div>
@@ -440,6 +440,17 @@
                         <div style="font-size:0.68rem; color:var(--text-muted);">Nahradit celou dosavadní analýzu</div>
                       </div>
                     </button>
+                    <div style="border-top:1px solid var(--border); margin:4px 0; padding:4px 8px 2px;">
+                      <div style="font-size:0.67rem; color:var(--text-muted); font-weight:700; margin-bottom:2px;">HLOUBKA UVAŽOVÁNÍ:</div>
+                      <select id="ai-drawer-thinking-select" class="form-control" style="font-size:0.72rem; padding:2px 4px; height:26px;">
+                        <option value="">Podle nastavení</option>
+                        <option value="MINIMAL">Minimal (nejrychlejší)</option>
+                        <option value="LOW">Low</option>
+                        <option value="MEDIUM">Medium</option>
+                        <option value="HIGH">High (důkladné)</option>
+                        <option value="XHIGH">XHigh (nejhlubší)</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
                 <button class="dock-ctrl-btn" id="ai-dock-btn-side" onclick="App.toggleAIDrawerSide()" title="Přepnout přikotvení vlevo / vpravo">
@@ -466,9 +477,13 @@
             <div class="ai-drawer-body" id="ai-drawer-proposals-view">
               <div id="ai-drawer-fallback-container"></div>
               <div class="ai-drawer-summary-card">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; flex-wrap:wrap; gap:4px;">
                   <span style="font-weight:700; font-size:0.82rem;">Souhrn hodnocení AI:</span>
-                  <span id="ai-proposals-model-badge" style="font-size:0.68rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted);">gemini-4-hydrogen</span>
+                  <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
+                    <span id="ai-proposals-model-badge" style="font-size:0.68rem; font-family:'JetBrains Mono',monospace; color:var(--text-muted);">gemini-4-hydrogen</span>
+                    <span id="ai-proposals-thinking-badge" class="badge" style="font-size:0.65rem; font-family:'JetBrains Mono',monospace; padding:1px 5px; border-radius:3px; background:rgba(99,102,241,0.15); color:var(--primary); display:none;">MEDIUM</span>
+                    <span id="ai-proposals-tier-badge" class="badge" style="font-size:0.65rem; font-family:'JetBrains Mono',monospace; padding:1px 5px; border-radius:3px; background:rgba(16,185,129,0.15); color:var(--accent-green); display:none;">FREE</span>
+                  </div>
                 </div>
                 <div id="ai-drawer-summary-text" style="font-size:0.8rem; color:var(--text-muted); line-height:1.4;">Zatím nebyla provedena analýza protokolu.</div>
               </div>
@@ -498,14 +513,24 @@
 
             <!-- AI Chat View -->
             <div class="ai-drawer-chat-view" id="ai-drawer-chat-view" style="display:none;">
-              <div class="ai-chat-header-actions">
-                <div style="display:flex; align-items:center; gap:8px;">
-                  <span class="ai-chat-meta-info">Konverzace s AI</span>
-                  <span class="badge" id="ai-chat-model-badge" style="font-size:0.68rem; font-family:'JetBrains Mono',monospace; padding:1px 6px; background:rgba(99,102,241,0.12); color:var(--primary); border:1px solid rgba(99,102,241,0.25); border-radius:4px;">gemini-4-hydrogen</span>
+              <div class="ai-chat-header-actions" style="flex-wrap:wrap; gap:6px;">
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                  <span class="ai-chat-meta-info">Chat:</span>
+                  <span class="badge" id="ai-chat-model-badge" style="font-size:0.68rem; font-family:'JetBrains Mono',monospace; padding:1px 5px; background:rgba(99,102,241,0.12); color:var(--primary); border:1px solid rgba(99,102,241,0.25); border-radius:4px;">gemini-4-hydrogen</span>
+                  <span class="badge" id="ai-chat-thinking-badge" style="font-size:0.65rem; font-family:'JetBrains Mono',monospace; padding:1px 5px; background:rgba(99,102,241,0.15); color:var(--primary); border-radius:4px; display:none;">HIGH</span>
+                  <span class="badge" id="ai-chat-tier-badge" style="font-size:0.65rem; font-family:'JetBrains Mono',monospace; padding:1px 5px; background:rgba(16,185,129,0.15); color:var(--accent-green); border-radius:4px; display:none;">FREE</span>
                 </div>
-                <div style="display:flex; align-items:center; gap:6px;">
-                  <button type="button" class="btn btn-secondary btn-sm" onclick="App.showAIChatGuideModal()" style="font-size:0.7rem; padding:2px 8px;" title="Jak funguje AI chat a zadávání úkolů">ℹ️ Návod k chatu</button>
-                  <button type="button" class="btn btn-secondary btn-sm" onclick="App.clearAIChatHistory()" style="font-size:0.7rem; padding:2px 8px;" title="Vymazat historii chatu">Smazat chat</button>
+                <div style="display:flex; align-items:center; gap:6px; margin-left:auto;">
+                  <select id="ai-chat-thinking-select" class="form-control" style="padding:1px 4px; font-size:0.68rem; height:24px; width:auto;" title="Hloubka uvažování pro chat (Thinking Mode)">
+                    <option value="">Auto (výchozí)</option>
+                    <option value="MINIMAL">Minimal</option>
+                    <option value="LOW">Low</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="HIGH">High</option>
+                    <option value="XHIGH">XHigh</option>
+                  </select>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="App.showAIChatGuideModal()" style="font-size:0.7rem; padding:2px 6px;" title="Jak funguje AI chat a zadávání úkolů">ℹ️ Návod</button>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="App.clearAIChatHistory()" style="font-size:0.7rem; padding:2px 6px;" title="Vymazat historii chatu">Smazat</button>
                 </div>
               </div>
               <div class="ai-chat-messages-container" id="ai-chat-messages-container">
@@ -1022,18 +1047,55 @@
             <!-- Gemini Settings Section -->
             <div id="ai-gemini-container">
               <div class="form-group">
-                <label class="form-label">Gemini API klíč (Google AI Studio):</label>
+                <label class="form-label" style="font-weight:700;">Bezplatný / Primární Gemini API klíč (Google AI Studio Free):</label>
                 <div style="display:flex; gap:8px;">
                   <input type="password" id="ai-api-key-input" class="form-control" placeholder="AIzaSy..." style="flex:1; font-family:'JetBrains Mono',monospace;">
-                  <button class="btn btn-secondary btn-sm" type="button" onclick="App.toggleApiKeyVisibility()">👁</button>
+                  <button class="btn btn-secondary btn-sm" type="button" onclick="App.toggleApiKeyVisibility('ai-api-key-input')">👁</button>
                 </div>
                 <div id="ai-key-status" style="font-size:0.78rem; margin-top:4px; color:var(--text-muted);">
-                  Klíč je bezpečně uložen v lokální SQLite databázi.
+                  Bezplatný klíč z Google AI Studio (Free Tier).
                 </div>
               </div>
 
               <div class="form-group">
-                <label class="form-label">Preferovaný Gemini model:</label>
+                <label class="form-label" style="font-weight:700;">Placený / Záložní Gemini API klíč (Google Cloud / Paid Tier):</label>
+                <div style="display:flex; gap:8px;">
+                  <input type="password" id="ai-api-key-paid-input" class="form-control" placeholder="AIzaSy..." style="flex:1; font-family:'JetBrains Mono',monospace;">
+                  <button class="btn btn-secondary btn-sm" type="button" onclick="App.toggleApiKeyVisibility('ai-api-key-paid-input')">👁</button>
+                </div>
+                <div id="ai-key-paid-status" style="font-size:0.78rem; margin-top:4px; color:var(--text-muted);">
+                  Placený záložní klíč (aktivuje se automaticky při vyčerpání limitů Free klíče).
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" style="font-weight:700;">Strategie použití API klíčů:</label>
+                <select id="ai-key-mode-select" class="form-control">
+                  <option value="free_then_paid" selected>Použít Free klíč, při přetížení/chybě přepnout na Paid (Doporučeno)</option>
+                  <option value="free_only">Pouze Free klíč (nepoužívat placený kredit)</option>
+                  <option value="paid_only">Pouze Paid klíč (maximální stabilita a vyšší limity)</option>
+                </select>
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">
+                  Při režimu Free ➔ Paid aplikace nejdříve vyzkouší bezplatný klíč; pouze pokud všechny modely selžou na kvótě (HTTP 429) nebo přetížení (HTTP 503), použije se placený klíč.
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" style="font-weight:700;">Režim uvažování (Thinking Level):</label>
+                <select id="ai-thinking-level-select" class="form-control">
+                  <option value="MINIMAL">MINIMAL – Blesková odezva (vhodné pro rychlou kontrolu)</option>
+                  <option value="LOW">LOW – Nízká hloubka uvažování, vysoká rychlost</option>
+                  <option value="MEDIUM" selected>MEDIUM – Vyvážená hloubka uvažování a rychlost (Doporučeno)</option>
+                  <option value="HIGH">HIGH – Hloubková analýza a pečlivé hledání chyb</option>
+                  <option value="XHIGH">XHIGH – Maximální hloubka uvažování (Gemini 4 / 3.8)</option>
+                </select>
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">
+                  Určuje hloubku myšlení modelu. Nepodporované úrovně u starších/odlehčených modelů systém automaticky přizpůsobí per model (např. MINIMAL ➔ LOW u Gemini 4/3.8, XHIGH ➔ HIGH u 3.8/3.6).
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" style="font-weight:700;">Preferovaný Gemini model:</label>
                 <select id="ai-model-select" class="form-control" onchange="App.handleAIModelSelectChange(this.value)">
                   <option value="gemini-4-hydrogen" selected>Gemini 4 Hydrogen (Nejnovější experimentální model)</option>
                   <option value="gemini-3.8-flash">Gemini 3.8 Flash (Vysoká přesnost a komplexní úlohy)</option>

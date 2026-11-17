@@ -618,6 +618,66 @@ tr:hover td {
   line-height: 1;
 }
 
+/* Changelog formatting in About Modal */
+#about-changelog-container {
+  line-height: 1.5;
+  color: var(--text-main);
+}
+#about-changelog-container h2 {
+  font-size: 1.12rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-top: 18px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+}
+#about-changelog-container h3 {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin-top: 14px;
+  margin-bottom: 6px;
+}
+#about-changelog-container h4 {
+  font-size: 0.90rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-top: 12px;
+  margin-bottom: 4px;
+}
+#about-changelog-container h5 {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+#about-changelog-container ul {
+  margin: 4px 0 10px 18px;
+  padding: 0;
+  list-style-type: disc;
+}
+#about-changelog-container li {
+  margin-bottom: 3px;
+  line-height: 1.45;
+  color: var(--text-main);
+  font-size: 0.82rem;
+}
+#about-changelog-container code {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82em;
+  color: var(--primary);
+}
+#about-changelog-container p {
+  margin-bottom: 8px;
+  font-size: 0.84rem;
+}
+
 /* Action Dropdown Menu for row actions */
 .action-dropdown {
   position: relative;

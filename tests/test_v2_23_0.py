@@ -29,6 +29,7 @@ from app.moodle_login_service import MoodleInteractiveLoginManager
 class TestPraktikaV2230(unittest.TestCase):
     def setUp(self):
         init_db()
+        MoodleInteractiveLoginManager.get_instance().reset()
         self.client = TestClient(app)
         conn = get_db()
         cur = conn.cursor()

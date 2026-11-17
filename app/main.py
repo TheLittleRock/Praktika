@@ -58,6 +58,8 @@ from app.storage import save_source_file, save_corrected_file, save_bodovani_fil
 from app.pdf_service import extract_pdf_annotations, burn_annotations_to_pdf, format_points, calculate_grade_letter
 from app.ai_service import (
     analyze_protocol, get_gemini_api_key, save_gemini_api_key, get_ai_setting, save_ai_setting,
+    get_gemini_paid_key, save_gemini_paid_key, get_gemini_key_mode, save_gemini_key_mode,
+    get_gemini_thinking_level, save_gemini_thinking_level,
     run_background_ai_analysis, generate_task_rubric, merge_ai_results,
     chat_with_ai, get_protocol_chat_history, clear_protocol_chat_history,
     get_ai_provider, get_openai_settings, call_openai_compatible
@@ -1997,11 +1999,12 @@ async def ai_analyze_protocol_endpoint(
     proto_id: int, 
     mode: str = "merge",
     language: Optional[str] = None,
+    thinking_level: Optional[str] = None,
     user: dict = Depends(get_current_user)
 ):
     try:
         custom_key = user.get("custom_gemini_api_key")
-        result = await analyze_protocol(proto_id, custom_key=custom_key, language=language, user=user)
+        result = await analyze_protocol(proto_id, custom_key=custom_key, language=language, user=user, thinking_level=thinking_level)
         
         # Persist to database so proposals are never lost on reload
         conn = get_db()
@@ -2308,7 +2311,8 @@ async def ai_chat_endpoint(
             custom_key=custom_key,
             custom_model=custom_model,
             language=req.language,
-            user=user
+            user=user,
+            thinking_level=req.thinking_level
         )
         return resp
     except Exception as e:
@@ -2350,10 +2354,19 @@ def clear_ai_chat_endpoint(
 
 @app.get("/api/settings/ai")
 def get_ai_settings(user: dict = Depends(get_current_user)):
-    global_key = get_gemini_api_key()
-    personal_key = user.get("custom_gemini_api_key") or ""
-    active_key = personal_key or global_key
-    masked_key = f"{active_key[:6]}...{active_key[-4:]}" if len(active_key) > 10 else ("***" if active_key else "")
+    global_free_key = get_gemini_api_key()
+    personal_free_key = user.get("custom_gemini_api_key") or ""
+    active_free_key = personal_free_key or global_free_key
+    masked_free_key = f"{active_free_key[:6]}...{active_free_key[-4:]}" if len(active_free_key) > 10 else ("***" if active_free_key else "")
+
+    global_paid_key = get_gemini_paid_key()
+    personal_paid_key = user.get("custom_gemini_api_key_paid") or ""
+    active_paid_key = personal_paid_key or global_paid_key
+    masked_paid_key = f"{active_paid_key[:6]}...{active_paid_key[-4:]}" if len(active_paid_key) > 10 else ("***" if active_paid_key else "")
+
+    gemini_key_mode = get_gemini_key_mode()
+    gemini_thinking_level = get_gemini_thinking_level("analysis")
+
     model_name = get_ai_setting("gemini_model") or get_ai_setting("ai_model", "gemini-4-hydrogen")
     auto_analyze = get_ai_setting("auto_analyze_on_upload", "true").lower() in ("true", "1", "yes")
     ai_language = get_ai_setting("ai_language", "cs")
@@ -2366,14 +2379,22 @@ def get_ai_settings(user: dict = Depends(get_current_user)):
     openai_base_url = user.get("custom_openai_base_url") or get_ai_setting("openai_base_url", "https://api.groq.com/openai/v1")
     openai_model = user.get("custom_openai_model") or get_ai_setting("openai_model", "llama-3.3-70b-versatile")
 
-    has_active_key = bool(active_key) if ai_provider == "gemini" else bool(active_openai_key)
+    has_active_key = (bool(active_free_key) or bool(active_paid_key)) if ai_provider == "gemini" else bool(active_openai_key)
 
     return {
         "has_key": has_active_key,
+        "has_free_key": bool(active_free_key),
+        "has_paid_key": bool(active_paid_key),
+        "masked_key": masked_free_key,
+        "masked_free_key": masked_free_key,
+        "masked_paid_key": masked_paid_key,
+        "gemini_api_key": global_free_key if user["role"] == "admin" else personal_free_key,
+        "gemini_api_key_paid": global_paid_key if user["role"] == "admin" else personal_paid_key,
+        "personal_gemini_api_key": personal_free_key,
+        "personal_gemini_api_key_paid": personal_paid_key,
+        "gemini_key_mode": gemini_key_mode,
+        "gemini_thinking_level": gemini_thinking_level,
         "has_openai_key": bool(active_openai_key),
-        "masked_key": masked_key,
-        "gemini_api_key": global_key if user["role"] == "admin" else personal_key,
-        "personal_gemini_api_key": personal_key,
         "model_name": model_name,
         "ai_provider": ai_provider,
         "openai_base_url": openai_base_url,
@@ -2387,24 +2408,37 @@ def get_ai_settings(user: dict = Depends(get_current_user)):
         "is_admin": user["role"] == "admin"
     }
 
+def _is_valid_new_key(val: Optional[str]) -> bool:
+    if val is None:
+        return False
+    s = val.strip()
+    if not s:
+        return False
+    if "..." in s or s.startswith("***") or "••••" in s:
+        return False
+    return True
+
 @app.post("/api/settings/ai")
 def set_ai_settings(req: AISettingsRequest, user: dict = Depends(get_current_user)):
     conn = get_db()
     cur = conn.cursor()
-    # Personal keys can be updated by any user
-    raw_personal = req.personal_gemini_api_key if req.personal_gemini_api_key is not None else (req.gemini_api_key if user["role"] == "assistant" else None)
-    if raw_personal is not None:
-        p_key = raw_personal.strip() or None
-        cur.execute("UPDATE users SET custom_gemini_api_key = ? WHERE id = ?", (p_key, user["id"]))
-        conn.commit()
-
-    raw_personal_openai = req.personal_openai_api_key if req.personal_openai_api_key is not None else (req.openai_api_key if user["role"] == "assistant" else None)
-    if raw_personal_openai is not None:
-        p_o_key = raw_personal_openai.strip() or None
-        cur.execute("UPDATE users SET custom_openai_api_key = ? WHERE id = ?", (p_o_key, user["id"]))
-        conn.commit()
-
+    # Personal keys can be updated by assistant
     if user["role"] == "assistant":
+        raw_personal = req.personal_gemini_api_key if req.personal_gemini_api_key is not None else req.gemini_api_key
+        if _is_valid_new_key(raw_personal):
+            cur.execute("UPDATE users SET custom_gemini_api_key = ? WHERE id = ?", (raw_personal.strip(), user["id"]))
+            conn.commit()
+
+        raw_personal_paid = req.personal_gemini_api_key_paid if req.personal_gemini_api_key_paid is not None else req.gemini_api_key_paid
+        if _is_valid_new_key(raw_personal_paid):
+            cur.execute("UPDATE users SET custom_gemini_api_key_paid = ? WHERE id = ?", (raw_personal_paid.strip(), user["id"]))
+            conn.commit()
+
+        raw_personal_openai = req.personal_openai_api_key if req.personal_openai_api_key is not None else req.openai_api_key
+        if _is_valid_new_key(raw_personal_openai):
+            cur.execute("UPDATE users SET custom_openai_api_key = ? WHERE id = ?", (raw_personal_openai.strip(), user["id"]))
+            conn.commit()
+
         if req.ai_provider is not None:
             cur.execute("UPDATE users SET custom_ai_provider = ? WHERE id = ?", (req.ai_provider.strip().lower(), user["id"]))
         if req.openai_base_url is not None:
@@ -2416,8 +2450,15 @@ def set_ai_settings(req: AISettingsRequest, user: dict = Depends(get_current_use
     # Admin can update global keys and model settings
     if user["role"] == "admin":
         key = req.gemini_api_key if req.gemini_api_key is not None else (req.api_key if req.api_key is not None else None)
-        if key is not None:
-            save_gemini_api_key(key)
+        if _is_valid_new_key(key):
+            save_gemini_api_key(key.strip())
+        if _is_valid_new_key(req.gemini_api_key_paid):
+            save_gemini_paid_key(req.gemini_api_key_paid.strip())
+        if req.gemini_key_mode is not None:
+            save_gemini_key_mode(req.gemini_key_mode)
+        if req.gemini_thinking_level is not None:
+            save_gemini_thinking_level(req.gemini_thinking_level)
+
         if req.model_name is not None:
             m_name = req.model_name.strip()
             save_ai_setting("gemini_model", m_name)
@@ -2426,7 +2467,7 @@ def set_ai_settings(req: AISettingsRequest, user: dict = Depends(get_current_use
             save_ai_setting("ai_provider", req.ai_provider.strip().lower())
         if req.openai_base_url is not None:
             save_ai_setting("openai_base_url", req.openai_base_url.strip())
-        if req.openai_api_key is not None:
+        if _is_valid_new_key(req.openai_api_key):
             save_ai_setting("openai_api_key", req.openai_api_key.strip())
         if req.openai_model is not None:
             save_ai_setting("openai_model", req.openai_model.strip())
@@ -2435,6 +2476,10 @@ def set_ai_settings(req: AISettingsRequest, user: dict = Depends(get_current_use
         if req.ai_language is not None:
             save_ai_setting("ai_language", req.ai_language.strip().lower())
     else:
+        if req.gemini_key_mode is not None:
+            save_gemini_key_mode(req.gemini_key_mode)
+        if req.gemini_thinking_level is not None:
+            save_gemini_thinking_level(req.gemini_thinking_level)
         if req.ai_language is not None:
             save_ai_setting("ai_language", req.ai_language.strip().lower())
     conn.close()

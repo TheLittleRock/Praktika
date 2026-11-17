@@ -4,6 +4,52 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.24.3] - 2026-11-18
+
+### 🚀 Novinky a vylepšení ve verzi 2.24.3
+
+#### 🧠 Režimy uvažování (Thinking Modes) pro Google Gemini
+- **Podpora parametru `thinkingLevel`**:
+  - Konfigurovatelná úroveň uvažování v Nastavení AI (`gemini_thinking_level`): `MINIMAL`, `LOW`, `MEDIUM`, `HIGH`, `XHIGH`.
+  - Výchozí úroveň `MEDIUM` pro hloubkovou analýzu protokolu a `HIGH` pro interaktivní chat.
+  - Možnost dynamické volby úrovně uvažování přímo v záhlaví AI chatu i v rozbalovacím menu spuštění analýzy.
+- **Bezpečný helper `build_gemini_generation_config`**:
+  - Automatické ořezávání nepodporovaných úrovní u jednotlivých rodin modelů bez rizika HTTP 400:
+    - `gemini-4-*`: podpora `LOW`, `MEDIUM`, `HIGH`, `XHIGH` (úroveň `MINIMAL` je automaticky povýšena na `LOW`; parametr `temperature` je vynechán).
+    - `gemini-3.8-*`: podpora `LOW`, `MEDIUM`, `HIGH` (`MINIMAL` ➔ `LOW`, `XHIGH` ➔ `HIGH`; `temperature` vynechán).
+    - `gemini-3.6-*`, `gemini-3.5-*`, `gemini-3.1-*`: podpora `MINIMAL`, `LOW`, `MEDIUM`, `HIGH` (`XHIGH` ➔ `HIGH`; `temperature` vynechán).
+    - Starší aliasy: defenzivní zachycení HTTP 400 s automatickým opakováním bez `thinkingConfig`.
+
+#### 💳 Podpora bezplatného i placeného Gemini klíče (Free & Paid Tier Fallback)
+- **Dva nezávislé Gemini klíče v nastavení**:
+  - `gemini_api_key`: Bezplatný klíč (Google AI Studio Free tier).
+  - `gemini_api_key_paid`: Placený / záložní klíč (Google Cloud / Paid Tier).
+  - Podpora systémových proměnných `GEMINI_API_KEY` a `GEMINI_API_KEY_PAID`.
+- **Strategie účtování a zálohování (`gemini_key_mode`)**:
+  - Režim `free_then_paid` (výchozí): aplikace nejdříve vyzkouší bezplatný klíč napříč kandidátními modely; pokud modely selžou na vyčerpání limitu (HTTP 429) nebo přetížení (HTTP 503), automaticky přepne na placený klíč.
+  - Režimy `free_only` a `paid_only` pro striktní kontrolu nákladů.
+  - Bezpečné maskování uložených klíčů v API (`has_free_key`, `has_paid_key`, `masked_free_key`, `masked_paid_key`) zabraňující nechtěnému přepsání klíče při ukládání ostatních nastavení.
+  - Zobrazení odznáčku použitého klíče (`FREE` / `PAID`) a uvažování (`thinking_level_used`) u návrhů i zpráv chatu.
+
+#### ⏱️ Prevence timeoutů a stabilizace spojení
+- **Zvýšení časových limitů**:
+  - `httpx.AsyncClient` timeout zvýšen na 90 s pro analýzu a tvorbu rubrik, 60 s pro interaktivní chat.
+  - Omezený počet pokusů na model a klíč pro spolehlivou prevenci HTTP 504 Gateway Timeout.
+  - Asynchronní prodleva s náhodným rozptylem (jitter) při opakování po dočasném HTTP 503 / 429.
+- **Oprava chyb v `app/ai_service.py`**:
+  - Přesunutí validace API klíče dovnitř Gemini větve, takže poskytovatel `openai_compatible` funguje i bez nastaveného Gemini klíče.
+  - Odstraněna chyba `UnboundLocalError` pro `models_to_try` v chatu.
+  - Bezpečná extrakce textu `extract_gemini_response_text` s korektním hlášením při `MAX_TOKENS`, bezpečnostních blocích nebo chybějících částech odpovědi.
+  - Ukládání detailního chybového hlášení při selhání analýzy na pozadí namísto tichého selhání.
+
+#### 📋 Oprava zobrazení historie změn (Changelog Modal)
+- **Kompletní Markdown rendering přes `marked.js`**:
+  - Odstraněno naivní regulární nahrazování, které nezpracovávalo nadpisy čtvrté úrovně (`####`) a poškozovalo HTML značky uvnitř kódu.
+  - Nadpisy, odrážky a kódové bloky se nyní zobrazují s čistou, elegantní typografií.
+
+#### 🖥️ Vynucení invalidace mezipaměti prohlížeče (Cache Busting)
+- Verze aplikace povýšena na `2.24.3`, což zajistí okamžité načtení modernizované kompaktní tabulky s akčním menu `⋮` a zabrání horizontálnímu přetékání stránky v prohlížečích uživatelů.
+
 ## [2.24.2] - 2026-11-17
 
 ### 🚀 Novinky a vylepšení ve verzi 2.24.2
