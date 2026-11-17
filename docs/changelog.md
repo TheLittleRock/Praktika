@@ -4,6 +4,27 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.24.1] - 2026-11-17
+
+### 🚀 Novinky a vylepšení ve verzi 2.24.1
+
+#### 🎓 Kompletní oprava a modernizace nahrávání hodnocení do Moodle
+- **Oprava vyhledávání opravených protokolů**:
+  - Opravena chyba ve filtru `/api/moodle/gradable-protocols`, který opomíjel protokolový stav `graded` (v aplikaci se nezobrazovaly opravené práce k odeslání).
+  - Všechny ohodnocené protokoly jsou nyní spolehlivě nalezeny a spárovány se studenty a úkoly v Moodle.
+- **Podpora filtru "⭐ Moje úlohy" a "Všechny úlohy" v záložce nahrávání**:
+  - V záložce *Nahrát hodnocení do Moodle* lze nyní filtrovat podle `⭐ Moje úlohy`, `Všechny úlohy` i jednotlivých úloh.
+- **Automatický multi-task dispatch**:
+  - Při hromadném odesílání hodnocení pod filtrem "⭐ Moje úlohy" nebo "Všechny úlohy" systém automaticky přiřadí každému vybranému protokolu odpovídající Moodle úlohu (`cmid`) a odešle hodnocení do správného zadání v Moodle.
+- **Tlačítko přímého nahrání u protokolu v hlavním seznamu**:
+  - U všech opravených protokolů v hlavním seznamu přibylo v sloupci *Akce* kompaktní tlačítko `🎓` pro přímé otevření nahrání do Moodle.
+  - Kliknutí otevře Moodle okno na záložce nahrávání s předvybranou úlohou a zaškrtnutým pouze tímto protokolem.
+- **Evidence a indikace odeslání do Moodle (`moodle_uploaded_at`)**:
+  - Databáze nově eviduje přesné datum a čas odeslání do Moodle (`p.moodle_uploaded_at`).
+  - V hlavním seznamu i tabulce odesílání se u odeslaných prací zobrazuje zelený štítek `Moodle ✓` s časovým razítkem.
+- **Oprava serializace při generování zpětné vazby**:
+  - Vyřešena chyba `UnicodeDecodeError` při serializaci odpovědi API po vytvoření zpětnovazebního ZIP balíčku.
+
 ## [2.24.0] - 2026-11-15
 
 ### 🚀 Novinky a vylepšení ve verzi 2.24.0

@@ -939,7 +939,7 @@ def list_protocols(
     SELECT 
         p.id, p.semester_id, p.slot_id, p.measurement_id, p.student_name,
         p.status, p.source_filename, p.corrected_filename, p.total_points, p.grade,
-        p.evaluator_id, p.share_token, p.graded_at, p.submitted_at, p.measured_at, p.created_at, p.updated_at,
+        p.evaluator_id, p.share_token, p.graded_at, p.submitted_at, p.measured_at, p.moodle_uploaded_at, p.created_at, p.updated_at,
         p.student_view_count, p.student_view_total_seconds, p.student_view_first_at, p.student_view_last_at,
         s.code as semester_code, s.name as semester_name,
         sl.name as slot_name, sl.day_of_week, sl.time_start, sl.time_end, sl.room as slot_room,
@@ -3776,18 +3776,55 @@ async def get_moodle_gradable_protocols_endpoint(
     s_cookie = cfg["moodle_session"]
 
     user_maps = {"by_name": {}, "by_id": {}}
+    course_struct = {"assignments": [], "groups": []}
     if s_cookie:
         try:
             user_maps = await fetch_course_user_groups_map(m_url, c_id, s_cookie)
         except Exception:
             user_maps = {"by_name": {}, "by_id": {}}
+        try:
+            course_struct = await fetch_course_structure(m_url, c_id, s_cookie)
+        except Exception:
+            course_struct = {"assignments": [], "groups": []}
     by_name = user_maps.get("by_name", {})
+
+    # Build mapping task_number -> cmid and cmid -> task_number
+    task_num_to_cmid = {}
+    cmid_to_task_num = {}
+    for a in course_struct.get("assignments", []):
+        t_num = a.get("task_number")
+        c_val = str(a.get("cmid"))
+        if t_num is not None:
+            if a.get("is_protocol") or t_num not in task_num_to_cmid:
+                task_num_to_cmid[t_num] = c_val
+            cmid_to_task_num[c_val] = t_num
+
+    # Determine filter constraints
+    assigned_meas_ids = None
+    target_task_number = None
+
+    if cmid == "my_tasks":
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT assigned_tasks FROM users WHERE id = ?", (user["id"],))
+        urow = cur.fetchone()
+        conn.close()
+        if urow and urow["assigned_tasks"]:
+            try:
+                assigned_meas_ids = set(json.loads(urow["assigned_tasks"]))
+            except Exception:
+                assigned_meas_ids = set()
+        else:
+            assigned_meas_ids = set()
+    elif cmid and cmid != "all":
+        target_task_number = cmid_to_task_num.get(str(cmid))
 
     conn = get_db()
     cur = conn.cursor()
 
     cur.execute("""
-    SELECT p.id as protocol_id, p.student_name, p.status, p.corrected_path,
+    SELECT p.id as protocol_id, p.student_name, p.status, p.corrected_path, p.measurement_id,
+           p.moodle_uploaded_at,
            m.name as task_name, m.number as task_number,
            s.name as slot_name,
            e.total_points, e.general_comment, e.raw_output_2
@@ -3795,7 +3832,7 @@ async def get_moodle_gradable_protocols_endpoint(
     JOIN measurements m ON p.measurement_id = m.id
     LEFT JOIN slots s ON p.slot_id = s.id
     LEFT JOIN evaluations e ON p.id = e.protocol_id
-    WHERE p.status IN ('reviewed', 'evaluated', 'completed')
+    WHERE p.status IN ('graded', 'reviewed', 'evaluated', 'completed')
     ORDER BY p.student_name ASC
     """)
     rows = cur.fetchall()
@@ -3803,6 +3840,14 @@ async def get_moodle_gradable_protocols_endpoint(
 
     items = []
     for r in rows:
+        # Check task filtering
+        if assigned_meas_ids is not None:
+            if r["measurement_id"] not in assigned_meas_ids:
+                continue
+        elif target_task_number is not None:
+            if r["task_number"] != target_task_number:
+                continue
+
         s_name = r["student_name"]
         norm_key = s_name.strip().lower()
         m_info = by_name.get(norm_key)
@@ -3822,10 +3867,15 @@ async def get_moodle_gradable_protocols_endpoint(
         calc_letter, _ = calculate_cvut_grade(tot_pts, max_pts)
         comment_text = r["general_comment"] or r["raw_output_2"] or f"Hodnocení: {tot_pts}/{max_pts} b."
 
+        matched_cmid = task_num_to_cmid.get(r["task_number"])
+
         items.append(MoodleGradableProtocolItem(
             protocol_id=r["protocol_id"],
             student_name=s_name,
             task_name=r["task_name"],
+            measurement_id=r["measurement_id"],
+            task_number=r["task_number"],
+            cmid=matched_cmid,
             slot_name=r["slot_name"] or student_grp or "",
             points=tot_pts,
             max_points=max_pts,
@@ -3835,7 +3885,8 @@ async def get_moodle_gradable_protocols_endpoint(
             in_moodle=bool(moodle_uid),
             upload_pdf=True,
             upload_grade=True,
-            upload_comment=True
+            upload_comment=True,
+            moodle_uploaded_at=r["moodle_uploaded_at"]
         ))
 
     return items
@@ -3951,21 +4002,36 @@ async def upload_moodle_feedback_endpoint(req: MoodleUploadRequest, user: dict =
         raise HTTPException(status_code=401, detail="Chybí cookie MoodleSession.")
 
     user_maps = {"by_name": {}, "by_id": {}}
+    course_struct = {"assignments": []}
     try:
         user_maps = await fetch_course_user_groups_map(m_url, c_id, s_cookie)
     except Exception:
         user_maps = {"by_name": {}, "by_id": {}}
+    try:
+        course_struct = await fetch_course_structure(m_url, c_id, s_cookie)
+    except Exception:
+        course_struct = {"assignments": []}
     by_name = user_maps.get("by_name", {})
+
+    task_num_to_cmid = {}
+    for a in course_struct.get("assignments", []):
+        t_num = a.get("task_number")
+        c_val = str(a.get("cmid"))
+        if t_num is not None:
+            if a.get("is_protocol") or t_num not in task_num_to_cmid:
+                task_num_to_cmid[t_num] = c_val
 
     conn = get_db()
     cur = conn.cursor()
 
     feedback_items = []
     grade_submission_results = []
+    now_iso = datetime.now().isoformat()
 
     for item in req.students:
         cur.execute("""
         SELECT p.id, p.student_name, p.corrected_filename, p.corrected_path, p.source_filename,
+               m.number as task_number,
                e.total_points, e.general_comment, e.raw_output_2
         FROM protocols p
         JOIN measurements m ON p.measurement_id = m.id
@@ -4001,12 +4067,20 @@ async def upload_moodle_feedback_endpoint(req: MoodleUploadRequest, user: dict =
 
         comment_text = item.comment or row["general_comment"] or row["raw_output_2"] or f"Hodnocení: {tot_pts}/{max_pts} b."
 
+        # Determine target cmid for this student
+        student_cmid = item.cmid
+        if not student_cmid or str(student_cmid) in ("all", "my_tasks"):
+            student_cmid = task_num_to_cmid.get(row["task_number"])
+        if not student_cmid or str(student_cmid) in ("all", "my_tasks"):
+            student_cmid = req.cmid
+
         # Submit grade and comment via AJAX if requested and student found
         grade_success = False
-        if (req.upload_grade or req.upload_comment) and moodle_uid:
+        error_msg = None
+        if (req.upload_grade or req.upload_comment) and moodle_uid and student_cmid and str(student_cmid) not in ("all", "my_tasks"):
             try:
                 await submit_moodle_grade(
-                    cmid=req.cmid,
+                    cmid=str(student_cmid),
                     userid=moodle_uid,
                     grade_letter=grade_letter if req.upload_grade else "",
                     comment_text=comment_text if req.upload_comment else "",
@@ -4014,18 +4088,26 @@ async def upload_moodle_feedback_endpoint(req: MoodleUploadRequest, user: dict =
                 )
                 grade_success = True
             except Exception as e:
-                print(f"Warning: could not submit grade for {s_name} (uid={moodle_uid}):", e)
+                error_msg = str(e)
+                print(f"Warning: could not submit grade for {s_name} (uid={moodle_uid}, cmid={student_cmid}):", e)
+
+        # Update moodle_uploaded_at if grade was submitted or if PDF/feedback processed
+        if grade_success or (req.upload_pdf and pdf_bytes):
+            cur.execute("UPDATE protocols SET moodle_uploaded_at = ? WHERE id = ?", (now_iso, row["id"]))
 
         feedback_items.append({
             "protocol_id": row["id"],
             "student_name": s_name,
             "moodle_user_id": str(moodle_uid) if moodle_uid else "",
+            "cmid": str(student_cmid) if student_cmid else "",
             "filename": row["corrected_filename"] or f"{s_name}_opraveno.pdf",
             "pdf_bytes": pdf_bytes,
             "grade_letter": grade_letter,
-            "grade_submitted": grade_success
+            "grade_submitted": grade_success,
+            "error": error_msg
         })
 
+    conn.commit()
     conn.close()
 
     if not feedback_items:
@@ -4033,12 +4115,13 @@ async def upload_moodle_feedback_endpoint(req: MoodleUploadRequest, user: dict =
 
     # Build feedback ZIP and save archive
     zip_path = None
-    if req.upload_pdf:
+    if req.upload_pdf and any(it.get("pdf_bytes") for it in feedback_items):
         feedback_zip = build_moodle_feedback_zip(feedback_items)
         export_dir = PROTOCOLS_DIR / "_moodle_exports"
         export_dir.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        zip_path = export_dir / f"moodle_feedback_cmid_{req.cmid}_{ts}.zip"
+        safe_cmid = re.sub(r'[^a-zA-Z0-9_-]', '_', str(req.cmid))
+        zip_path = export_dir / f"moodle_feedback_{safe_cmid}_{ts}.zip"
         zip_path.write_bytes(feedback_zip)
 
     log_event(
@@ -4050,11 +4133,25 @@ async def upload_moodle_feedback_endpoint(req: MoodleUploadRequest, user: dict =
         details=f"Odesláno hodnocení do Moodle (cmid={req.cmid}, {len(feedback_items)} studentů, známky odeslány: {req.upload_grade}, PDF: {req.upload_pdf})."
     )
 
+    client_students = [
+        {
+            "protocol_id": it["protocol_id"],
+            "student_name": it["student_name"],
+            "moodle_user_id": it["moodle_user_id"],
+            "cmid": it["cmid"],
+            "filename": it["filename"],
+            "grade_letter": it["grade_letter"],
+            "grade_submitted": it["grade_submitted"],
+            "error": it.get("error")
+        }
+        for it in feedback_items
+    ]
+
     return {
         "status": "ok",
         "uploaded_count": len(feedback_items),
         "archive_path": str(zip_path.name) if zip_path else "",
-        "students": feedback_items,
+        "students": client_students,
         "message": f"Úspěšně zpracováno {len(feedback_items)} hodnocení pro Moodle."
     }
 

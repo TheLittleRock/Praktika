@@ -1295,13 +1295,22 @@ const App = {
     }
 
     tbody.innerHTML = protocols.map(p => {
-      const statusBadge = p.status === 'graded'
+      let statusBadge = p.status === 'graded'
         ? `<span class="status-badge status-graded">✓ Opraveno</span>`
         : p.status === 'revision'
         ? `<span class="status-badge status-revision">⟳ K přepracování</span>`
         : p.status === 'in_progress'
         ? `<span class="status-badge status-in_progress">✎ Rozpracováno</span>`
         : `<span class="status-badge status-new">Nový</span>`;
+
+      if (p.moodle_uploaded_at) {
+        statusBadge += `
+          <div style="margin-top:4px;">
+            <span class="badge" style="background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3); font-size:0.68rem; padding:1px 5px; border-radius:3px; font-weight:600; white-space:nowrap;" title="Hodnocení odesláno do Moodle: ${this.escape(p.moodle_uploaded_at)}">
+              Moodle ✓
+            </span>
+          </div>`;
+      }
 
       const hasGrade = p.grade && p.grade !== '—';
       const gradeBadge = hasGrade
@@ -1409,6 +1418,11 @@ const App = {
               <button class="btn btn-primary btn-sm" onclick="App.openStudio(${p.id})">
                 ${p.status === 'graded' ? 'Upravit' : 'Opravit'}
               </button>
+              ${p.status === 'graded' ? `
+                <button class="btn btn-secondary btn-sm" onclick="App.openMoodleUploadForProtocol(${p.id})" title="${p.moodle_uploaded_at ? 'Znovu odeslat hodnocení do Moodle (odesláno ' + this.formatDateTime(p.moodle_uploaded_at) + ')' : 'Nahrát hodnocení do Moodle'}">
+                  🎓${p.moodle_uploaded_at ? ' ✓' : ''}
+                </button>
+              ` : ''}
               <button class="btn btn-secondary btn-sm" onclick="App.openEditMetadataModal(${p.id})" title="Upravit studenta, termín či úlohu">✏️</button>
               ${p.share_token ? `
                 <button class="btn btn-secondary btn-sm btn-student-link" onclick="App.copyStudentLink('${p.share_token}')" title="Kopírovat odkaz pro studenta">🔗</button>
@@ -4843,6 +4857,15 @@ const App = {
     return `${h}h ${remM}m`;
   },
 
+  formatDateTime(isoStr) {
+    if (!isoStr) return '—';
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return isoStr;
+    const dayStr = d.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric', year: 'numeric' });
+    const timeStr = d.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
+    return `${dayStr} ${timeStr}`;
+  },
+
   async openStudentViewsModal(protoId) {
     const id = protoId || (this.currentProtocol ? this.currentProtocol.id : null);
     if (!id) return;
@@ -5639,8 +5662,15 @@ const App = {
       }
 
       if (uploadAssignSel && data.assignments) {
-        uploadAssignSel.innerHTML = `<option value="">Vyberte úlohu v Moodle...</option>` + 
-          assignmentsToShow.map(a => `<option value="${a.cmid}">${this.escape(a.title)}</option>`).join('');
+        let uploadAssignOpts = `<option value="all">Všechny úlohy</option>`;
+        uploadAssignOpts += `<option value="my_tasks">⭐ Moje úlohy</option>`;
+        uploadAssignOpts += assignmentsToShow.map(a => `<option value="${a.cmid}">${this.escape(a.title)}</option>`).join('');
+        uploadAssignSel.innerHTML = uploadAssignOpts;
+        if (this.myTasksSelectedIds && this.myTasksSelectedIds.size > 0) {
+          uploadAssignSel.value = 'my_tasks';
+        } else {
+          uploadAssignSel.value = 'all';
+        }
       }
 
       // Populate group selects
@@ -5994,14 +6024,18 @@ const App = {
           ? `<span class="moodle-tag matched" title="Student nalezen v Moodle">Spárováno (${it.moodle_user_id})</span>`
           : `<span class="moodle-tag unmatched" title="Student nebyl v kurzu Moodle jednoznačně nalezen">Nespárováno</span>`;
 
+        const uploadStatusBadge = it.moodle_uploaded_at
+          ? `<div style="font-size:0.72rem; color:var(--success); font-weight:600; margin-top:3px;" title="Hodnocení odesláno do Moodle: ${this.escape(it.moodle_uploaded_at)}">✓ Odesláno (${this.formatDateTime(it.moodle_uploaded_at)})</div>`
+          : `<div style="font-size:0.72rem; color:var(--text-muted); margin-top:3px;">Zatím neodesláno</div>`;
+
         const gradeOptions = ['A', 'B', 'C', 'D', 'E', 'F'].map(g => 
           `<option value="${g}" ${it.grade_letter === g ? 'selected' : ''}>${g}</option>`
         ).join('');
 
         return `
-          <tr data-index="${idx}">
+          <tr data-index="${idx}" id="moodle-upload-row-${it.protocol_id}">
             <td style="text-align:center;">
-              <input type="checkbox" class="moodle-upload-cb" data-index="${idx}" checked onchange="App.updateMoodleUploadSelectedCount()">
+              <input type="checkbox" class="moodle-upload-cb" data-index="${idx}" data-proto-id="${it.protocol_id}" checked onchange="App.updateMoodleUploadSelectedCount()">
             </td>
             <td>
               <strong>${this.escape(it.student_name)}</strong>
@@ -6025,6 +6059,7 @@ const App = {
             </td>
             <td>
               ${inMoodleBadge}
+              ${uploadStatusBadge}
             </td>
           </tr>
         `;
@@ -6049,7 +6084,7 @@ const App = {
   },
 
   async executeMoodleUpload() {
-    const cmid = document.getElementById('moodle-upload-assign-select')?.value;
+    const cmid = document.getElementById('moodle-upload-assign-select')?.value || 'all';
     const uploadPdf = document.getElementById('moodle-opt-upload-pdf')?.checked ?? true;
     const uploadGrade = document.getElementById('moodle-opt-upload-grade')?.checked ?? true;
     const uploadComment = document.getElementById('moodle-opt-upload-comment')?.checked ?? true;
@@ -6072,6 +6107,7 @@ const App = {
 
       return {
         protocol_id: it.protocol_id,
+        cmid: it.cmid || (cmid !== 'all' && cmid !== 'my_tasks' ? cmid : undefined),
         upload_pdf: uploadPdf,
         upload_grade: uploadGrade,
         grade_letter: gradeLetter,
@@ -6079,9 +6115,10 @@ const App = {
       };
     });
 
+    const targetDesc = (cmid === 'my_tasks') ? 'podle mých vyučovaných úloh' : ((cmid === 'all') ? 'podle odpovídajících úloh v Moodle' : `úloha cmid=${cmid}`);
     const ok = await AppModal.confirm({
       title: "Potvrzení odeslání do Moodle",
-      message: `Opravdu chcete odeslat hodnocení pro ${students.length} studentů do Moodle (úloha cmid=${cmid})?`
+      message: `Opravdu chcete odeslat hodnocení pro ${students.length} studentů do Moodle (${targetDesc})?`
     });
     if (!ok) return;
 
@@ -6110,6 +6147,7 @@ const App = {
           title: "Odeslání dokončeno",
           message: `Hodnocení pro ${data.uploaded_count} studentů bylo úspěšně odesláno a zpracováno v Moodle.`
         });
+        await this.loadProtocols();
       } else {
         await AppModal.alert({
           title: "Chyba při odesílání",
@@ -6120,6 +6158,62 @@ const App = {
       await AppModal.alert({ title: "Chyba komunikace", message: err.message });
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = origText; }
+    }
+  },
+
+  async openMoodleUploadForProtocol(protoId) {
+    this.openMoodleModal();
+    this.switchMoodleTab('upload');
+
+    const proto = (this.protocols || []).find(p => p.id === protoId);
+
+    const uploadAssignSel = document.getElementById('moodle-upload-assign-select');
+    if (uploadAssignSel && proto) {
+      let matchedOpt = null;
+      for (const opt of uploadAssignSel.options) {
+        if (opt.value && opt.value !== 'all' && opt.value !== 'my_tasks') {
+          const text = opt.textContent;
+          if (new RegExp(`^P0?${proto.measurement_number}\\b`, 'i').test(text) ||
+              text.includes(`Úloha ${proto.measurement_number}`)) {
+            matchedOpt = opt.value;
+            break;
+          }
+        }
+      }
+      if (matchedOpt) {
+        uploadAssignSel.value = matchedOpt;
+      } else {
+        uploadAssignSel.value = 'all';
+      }
+    }
+
+    await this.loadMoodleUploadStudents();
+
+    // Pre-select only this specific protocol and uncheck others
+    const cbs = document.querySelectorAll('.moodle-upload-cb');
+    let targetRow = null;
+    cbs.forEach(cb => {
+      const idx = parseInt(cb.dataset.index, 10);
+      const it = this.moodleGradableItems && this.moodleGradableItems[idx];
+      const match = (it && it.protocol_id === protoId);
+      cb.checked = match;
+      if (match) {
+        targetRow = cb.closest('tr');
+        if (targetRow) {
+          targetRow.style.backgroundColor = 'rgba(59, 130, 246, 0.2)';
+          setTimeout(() => {
+            if (targetRow) targetRow.style.backgroundColor = '';
+          }, 3500);
+        }
+      }
+    });
+
+    const selectAllCb = document.getElementById('moodle-upload-select-all');
+    if (selectAllCb) selectAllCb.checked = false;
+    this.updateMoodleUploadSelectedCount();
+
+    if (targetRow) {
+      targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   },
 

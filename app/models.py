@@ -377,6 +377,9 @@ class MoodleGradableProtocolItem(BaseModel):
     protocol_id: int
     student_name: str
     task_name: str
+    measurement_id: Optional[int] = None
+    task_number: Optional[int] = None
+    cmid: Optional[str] = None
     slot_name: str
     points: float
     max_points: float
@@ -387,9 +390,11 @@ class MoodleGradableProtocolItem(BaseModel):
     upload_pdf: bool = True
     upload_grade: bool = True
     upload_comment: bool = True
+    moodle_uploaded_at: Optional[str] = None
 
 class MoodleUploadStudentItem(BaseModel):
     protocol_id: int
+    cmid: Optional[str] = None
     upload_pdf: bool = True
     upload_grade: bool = True
     grade_letter: Optional[str] = None

@@ -22,7 +22,7 @@ from app.version import VERSION
 from app.main import app
 from app.database import init_db, get_db
 from app.models import MoodleCredentialLoginRequest, Moodle2FACodeRequest
-from app.moodle_service import get_moodle_config
+from app.moodle_service import get_moodle_config, get_moodle_setting, save_moodle_setting
 from app.moodle_login_service import MoodleInteractiveLoginManager
 
 
@@ -121,14 +121,19 @@ class TestPraktikaV2230(unittest.TestCase):
         self.assertIsNone(status["two_factor_number"])
 
         # 3. Finalize success
-        mgr._finalize_success(
-            cookie_val="test_session_cookie_1234567890abcdef",
-            moodle_url="https://moodle-vyuka.cvut.cz",
-            course_id="16880"
-        )
-        status = mgr.get_status()
-        self.assertEqual(status["status"], "success")
-        self.assertIn("test_s...cdef", status["cookie_preview"])
+        existing_cookie = get_moodle_setting("moodle_session_cookie", "")
+        try:
+            mgr._finalize_success(
+                cookie_val="test_session_cookie_1234567890abcdef",
+                moodle_url="https://moodle-vyuka.cvut.cz",
+                course_id="16880"
+            )
+            status = mgr.get_status()
+            self.assertEqual(status["status"], "success")
+            self.assertIn("test_s...cdef", status["cookie_preview"])
+        finally:
+            if existing_cookie:
+                save_moodle_setting("moodle_session_cookie", existing_cookie)
 
         # Clean up
         mgr.cancel()

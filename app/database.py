@@ -273,6 +273,7 @@ def init_db():
         graded_at TEXT,
         submitted_at TEXT,
         measured_at TEXT,
+        moodle_uploaded_at TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         FOREIGN KEY(semester_id) REFERENCES semesters(id),
@@ -484,6 +485,11 @@ def init_db():
 
     try:
         cur.execute("CREATE INDEX IF NOT EXISTS idx_protocols_submitted_at ON protocols(submitted_at DESC)")
+    except Exception:
+        pass
+
+    try:
+        cur.execute("ALTER TABLE protocols ADD COLUMN moodle_uploaded_at TEXT DEFAULT NULL")
     except Exception:
         pass
 
