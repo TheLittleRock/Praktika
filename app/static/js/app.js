@@ -245,6 +245,7 @@ const App = {
     await this.loadInitialMetadata();
     await this.loadPresets();
     this.setupEventListeners();
+    this.initColumnVisibility();
     this.setupDragAndDrop();
     this.setupClientErrorLogging();
     this.setupGradingDockDrag();
@@ -1277,6 +1278,142 @@ const App = {
     avgEl.textContent = graded > 0 ? `${avg} / 10` : '—';
   },
 
+  ALL_TOGGLEABLE_COLUMNS: ['measurement', 'slot', 'submitted', 'status', 'score', 'evaluator', 'views'],
+
+  initColumnVisibility() {
+    let saved = null;
+    try {
+      const raw = localStorage.getItem('praktika_visible_columns');
+      if (raw) saved = JSON.parse(raw);
+    } catch (_) {}
+
+    if (Array.isArray(saved) && saved.length > 0) {
+      this.visibleColumns = new Set(saved);
+    } else {
+      this.visibleColumns = new Set(this.ALL_TOGGLEABLE_COLUMNS);
+    }
+    this.applyColumnVisibility();
+  },
+
+  toggleColumnsDropdown(e) {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    const dd = document.getElementById('table-columns-dropdown');
+    if (!dd) return;
+    const isShown = dd.style.display === 'block';
+    this.closeAllActionMenus();
+    dd.style.display = isShown ? 'none' : 'block';
+  },
+
+  setColumnVisible(colKey, isVisible) {
+    if (!this.visibleColumns) {
+      this.visibleColumns = new Set(this.ALL_TOGGLEABLE_COLUMNS);
+    }
+    if (isVisible) {
+      this.visibleColumns.add(colKey);
+    } else {
+      this.visibleColumns.delete(colKey);
+    }
+    try {
+      localStorage.setItem('praktika_visible_columns', JSON.stringify(Array.from(this.visibleColumns)));
+    } catch (_) {}
+    this.applyColumnVisibility();
+  },
+
+  resetColumnVisibility(showAll = true) {
+    if (showAll) {
+      this.visibleColumns = new Set(this.ALL_TOGGLEABLE_COLUMNS);
+    } else {
+      // Compact preset: keep core information
+      this.visibleColumns = new Set(['measurement', 'submitted', 'status', 'score']);
+    }
+    try {
+      localStorage.setItem('praktika_visible_columns', JSON.stringify(Array.from(this.visibleColumns)));
+    } catch (_) {}
+    this.applyColumnVisibility();
+  },
+
+  applyColumnVisibility() {
+    if (!this.visibleColumns) {
+      this.visibleColumns = new Set(this.ALL_TOGGLEABLE_COLUMNS);
+    }
+    const table = document.getElementById('protocols-main-table');
+    this.ALL_TOGGLEABLE_COLUMNS.forEach(colKey => {
+      const isVisible = this.visibleColumns.has(colKey);
+      const chk = document.getElementById(`col-toggle-${colKey}`);
+      if (chk) chk.checked = isVisible;
+
+      if (table) {
+        const cls = `hide-col-${colKey}`;
+        if (isVisible) {
+          table.classList.remove(cls);
+        } else {
+          table.classList.add(cls);
+        }
+      }
+    });
+  },
+
+  pollAIStatus(protoId) {
+    if (this._aiPollInterval) {
+      clearInterval(this._aiPollInterval);
+      this._aiPollInterval = null;
+    }
+    const sumText = document.getElementById('ai-drawer-summary-text');
+    if (sumText) sumText.innerHTML = '<em>Probíhá hloubková analýza protokolu pomocí AI...</em> <span id="ai-timer-count" style="font-weight:600; color:var(--primary); font-family:\'JetBrains Mono\'; margin-left:6px;">(na pozadí)</span>';
+
+    let secondsElapsed = 0;
+    this._aiPollInterval = setInterval(async () => {
+      secondsElapsed += 2;
+      if (!this.currentProtocol || this.currentProtocol.id !== protoId) {
+        clearInterval(this._aiPollInterval);
+        this._aiPollInterval = null;
+        return;
+      }
+      const timerEl = document.getElementById('ai-timer-count');
+      if (timerEl) timerEl.textContent = `(${secondsElapsed}s)`;
+
+      if (secondsElapsed > 240) {
+        clearInterval(this._aiPollInterval);
+        this._aiPollInterval = null;
+        return;
+      }
+
+      try {
+        const resp = await fetch(`/api/protocols/${protoId}/ai-status`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data.status === 'ready' && data.proposals) {
+          clearInterval(this._aiPollInterval);
+          this._aiPollInterval = null;
+          if (this.currentProtocol && this.currentProtocol.id === protoId) {
+            this.currentProtocol.ai_proposals = data.proposals;
+            this.currentProtocol.ai_status = 'ready';
+            this.setAIResult(data.proposals);
+            if (data.proposals.model_used) {
+              this.updateAllAIModelBadges(data.proposals.model_used);
+            }
+            if (window.PDFStudio) {
+              window.PDFStudio.setAIProposals(data.proposals.annotations || []);
+              window.PDFStudio.renderAIProposals();
+            }
+            this.showToast("AI analýza na pozadí byla dokončena!");
+          }
+        } else if (data.status === 'failed') {
+          clearInterval(this._aiPollInterval);
+          this._aiPollInterval = null;
+          if (this.currentProtocol && this.currentProtocol.id === protoId) {
+            this.currentProtocol.ai_status = 'failed';
+          }
+        }
+      } catch (e) {
+        console.warn("Poll AI status error:", e);
+      }
+    }, 2000);
+  },
+
   renderProtocolsTable(protocols) {
     const tbody = document.getElementById('protocols-tbody');
     if (!tbody) return;
@@ -1284,7 +1421,7 @@ const App = {
     if (protocols.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="9" style="text-align:center; padding:36px; color:var(--text-muted);">
+          <td colspan="10" style="text-align:center; padding:36px; color:var(--text-muted);">
             Žádné protokoly nebyly nalezeny pro zadaný filtr.<br>
             <button class="btn btn-primary btn-sm" style="margin-top:12px;" onclick="App.openUploadModal()">+ Nahrát nový protokol</button>
           </td>
@@ -1305,8 +1442,8 @@ const App = {
 
       if (p.moodle_uploaded_at) {
         statusBadge += `
-          <div style="margin-top:2px;">
-            <span class="badge" style="background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3); font-size:0.64rem; padding:1px 4px; border-radius:2px; font-weight:600; white-space:nowrap;" title="Hodnocení odesláno do Moodle: ${this.escape(p.moodle_uploaded_at)}">
+          <div style="margin-top:3px;">
+            <span class="badge" style="background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3); font-size:0.68rem; padding:2px 5px; border-radius:3px; font-weight:600; white-space:nowrap;" title="Hodnocení odesláno do Moodle: ${this.escape(p.moodle_uploaded_at)}">
               Moodle ✓
             </span>
           </div>`;
@@ -1315,11 +1452,12 @@ const App = {
       const hasGrade = p.grade && p.grade !== '—';
       const gradeBadge = hasGrade
         ? `<span class="grade-badge-sm" style="background:${GradingEngine.getGradeBg(p.grade)}; color:${GradingEngine.getGradeColor(p.grade)}; border:1px solid ${GradingEngine.getGradeColor(p.grade)};">${p.grade}</span>`
-        : `<span style="color:#94a3b8; font-size:0.72rem;">—</span>`;
+        : `<span style="color:#94a3b8; font-size:0.75rem;">—</span>`;
 
-      const scoreDisplay = (p.total_points !== null && p.total_points !== undefined)
-        ? `<span style="font-family:'JetBrains Mono'; font-weight:700; font-size:0.75rem;">${GradingEngine.formatPoints(p.total_points)}</span> <span style="font-size:0.68rem; color:var(--text-muted);">/ 10</span>`
-        : `<span style="color:#94a3b8; font-size:0.72rem;">—</span>`;
+      const hasPoints = (p.total_points !== null && p.total_points !== undefined);
+      const scoreDisplay = hasPoints
+        ? `<span class="score-val">${GradingEngine.formatPoints(p.total_points)}</span> <span class="score-max">/ 10</span>`
+        : `<span style="color:#94a3b8; font-size:0.75rem;">—</span>`;
 
       const slotDisplay = `${p.day_of_week} ${p.time_start}–${p.time_end}`;
       const slotSub = (p.slot_room || (p.slot_name && p.slot_name !== p.slot_room))
@@ -1327,24 +1465,24 @@ const App = {
         : '';
 
       // Format date display for Odevzdáno
-      let submittedDisplay = '<span style="color:var(--text-muted); font-size:0.72rem;">—</span>';
+      let submittedDisplay = '<span style="color:var(--text-muted); font-size:0.75rem;">—</span>';
       if (p.submitted_at) {
         const d = new Date(p.submitted_at);
         if (!isNaN(d.getTime())) {
           const dayStr = d.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric', year: 'numeric' });
           const timeStr = d.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
-          const measSub = p.measured_at ? `<div style="font-size:0.66rem; color:var(--text-muted); line-height:1.1;" title="Datum fyzického měření v laboratoři">měřeno ${this.escape(p.measured_at)}</div>` : '';
+          const measSub = p.measured_at ? `<div style="font-size:0.73rem; color:var(--text-muted); line-height:1.2;" title="Datum fyzického měření v laboratoři">měřeno ${this.escape(p.measured_at)}</div>` : '';
           submittedDisplay = `
-            <div style="font-weight:600; font-size:0.73rem; white-space:nowrap; line-height:1.2;">${dayStr} <span style="color:var(--text-muted); font-size:0.68rem; font-weight:normal;">${timeStr}</span></div>
+            <div style="font-weight:500; font-size:0.82rem; white-space:nowrap; line-height:1.25;">${dayStr} <span style="color:var(--text-muted); font-size:0.73rem; font-weight:normal;">${timeStr}</span></div>
             ${measSub}
           `;
         } else {
-          submittedDisplay = `<span style="font-size:0.72rem;">${this.escape(p.submitted_at)}</span>`;
+          submittedDisplay = `<span style="font-size:0.80rem;">${this.escape(p.submitted_at)}</span>`;
         }
       } else if (p.created_at) {
         const d = new Date(p.created_at);
         const dayStr = isNaN(d.getTime()) ? p.created_at : d.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric', year: 'numeric' });
-        submittedDisplay = `<div style="font-weight:600; font-size:0.73rem;">${dayStr}</div>`;
+        submittedDisplay = `<div style="font-weight:500; font-size:0.82rem;">${dayStr}</div>`;
       }
 
       const isOwner = (this.currentUser && p.evaluator_id === this.currentUser.id);
@@ -1354,27 +1492,27 @@ const App = {
       let evaluatorDisplay = '';
       if (isAdmin && this.allUsers && this.allUsers.length > 0) {
         evaluatorDisplay = `
-          <select class="form-control" style="font-size:0.70rem; padding:1px 3px; max-width:115px; display:inline-block;" onchange="App.assignProtocol(${p.id}, this.value)" title="Přiřadit asistenta">
+          <select class="form-control" style="font-size:0.78rem; padding:2px 5px; max-width:125px; display:inline-block;" onchange="App.assignProtocol(${p.id}, this.value)" title="Přiřadit asistenta">
             <option value="">Nepřiřazeno</option>
             ${this.allUsers.map(u => `<option value="${u.id}" ${p.evaluator_id === u.id ? 'selected' : ''}>${this.escape(u.full_name)}</option>`).join('')}
           </select>`;
       } else {
         if (isOwner) {
           evaluatorDisplay = `
-            <div style="display:inline-flex; align-items:center; gap:3px;">
-              <span style="font-size:0.73rem; font-weight:600; color:var(--primary); max-width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${this.escape(p.evaluator_name || 'Moje')}</span>
+            <div style="display:inline-flex; align-items:center; gap:4px;">
+              <span style="font-size:0.80rem; font-weight:600; color:var(--primary); max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${this.escape(p.evaluator_name || 'Moje')}</span>
               <button class="btn btn-secondary btn-xs" style="padding:1px 4px;" onclick="App.assignProtocol(${p.id}, '')" title="Uvolnit protokol ze svých">✕</button>
             </div>
           `;
         } else if (isUnassigned) {
           evaluatorDisplay = `
-            <div style="display:inline-flex; align-items:center; gap:3px;">
-              <em style="color:#94a3b8; font-size:0.70rem;">Nepřiřazeno</em>
+            <div style="display:inline-flex; align-items:center; gap:4px;">
+              <em style="color:#94a3b8; font-size:0.78rem;">Nepřiřazeno</em>
               <button class="btn btn-secondary btn-xs" style="padding:1px 4px;" onclick="App.assignProtocol(${p.id}, ${this.currentUser ? this.currentUser.id : 'null'})" title="Přiřadit tento protokol sobě">+ Moje</button>
             </div>
           `;
         } else {
-          evaluatorDisplay = `<span style="font-size:0.73rem; max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block;" title="${this.escape(p.evaluator_name)}">${this.escape(p.evaluator_name)}</span>`;
+          evaluatorDisplay = `<span style="font-size:0.80rem; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block;" title="${this.escape(p.evaluator_name)}">${this.escape(p.evaluator_name)}</span>`;
         }
       }
 
@@ -1383,44 +1521,47 @@ const App = {
 
       return `
         <tr>
-          <td style="text-align:center; width:28px;">
+          <td style="text-align:center; width:36px;">
             <input type="checkbox" class="protocol-checkbox" value="${p.id}" ${isChecked} onchange="App.handleProtocolCheckboxChange()">
           </td>
-          <td>
-            <div style="font-weight:700; color:var(--text-main); font-size:0.78rem; line-height:1.2; max-width:145px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${this.escape(p.student_name)}">${this.escape(p.student_name)}</div>
-            <div style="font-size:0.67rem; color:var(--text-muted); line-height:1.1; max-width:145px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${this.escape(p.source_filename)}">${this.escape(p.source_filename)}</div>
+          <td class="col-student">
+            <div style="font-weight:600; color:var(--text-main); font-size:0.86rem; line-height:1.25; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${this.escape(p.student_name)}">${this.escape(p.student_name)}</div>
+            <div style="font-size:0.74rem; color:var(--text-muted); line-height:1.2; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${this.escape(p.source_filename)}">${this.escape(p.source_filename)}</div>
           </td>
-          <td>
-            <div style="font-weight:700; font-size:0.75rem; line-height:1.2;">Úloha ${p.measurement_number}</div>
-            <div style="font-size:0.67rem; color:var(--text-muted); line-height:1.1; max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${this.escape(p.measurement_name)}">${this.escape(p.measurement_name)}</div>
+          <td class="col-measurement">
+            <div style="font-weight:600; font-size:0.84rem; line-height:1.25;">Úloha ${p.measurement_number}</div>
+            <div style="font-size:0.74rem; color:var(--text-muted); line-height:1.2; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${this.escape(p.measurement_name)}">${this.escape(p.measurement_name)}</div>
           </td>
-          <td>
-            <div style="font-size:0.73rem; white-space:nowrap; font-weight:500;">${slotDisplay}</div>
-            ${slotSub ? `<div style="font-size:0.67rem; color:var(--text-muted); line-height:1.1; max-width:115px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${this.escape(slotSub)}">${this.escape(slotSub)}</div>` : ''}
+          <td class="col-slot">
+            <div style="font-size:0.82rem; white-space:nowrap; font-weight:500; line-height:1.25;">${slotDisplay}</div>
+            ${slotSub ? `<div style="font-size:0.73rem; color:var(--text-muted); line-height:1.2; max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${this.escape(slotSub)}">${this.escape(slotSub)}</div>` : ''}
           </td>
-          <td>
+          <td class="col-submitted">
             ${submittedDisplay}
           </td>
-          <td>${statusBadge}</td>
-          <td>
-            <div style="display:inline-flex; align-items:center; gap:4px; white-space:nowrap;">
-              ${scoreDisplay} ${gradeBadge}
+          <td class="col-status">${statusBadge}</td>
+          <td class="col-score" style="white-space:nowrap;">
+            <div class="score-cell-container">
+              <div class="score-points-wrapper">
+                ${scoreDisplay}
+              </div>
+              ${gradeBadge}
             </div>
           </td>
-          <td>${evaluatorDisplay}</td>
-          <td>
+          <td class="col-evaluator">${evaluatorDisplay}</td>
+          <td class="col-views">
             ${(p.student_view_count || 0) > 0 ? `
-              <span class="badge-student-view viewed" style="font-size:0.67rem; padding:1px 5px;" onclick="App.openStudentViewsModal(${p.id})" title="Zobrazeno ${p.student_view_count}× (aktivní čas ${this.formatDuration(p.student_view_total_seconds)}). Klikněte pro detailní historii.">
+              <span class="badge-student-view viewed" style="font-size:0.72rem; padding:2px 6px;" onclick="App.openStudentViewsModal(${p.id})" title="Zobrazeno ${p.student_view_count}× (aktivní čas ${this.formatDuration(p.student_view_total_seconds)}). Klikněte pro detailní historii.">
                 👁️ ${p.student_view_count}× • ${this.formatDuration(p.student_view_total_seconds)}
               </span>
             ` : `
-              <span class="badge-student-view unviewed" style="font-size:0.67rem; padding:1px 5px;" title="Student si opravený protokol zatím nezobrazil">
+              <span class="badge-student-view unviewed" style="font-size:0.72rem; padding:2px 6px;" title="Student si opravený protokol zatím nezobrazil">
                 👁️ 0×
               </span>
             `}
           </td>
-          <td style="text-align:right; white-space:nowrap;">
-            <div style="display:inline-flex; align-items:center; gap:3px;">
+          <td class="col-actions" style="text-align:right; white-space:nowrap;">
+            <div style="display:inline-flex; align-items:center; gap:4px;">
               <button class="btn btn-primary btn-xs" onclick="App.openStudio(${p.id})">
                 ${p.status === 'graded' ? 'Upravit' : 'Opravit'}
               </button>
@@ -1466,6 +1607,7 @@ const App = {
       selectAll.checked = checkboxes.length > 0 && Array.from(checkboxes).every(cb => cb.checked);
     }
     this.updateBulkActionBar();
+    this.applyColumnVisibility();
   },
 
   async copyStudentLink(token) {
@@ -1572,6 +1714,10 @@ const App = {
         this.setAIResult(this.currentProtocol.ai_proposals);
       } else {
         this.setAIResult(null);
+      }
+
+      if (this.currentProtocol.ai_status === 'analyzing') {
+        this.pollAIStatus(protoId);
       }
 
       this.isDirty = false;
@@ -3774,82 +3920,124 @@ const App = {
 
     const btn = document.getElementById('btn-run-ai-action');
     const origText = btn ? btn.textContent : '↻ Spustit';
-    if (btn) btn.textContent = 'Analyzuji...';
+    if (btn) {
+      btn.textContent = 'Analyzuji...';
+      btn.disabled = true;
+    }
 
     const sumText = document.getElementById('ai-drawer-summary-text');
-    if (sumText) sumText.innerHTML = '<em>Probíhá hloubková analýza protokolu pomocí AI...</em>';
+    if (sumText) sumText.innerHTML = '<em>Probíhá hloubková analýza protokolu pomocí AI...</em> <span id="ai-timer-count" style="font-weight:600; color:var(--primary); font-family:\'JetBrains Mono\'; margin-left:6px;">(0s)</span>';
+
+    const fallbackCont = document.getElementById('ai-drawer-fallback-container');
+    if (fallbackCont) fallbackCont.style.display = 'none';
+
+    const protoId = this.currentProtocol.id;
+    let pollInterval = null;
+    let secondsElapsed = 0;
+
+    const cleanup = () => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+      }
+      if (btn) {
+        btn.textContent = origText;
+        btn.disabled = false;
+      }
+    };
 
     try {
       const thinkingSelect = document.getElementById('ai-drawer-thinking-select');
       const thinkingLevel = thinkingSelect ? thinkingSelect.value : '';
-      let url = `/api/protocols/${this.currentProtocol.id}/ai-analyze?mode=${mode}`;
+      let url = `/api/protocols/${protoId}/ai-analyze?mode=${mode}&background=true`;
       if (thinkingLevel) {
         url += `&thinking_level=${encodeURIComponent(thinkingLevel)}`;
       }
-      const resp = await fetch(url, {
-        method: 'POST'
-      });
-      if (resp.ok) {
-        const contentType = resp.headers.get('content-type') || '';
-        let data;
-        if (contentType.includes('application/json')) {
-          data = await resp.json();
-        } else {
-          const raw = await resp.text();
-          throw new Error("Server vrátil neočekávaný ne-JSON formát.");
-        }
-        this.currentProtocol.ai_proposals = data;
-        this.setAIResult(data);
-        if (data.model_used) {
-          this.updateAllAIModelBadges(data.model_used);
-        }
-        if (window.PDFStudio) {
-          window.PDFStudio.setAIProposals(data.annotations || []);
-          window.PDFStudio.renderAIProposals();
-        }
-        const drawer = document.getElementById('studio-ai-drawer');
-        if (drawer) drawer.style.display = 'flex';
-        this.ensureOppositePanels('ai');
-        this.showToast(mode === 'replace' ? "AI analýza byla kompletně přegenerována!" : "Nové návrhy AI byly přidány k protokolu!");
-      } else {
-        let errMessage = "Chyba při volání AI analýzy.";
-        const contentType = resp.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
-          try {
-            const err = await resp.json();
-            errMessage = err.detail || err.message || JSON.stringify(err);
-          } catch (jsonErr) {
-            errMessage = `Server vrátil HTTP ${resp.status}`;
-          }
-        } else {
-          const rawHtml = await resp.text();
-          if (resp.status === 504 || rawHtml.includes('Gateway Time-out') || rawHtml.includes('Gateway Timeout')) {
-            errMessage = "Vypršel časový limit serveru nebo proxy (HTTP 504 Gateway Timeout). AI model neodpověděl včas nebo je přetížen. Zkuste to prosím za chvíli.";
-          } else if (resp.status === 503) {
-            errMessage = "AI model je dočasně přetížen (HTTP 503 Service Unavailable). Zkuste to prosím za okamžik nebo zvolte jiný model v Nastavení.";
-          } else if (resp.status === 502) {
-            errMessage = "AI služba je dočasně nedostupná (HTTP 502 Bad Gateway). Zkuste požadavek zopakovat za chvíli.";
-          } else {
-            const cleanErr = rawHtml.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
-            errMessage = cleanErr.slice(0, 200) || `Server vrátil HTTP ${resp.status} (${resp.statusText})`;
-          }
-        }
-        const fallbackCont = document.getElementById('ai-drawer-fallback-container');
+
+      const resp = await fetch(url, { method: 'POST' });
+      if (!resp.ok) {
+        let errMessage = `Server vrátil HTTP ${resp.status}`;
+        try {
+          const errData = await resp.json();
+          errMessage = errData.detail || errData.message || errMessage;
+        } catch (_) {}
+        cleanup();
         if (fallbackCont) {
           fallbackCont.innerHTML = `<div class="ai-fallback-alert" style="background:rgba(239,68,68,0.12); border:1px solid var(--accent-red); color:var(--accent-red); padding:8px 10px; border-radius:6px; font-size:0.8rem; margin-bottom:8px;">⚠️ ${this.escape(errMessage)}</div>`;
           fallbackCont.style.display = 'block';
         }
         await AppModal.alert({ title: "Chyba AI analýzy", message: errMessage });
+        return;
       }
+
+      // Enter polling loop for background task completion
+      pollInterval = setInterval(async () => {
+        secondsElapsed += 2;
+        const timerEl = document.getElementById('ai-timer-count');
+        if (timerEl) {
+          timerEl.textContent = `(${secondsElapsed}s)`;
+        }
+
+        // Failsafe timeout at 240 seconds
+        if (secondsElapsed > 240) {
+          cleanup();
+          const timeoutMsg = "AI analýza překročila časový limit 240 sekund. Zkuste to prosím znovu nebo zvolte rychlejší model / nižší úroveň uvažování (Thinking level) v Nastavení.";
+          if (fallbackCont) {
+            fallbackCont.innerHTML = `<div class="ai-fallback-alert" style="background:rgba(239,68,68,0.12); border:1px solid var(--accent-red); color:var(--accent-red); padding:8px 10px; border-radius:6px; font-size:0.8rem; margin-bottom:8px;">⚠️ ${this.escape(timeoutMsg)}</div>`;
+            fallbackCont.style.display = 'block';
+          }
+          await AppModal.alert({ title: "Časový limit analýzy", message: timeoutMsg });
+          return;
+        }
+
+        try {
+          const statusResp = await fetch(`/api/protocols/${protoId}/ai-status`);
+          if (!statusResp.ok) return; // Wait for next tick
+          const statusData = await statusResp.json();
+
+          if (statusData.status === 'ready' && statusData.proposals) {
+            cleanup();
+            const data = statusData.proposals;
+            if (this.currentProtocol && this.currentProtocol.id === protoId) {
+              this.currentProtocol.ai_proposals = data;
+              this.currentProtocol.ai_status = 'ready';
+              this.setAIResult(data);
+              if (data.model_used) {
+                this.updateAllAIModelBadges(data.model_used);
+              }
+              if (window.PDFStudio) {
+                window.PDFStudio.setAIProposals(data.annotations || []);
+                window.PDFStudio.renderAIProposals();
+              }
+              const drawer = document.getElementById('studio-ai-drawer');
+              if (drawer) drawer.style.display = 'flex';
+              this.ensureOppositePanels('ai');
+              this.showToast(mode === 'replace' ? "AI analýza byla kompletně přegenerována!" : "Nové návrhy AI byly přidány k protokolu!");
+            }
+          } else if (statusData.status === 'failed') {
+            cleanup();
+            const errMsg = statusData.error || "Neznámá chyba AI analýzy.";
+            if (this.currentProtocol && this.currentProtocol.id === protoId) {
+              this.currentProtocol.ai_status = 'failed';
+            }
+            if (fallbackCont) {
+              fallbackCont.innerHTML = `<div class="ai-fallback-alert" style="background:rgba(239,68,68,0.12); border:1px solid var(--accent-red); color:var(--accent-red); padding:8px 10px; border-radius:6px; font-size:0.8rem; margin-bottom:8px;">⚠️ ${this.escape(errMsg)}</div>`;
+              fallbackCont.style.display = 'block';
+            }
+            await AppModal.alert({ title: "Chyba AI analýzy", message: errMsg });
+          }
+        } catch (pollErr) {
+          console.warn("Chyba při dotazování na stav AI analýzy:", pollErr);
+        }
+      }, 2000);
+
     } catch (e) {
-      const fallbackCont = document.getElementById('ai-drawer-fallback-container');
+      cleanup();
       if (fallbackCont) {
         fallbackCont.innerHTML = `<div class="ai-fallback-alert" style="background:rgba(239,68,68,0.12); border:1px solid var(--accent-red); color:var(--accent-red); padding:8px 10px; border-radius:6px; font-size:0.8rem; margin-bottom:8px;">⚠️ Chyba při komunikaci s AI službou: ${this.escape(e.message)}</div>`;
         fallbackCont.style.display = 'block';
       }
       await AppModal.alert({ title: "Chyba komunikace", message: "Chyba při komunikaci s AI službou: " + e.message });
-    } finally {
-      if (btn) btn.textContent = origText;
     }
   },
 
@@ -5083,6 +5271,10 @@ const App = {
       }
       if (!e.target.closest('.action-dropdown')) {
         this.closeAllActionMenus();
+      }
+      if (!e.target.closest('#columns-dropdown-wrapper')) {
+        const dd = document.getElementById('table-columns-dropdown');
+        if (dd) dd.style.display = 'none';
       }
     });
   },

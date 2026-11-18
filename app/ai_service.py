@@ -504,23 +504,58 @@ Napiš to stručně, jasně, v bodech a odrážkách, bez zbytečné omáčky.
                 continue
     return raw_text[:20000]
 
-async def run_background_ai_analysis(proto_id: int):
+async def run_background_ai_analysis(
+    proto_id: int,
+    mode: str = "merge",
+    custom_key: Optional[str] = None,
+    language: Optional[str] = None,
+    thinking_level: Optional[str] = None,
+    user: Optional[dict] = None
+):
     """Run AI analysis asynchronously in background and store proposals in database."""
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("UPDATE protocols SET ai_status = 'analyzing' WHERE id = ?", (proto_id,))
+    conn.commit()
+    conn.close()
+
     try:
+        res = await analyze_protocol(
+            proto_id,
+            custom_key=custom_key,
+            language=language,
+            user=user,
+            thinking_level=thinking_level
+        )
+
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("UPDATE protocols SET ai_status = 'analyzing' WHERE id = ?", (proto_id,))
-        conn.commit()
-        conn.close()
 
-        res = await analyze_protocol(proto_id)
+        # If mode == 'merge', combine with existing unapproved proposals if any
+        if mode == "merge":
+            cur.execute("SELECT ai_proposals_json FROM protocols WHERE id = ?", (proto_id,))
+            existing_row = cur.fetchone()
+            if existing_row and existing_row["ai_proposals_json"]:
+                try:
+                    existing_data = json.loads(existing_row["ai_proposals_json"])
+                    res = merge_ai_results(existing_data, res)
+                except Exception as ex:
+                    print("Error merging AI proposals in background:", ex)
 
-        conn = get_db()
-        cur = conn.cursor()
         dumped = res.model_dump() if hasattr(res, "model_dump") else res.dict()
         cur.execute("UPDATE protocols SET ai_proposals_json = ?, ai_status = 'ready' WHERE id = ?", (json.dumps(dumped, ensure_ascii=False), proto_id))
         conn.commit()
         conn.close()
+
+        if user:
+            log_event(
+                level="INFO",
+                category="ai",
+                user_id=user.get("id"),
+                user_name=user.get("username", "system"),
+                action="ai_analysis",
+                details=f"Dokončena AI analýza (na pozadí) pro protokol #{proto_id}"
+            )
     except Exception as e:
         err_msg = str(e)
         print(f"Background AI analysis failed for protocol {proto_id}:", err_msg)

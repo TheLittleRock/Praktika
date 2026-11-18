@@ -449,7 +449,7 @@ body {
 .btn-success { background: var(--accent-green); color: #fff; }
 .btn-success:hover { background: #15803d; }
 .btn-sm { padding: 3px 8px; font-size: 0.76rem; border-radius: 3px; }
-.btn-xs { padding: 2px 6px; font-size: 0.70rem; line-height: 1.2; border-radius: 3px; }
+.btn-xs { padding: 3px 8px; font-size: 0.76rem; line-height: 1.25; border-radius: 4px; }
 
 /* Dashboard Styles */
 .dashboard-container {
@@ -550,7 +550,7 @@ table {
 }
 
 .table-card table {
-  font-size: 0.76rem;
+  font-size: 0.84rem;
 }
 
 th {
@@ -559,13 +559,13 @@ th {
   font-weight: 700;
   color: var(--text-muted);
   border-bottom: 1px solid var(--border);
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 td {
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
@@ -575,8 +575,8 @@ tr:hover td {
 }
 
 .table-card table th {
-  padding: 6px 8px;
-  font-size: 0.68rem;
+  padding: 9px 12px;
+  font-size: 0.74rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -584,18 +584,67 @@ tr:hover td {
 }
 
 .table-card table td {
-  padding: 5px 8px;
-  font-size: 0.74rem;
+  padding: 10px 12px;
+  font-size: 0.84rem;
   vertical-align: middle;
+}
+
+/* Column Visibility Classes */
+.hide-col-measurement .col-measurement,
+.hide-col-slot .col-slot,
+.hide-col-submitted .col-submitted,
+.hide-col-status .col-status,
+.hide-col-score .col-score,
+.hide-col-evaluator .col-evaluator,
+.hide-col-views .col-views {
+  display: none !important;
+}
+
+.table-columns-dropdown label {
+  color: var(--text-main);
+  user-select: none;
+  transition: opacity 0.15s;
+}
+
+.table-columns-dropdown label:hover {
+  opacity: 0.85;
+}
+
+/* Score Cell Layout & Vertical Alignment */
+.score-cell-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.score-points-wrapper {
+  min-width: 76px;
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  display: inline-block;
+}
+
+.score-points-wrapper .score-val {
+  font-weight: 700;
+  font-size: 0.86rem;
+  color: var(--text-main);
+}
+
+.score-points-wrapper .score-max {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-left: 2px;
 }
 
 .status-badge {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 0.68rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.74rem;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -606,8 +655,8 @@ tr:hover td {
 .status-revision { background: #fed7aa; color: #9a3412; }
 
 .grade-badge-sm {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 3px;
   display: inline-flex;
   align-items: center;

@@ -2000,10 +2000,42 @@ async def ai_analyze_protocol_endpoint(
     mode: str = "merge",
     language: Optional[str] = None,
     thinking_level: Optional[str] = None,
+    background: bool = True,
     user: dict = Depends(get_current_user)
 ):
     try:
         custom_key = user.get("custom_gemini_api_key")
+
+        # Verify protocol exists
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM protocols WHERE id = ?", (proto_id,))
+        if not cur.fetchone():
+            conn.close()
+            raise HTTPException(status_code=404, detail="Protokol nenalezen")
+
+        if background:
+            cur.execute("UPDATE protocols SET ai_status = 'analyzing' WHERE id = ?", (proto_id,))
+            conn.commit()
+            conn.close()
+
+            # Run in background to prevent Cloudflare 524 timeouts
+            asyncio.create_task(run_background_ai_analysis(
+                proto_id=proto_id,
+                mode=mode,
+                custom_key=custom_key,
+                language=language,
+                thinking_level=thinking_level,
+                user=user
+            ))
+            return {
+                "status": "analyzing",
+                "message": "AI analýza byla spuštěna na pozadí.",
+                "protocol_id": proto_id
+            }
+
+        conn.close()
+
         result = await analyze_protocol(proto_id, custom_key=custom_key, language=language, user=user, thinking_level=thinking_level)
         
         # Persist to database so proposals are never lost on reload
@@ -2039,8 +2071,43 @@ async def ai_analyze_protocol_endpoint(
         )
 
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/protocols/{proto_id}/ai-status")
+def get_ai_status_endpoint(proto_id: int, user: dict = Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT id, ai_status, ai_proposals_json FROM protocols WHERE id = ?", (proto_id,))
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Protokol nenalezen")
+    
+    status = row["ai_status"] or "idle"
+    proposals = None
+    error = None
+    if row["ai_proposals_json"]:
+        try:
+            parsed = json.loads(row["ai_proposals_json"])
+            if status == "failed" and isinstance(parsed, dict) and "error" in parsed:
+                error = parsed["error"]
+            elif status == "ready":
+                proposals = parsed
+            elif isinstance(parsed, dict) and "error" in parsed:
+                error = parsed["error"]
+            else:
+                proposals = parsed
+        except Exception:
+            pass
+
+    return {
+        "status": status,
+        "proposals": proposals,
+        "error": error
+    }
 
 def calculate_grade_mark(points: float, manual_override: Optional[str] = None) -> str:
     if manual_override:

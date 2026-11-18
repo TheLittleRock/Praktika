@@ -158,7 +158,51 @@
             <option value="unviewed">⏳ Zatím neotevřeno</option>
           </select>
           <input type="text" id="filter-search-input" class="search-input" placeholder="Hledat studenta nebo soubor..." oninput="App.loadProtocols()">
-          <div style="margin-left:auto; display:flex; gap:8px;">
+          <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+            <div class="dropdown-wrapper" style="position:relative;" id="columns-dropdown-wrapper">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-toggle-columns" onclick="App.toggleColumnsDropdown(event)" title="Přizpůsobit zobrazené sloupce tabulky">
+                <span>👁️ Sloupce ▾</span>
+              </button>
+              <div id="table-columns-dropdown" class="table-columns-dropdown" style="display:none; position:absolute; right:0; top:calc(100% + 4px); background:var(--bg-card); border:1px solid var(--border); border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,0.45); padding:10px 14px; z-index:100; min-width:190px;">
+                <div style="font-weight:700; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-muted); margin-bottom:8px; border-bottom:1px solid var(--border); padding-bottom:4px;">
+                  Zobrazit sloupce
+                </div>
+                <div style="display:flex; flex-direction:column; gap:6px; font-size:0.80rem;">
+                  <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                    <input type="checkbox" id="col-toggle-measurement" onchange="App.setColumnVisible('measurement', this.checked)">
+                    <span>Úloha</span>
+                  </label>
+                  <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                    <input type="checkbox" id="col-toggle-slot" onchange="App.setColumnVisible('slot', this.checked)">
+                    <span>Termín</span>
+                  </label>
+                  <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                    <input type="checkbox" id="col-toggle-submitted" onchange="App.setColumnVisible('submitted', this.checked)">
+                    <span>Odevzdáno</span>
+                  </label>
+                  <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                    <input type="checkbox" id="col-toggle-status" onchange="App.setColumnVisible('status', this.checked)">
+                    <span>Stav</span>
+                  </label>
+                  <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                    <input type="checkbox" id="col-toggle-score" onchange="App.setColumnVisible('score', this.checked)">
+                    <span>Hodnocení</span>
+                  </label>
+                  <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                    <input type="checkbox" id="col-toggle-evaluator" onchange="App.setColumnVisible('evaluator', this.checked)">
+                    <span>Opravil</span>
+                  </label>
+                  <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                    <input type="checkbox" id="col-toggle-views" onchange="App.setColumnVisible('views', this.checked)">
+                    <span>Zobrazeno</span>
+                  </label>
+                </div>
+                <div style="margin-top:8px; border-top:1px solid var(--border); display:flex; justify-content:space-between; gap:6px; padding-top:6px;">
+                  <button type="button" class="btn btn-secondary btn-xs" style="font-size:0.72rem; padding:2px 6px;" onclick="App.resetColumnVisibility(true)">Zobrazit vše</button>
+                  <button type="button" class="btn btn-secondary btn-xs" style="font-size:0.72rem; padding:2px 6px;" onclick="App.resetColumnVisibility(false)">Kompaktní</button>
+                </div>
+              </div>
+            </div>
             <button class="btn btn-secondary btn-sm" onclick="App.openMoodleModal()" title="Synchronizace a stahování/nahrávání z Moodle ČVUT (kurz 16880)">🎓 <span>Moodle</span></button>
             <button class="btn btn-secondary btn-sm" onclick="App.exportZip()" title="Stáhnout všechna opravená PDF a bodování v ZIP archivu">📦 <span>Stáhnout ZIP</span></button>
             <button class="btn btn-secondary btn-sm" onclick="App.exportCsv()" title="Exportovat přehled známek do CSV pro Excel">📊 <span>Export CSV</span></button>
@@ -186,59 +230,59 @@
         <!-- Table of Protocols -->
         <div class="table-card">
           <div class="table-responsive">
-            <table>
+            <table id="protocols-main-table">
               <thead>
                 <tr>
                   <th style="width:36px; text-align:center;"><input type="checkbox" id="select-all-protocols" onchange="App.toggleSelectAllProtocols(this.checked)" title="Vybrat všechny protokoly"></th>
-                  <th class="sortable-th" onclick="App.handleSortClick('student')">
+                  <th class="col-student sortable-th" onclick="App.handleSortClick('student')">
                     <div class="th-content">
                       <span>Student / Soubor</span>
                       <span class="sort-indicator" id="sort-ind-student">⇅</span>
                     </div>
                   </th>
-                  <th class="sortable-th" onclick="App.handleSortClick('measurement')">
+                  <th class="col-measurement sortable-th" onclick="App.handleSortClick('measurement')">
                     <div class="th-content">
                       <span>Úloha</span>
                       <span class="sort-indicator" id="sort-ind-measurement">⇅</span>
                     </div>
                   </th>
-                  <th class="sortable-th" onclick="App.handleSortClick('slot')">
+                  <th class="col-slot sortable-th" onclick="App.handleSortClick('slot')">
                     <div class="th-content">
                       <span>Termín</span>
                       <span class="sort-indicator" id="sort-ind-slot">⇅</span>
                     </div>
                   </th>
-                  <th class="sortable-th" onclick="App.handleSortClick('submitted')">
+                  <th class="col-submitted sortable-th" onclick="App.handleSortClick('submitted')">
                     <div class="th-content">
                       <span>Odevzdáno</span>
                       <span class="sort-indicator" id="sort-ind-submitted">⇅</span>
                     </div>
                   </th>
-                  <th class="sortable-th" onclick="App.handleSortClick('status')">
+                  <th class="col-status sortable-th" onclick="App.handleSortClick('status')">
                     <div class="th-content">
                       <span>Stav</span>
                       <span class="sort-indicator" id="sort-ind-status">⇅</span>
                     </div>
                   </th>
-                  <th class="sortable-th" onclick="App.handleSortClick('score')">
+                  <th class="col-score sortable-th" onclick="App.handleSortClick('score')">
                     <div class="th-content">
                       <span>Hodnocení</span>
                       <span class="sort-indicator" id="sort-ind-score">⇅</span>
                     </div>
                   </th>
-                  <th class="sortable-th" onclick="App.handleSortClick('evaluator')">
+                  <th class="col-evaluator sortable-th" onclick="App.handleSortClick('evaluator')">
                     <div class="th-content">
                       <span>Opravil</span>
                       <span class="sort-indicator" id="sort-ind-evaluator">⇅</span>
                     </div>
                   </th>
-                  <th class="sortable-th" onclick="App.handleSortClick('views')" title="Počet a celkový čas zobrazení hodnocení studentem">
+                  <th class="col-views sortable-th" onclick="App.handleSortClick('views')" title="Počet a celkový čas zobrazení hodnocení studentem">
                     <div class="th-content">
                       <span>Zobrazeno</span>
                       <span class="sort-indicator" id="sort-ind-views">⇅</span>
                     </div>
                   </th>
-                  <th style="text-align:right;">Akce</th>
+                  <th class="col-actions" style="text-align:right;">Akce</th>
                 </tr>
               </thead>
               <tbody id="protocols-tbody">

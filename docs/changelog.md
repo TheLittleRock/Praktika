@@ -4,6 +4,34 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.24.4] - 2026-11-18
+
+### 🚀 Novinky a vylepšení ve verzi 2.24.4
+
+#### 👁️ Přizpůsobení a skrývání sloupců tabulky protokolů (Column Visibility)
+- **Rozbalovací nabídka „Sloupce ▾“**:
+  - Přímo na liště filtrů přibylo tlačítko se snadným výběrem viditelných sloupců.
+  - Možnost skrýt sloupce, které pro aktuální práci nejsou potřeba: **Úloha**, **Termín**, **Odevzdáno**, **Stav**, **Hodnocení**, **Opravil**, **Zobrazeno**.
+  - Rychlé předvolby: **Zobrazit vše** (všech 7 volitelných sloupců) a **Kompaktní** (ponechá pouze klíčové informace: Úloha, Odevzdáno, Stav a Hodnocení).
+  - Trvalé uložení preferencí v `localStorage` uživatele.
+  - Okamžitá aplikace tříd bez nutnosti znovunačítání dat z databáze.
+
+#### 📐 Vylepšení typografie, rozestupů a zarovnání v tabulce protokolů
+- **Konec stísněnosti a přetékání**:
+  - Zvětšeno vertikální odsazení řádků (`padding: 10px 12px`), čímž se odstranil nepřirozeně stísněný vzhled.
+  - Zvětšeno písmo hlavních položek na čitelných `0.84rem` - `0.86rem` a doplňkových textů na `0.74rem`.
+  - Akční tlačítka v řádku tabulky (`Opravit` / `Upravit`, Moodle, úprava metadat, PDF a menu) mají čisté proporce a vertikální centrování.
+- **Pevné zarovnání sloupce Hodnocení (Fixed-width Tabular Numbers)**:
+  - Odstraněno skákání a zalamování známky (např. posunutí či zalomení odznaku známky `A` pod `9.875 / 10`).
+  - Bodové hodnocení má vyhrazený pevný blok s tabulkovými číslicemi (`font-variant-numeric: tabular-nums; min-width: 76px; text-align: right;`), za nímž následuje odznak známky na striktně svisle zarovnané pozici napříč všemi řádky.
+
+#### ⚡ Odstranění Cloudflare 524 Timeout při AI analýze (Asynchronní běh + polling)
+- **Pozadí úlohy a dotazování na stav (`GET /api/protocols/{id}/ai-status`)**:
+  - Spuštění AI analýzy (`POST /api/protocols/{id}/ai-analyze?background=true`) nově okamžitě vrací stav `analyzing` (< 50 ms), čímž se zcela eliminuje 100sekundový limit reverzní proxy Cloudflare (HTTP 524 Gateway Timeout).
+  - Webové rozhraní automaticky v reálném čase monitoruje stav běhu analýzy každé 2 sekundy s živým časovačem v AI šuplíku.
+  - Po dokončení se automaticky načtou a vykreslí vygenerované návrhy a anotace do PDF a hodnoticího doku.
+  - Pokud byla analýza spuštěna a asistent mezitím otevře protokol v novém okně nebo záložce, rozhraní automaticky naváže na běžící analýzu a po jejím dokončení návrhy ihned zobrazí.
+
 ## [2.24.3] - 2026-11-18
 
 ### 🚀 Novinky a vylepšení ve verzi 2.24.3
