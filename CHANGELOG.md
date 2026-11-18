@@ -4,6 +4,27 @@ Všechny významné změny v projektu **Praktika Evaluation Studio** jsou zaznam
 
 Formát vychází ze standardu [Keep a Changelog](https://keepachangelog.com/cs/1.0.0/) a projekt dodržuje [Sémantické verzování](https://semver.org/lang/cs/).
 
+## [2.24.5] - 2026-11-18
+
+### 🚀 Opravy a vylepšení ve verzi 2.24.5
+
+#### 🛑 Omezení generování tokenů (`maxOutputTokens`) a vyřešení timeoutů
+- **Zamezení nekonečnému uvažování (Runaway Thinking Tokens)**:
+  - V rozhraní Google Gemini API se myšlenkové tokeny (`thought parts`) započítávají do celkových výstupních tokenů modelu. U modelu `gemini-4-hydrogen` bez omezení docházelo ke generování více než 31 000 výstupních tokenů, což trvalo přes 140 sekund a vedlo k vyčerpání HTTP limitu a timeoutu na straně aplikace, přestože Google AI Studio odečetlo tokeny z kvóty.
+  - Do `build_gemini_generation_config` přidáno striktní ohraničení `maxOutputTokens: 16384` pro moderní modely (`gemini-4-*`, `gemini-3.8-*`, `gemini-3.6-*`, `gemini-3.5-*`, `gemini-3.1-*`) a `8192` pro starší modely.
+  - Výchozí úroveň uvažování pro analýzu protokolu nastavena na `LOW` (dostatečná hloubka pro fyzikální kontrolu, ale rychlá odezva bez zbytečného přemýšlení v řádu desítek tisíc tokenů).
+
+#### ⏱️ Optimalizace HTTP timeoutů a záložních modelů (Fallback)
+- **Zvýšení časových limitů na pozadí**:
+  - `httpx.AsyncClient` timeout pro analýzu protokolu zvýšen z 90 s na **180 s** (3 minuty) a pro AI chat z 60 s na **90 s**.
+  - Frontend failsafe polling v `app.js` byl prodloužen z 240 s na **360 s**.
+- **Chytrý fallback model bez zpoždění**:
+  - Pokud primární model selže nebo vyprší časový limit, záložní model (např. `gemini-3.8-flash`) je automaticky spuštěn s `thinkingLevel: "LOW"`. Tím je zaručeno, že záložní model vrátí výsledek bleskově (do 10–15 s) namísto dalšího vyčerpání limitu.
+  - Na `TimeoutException` se již neprovádí zbytečné opakování téhož modelu (který by znovu vypršel), ale okamžitě nastupuje záloha.
+
+#### 🧠 Filtrování myšlenkových částí (`thought parts`)
+- V pomocné funkci `extract_gemini_response_text` jsou nově bezpečně odfiltrovány vnitřní části uvažování (`thought: True`) a skládán je výhradně čistý finální výstup/JSON od AI asistenta.
+
 ## [2.24.4] - 2026-11-18
 
 ### 🚀 Novinky a vylepšení ve verzi 2.24.4

@@ -1375,7 +1375,7 @@ const App = {
       const timerEl = document.getElementById('ai-timer-count');
       if (timerEl) timerEl.textContent = `(${secondsElapsed}s)`;
 
-      if (secondsElapsed > 240) {
+      if (secondsElapsed > 360) {
         clearInterval(this._aiPollInterval);
         this._aiPollInterval = null;
         return;
@@ -3978,10 +3978,10 @@ const App = {
           timerEl.textContent = `(${secondsElapsed}s)`;
         }
 
-        // Failsafe timeout at 240 seconds
-        if (secondsElapsed > 240) {
+        // Failsafe timeout at 360 seconds
+        if (secondsElapsed > 360) {
           cleanup();
-          const timeoutMsg = "AI analýza překročila časový limit 240 sekund. Zkuste to prosím znovu nebo zvolte rychlejší model / nižší úroveň uvažování (Thinking level) v Nastavení.";
+          const timeoutMsg = "AI analýza překročila časový limit 360 sekund. Zkuste to prosím znovu nebo zvolte rychlejší model / nižší úroveň uvažování (Thinking level) v Nastavení.";
           if (fallbackCont) {
             fallbackCont.innerHTML = `<div class="ai-fallback-alert" style="background:rgba(239,68,68,0.12); border:1px solid var(--accent-red); color:var(--accent-red); padding:8px 10px; border-radius:6px; font-size:0.8rem; margin-bottom:8px;">⚠️ ${this.escape(timeoutMsg)}</div>`;
             fallbackCont.style.display = 'block';

@@ -142,17 +142,18 @@ def get_gemini_thinking_level(mode_type: str = "analysis") -> str:
     val = get_ai_setting("gemini_thinking_level", "").strip().upper()
     if val in ("MINIMAL", "LOW", "MEDIUM", "HIGH", "XHIGH"):
         return val
-    return "HIGH" if mode_type == "chat" else "MEDIUM"
+    return "HIGH" if mode_type == "chat" else "LOW"
 
 def save_gemini_thinking_level(level: str):
-    lvl = (level or "MEDIUM").strip().upper()
+    lvl = (level or "LOW").strip().upper()
     if lvl in ("MINIMAL", "LOW", "MEDIUM", "HIGH", "XHIGH"):
         save_ai_setting("gemini_thinking_level", lvl)
 
 def build_gemini_generation_config(
     model_name: str,
     desired_level: Optional[str] = None,
-    response_mime_type: str = "application/json"
+    response_mime_type: str = "application/json",
+    max_output_tokens: Optional[int] = None
 ) -> dict:
     """
     Builds generationConfig safely per model family so invalid thinkingLevel never causes HTTP 400.
@@ -160,17 +161,26 @@ def build_gemini_generation_config(
     - gemini-3.8-*: supports LOW, MEDIUM, HIGH (clamp MINIMAL -> LOW, XHIGH -> HIGH; omit temperature)
     - gemini-3.6-*, gemini-3.5-*, gemini-3.1-*: supports MINIMAL, LOW, MEDIUM, HIGH (clamp XHIGH -> HIGH; omit temperature)
     - Legacy / *-latest aliases: include temperature: 0.35 only if needed and handle HTTP 400 defensively.
+    - Sets maxOutputTokens to prevent unbounded 30k+ token generation and timeouts.
     """
-    level = (desired_level or "MEDIUM").strip().upper()
+    level = (desired_level or "LOW").strip().upper()
     if level not in ("MINIMAL", "LOW", "MEDIUM", "HIGH", "XHIGH"):
-        level = "MEDIUM"
+        level = "LOW"
 
     m = (model_name or "").lower().strip()
+
+    max_tokens = max_output_tokens
+    if max_tokens is None:
+        if any(x in m for x in ("gemini-4", "gemini-3.8", "gemini-3.6", "gemini-3.5", "gemini-3.1")):
+            max_tokens = 16384
+        else:
+            max_tokens = 8192
 
     if "gemini-4" in m:
         clamped = "LOW" if level == "MINIMAL" else level
         return {
             "response_mime_type": response_mime_type,
+            "maxOutputTokens": max_tokens,
             "thinkingConfig": {"thinkingLevel": clamped}
         }
     elif "gemini-3.8" in m:
@@ -182,12 +192,14 @@ def build_gemini_generation_config(
             clamped = level
         return {
             "response_mime_type": response_mime_type,
+            "maxOutputTokens": max_tokens,
             "thinkingConfig": {"thinkingLevel": clamped}
         }
     elif any(x in m for x in ("gemini-3.6", "gemini-3.5", "gemini-3.1")):
         clamped = "HIGH" if level == "XHIGH" else level
         return {
             "response_mime_type": response_mime_type,
+            "maxOutputTokens": max_tokens,
             "thinkingConfig": {"thinkingLevel": clamped}
         }
     else:
@@ -197,6 +209,7 @@ def build_gemini_generation_config(
         return {
             "response_mime_type": response_mime_type,
             "temperature": 0.35,
+            "maxOutputTokens": max_tokens,
             "thinkingConfig": {"thinkingLevel": clamped}
         }
 
@@ -247,24 +260,43 @@ def extract_gemini_response_text(data: dict) -> Tuple[Optional[str], Optional[st
         return None, "Kandidát v odpovědi nemá platný formát."
 
     finish_reason = cand.get("finishReason")
-    if finish_reason == "MAX_TOKENS":
-        return None, "Odpověď modelu byla useknuta z důvodu dosažení maximálního počtu tokenů (MAX_TOKENS)."
-    elif finish_reason in ("SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT"):
+    if finish_reason in ("SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT"):
         return None, f"Odpověď modelu byla zablokována bezpečnostním filtrem ({finish_reason})."
 
     content = cand.get("content", {})
     if not isinstance(content, dict):
+        if finish_reason == "MAX_TOKENS":
+            return None, "Odpověď modelu byla useknuta z důvodu dosažení maximálního počtu tokenů (MAX_TOKENS)."
         return None, f"Chybí obsah v odpovědi kandidáta (finishReason: {finish_reason or 'neuveden'})."
 
     parts = content.get("parts", [])
     if not parts or not isinstance(parts, list) or len(parts) == 0:
+        if finish_reason == "MAX_TOKENS":
+            return None, "Odpověď modelu byla useknuta z důvodu dosažení maximálního počtu tokenů (MAX_TOKENS)."
         return None, f"Odpověď modelu neobsahuje žádné části (finishReason: {finish_reason or 'neuveden'})."
 
-    first_part = parts[0]
-    if not isinstance(first_part, dict) or "text" not in first_part:
+    text_candidates = []
+    for p in parts:
+        if isinstance(p, dict):
+            # Skip internal thinking/reasoning monologue parts
+            if p.get("thought") is True:
+                continue
+            txt = p.get("text", "")
+            if txt and str(txt).strip():
+                text_candidates.append(str(txt).strip())
+
+    if not text_candidates:
+        # Fallback: check all parts
+        for p in parts:
+            if isinstance(p, dict) and p.get("text"):
+                text_candidates.append(str(p.get("text")).strip())
+
+    if not text_candidates:
+        if finish_reason == "MAX_TOKENS":
+            return None, "Odpověď modelu byla useknuta z důvodu dosažení maximálního počtu tokenů (MAX_TOKENS)."
         return None, f"V odpovědi modelu chybí text (finishReason: {finish_reason or 'neuveden'})."
 
-    text_val = first_part.get("text", "")
+    text_val = "\n".join(text_candidates)
     if not text_val or not str(text_val).strip():
         return None, f"Textová odpověď modelu je prázdná (finishReason: {finish_reason or 'neuveden'})."
 
@@ -482,9 +514,9 @@ Napiš to stručně, jasně, v bodech a odrážkách, bez zbytečné omáčky.
     for tier_name, api_key in key_tiers:
         for m in models_to_try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent?key={api_key}"
-            cfg = build_gemini_generation_config(m, "MEDIUM", "text/plain")
+            cfg = build_gemini_generation_config(m, "LOW", "text/plain", max_output_tokens=8192)
             try:
-                async with httpx.AsyncClient(timeout=90.0) as client:
+                async with httpx.AsyncClient(timeout=120.0) as client:
                     resp = await client.post(url, json={
                         "contents": [{"parts": [{"text": prompt}]}],
                         "generationConfig": cfg
@@ -865,17 +897,19 @@ ZÁVAZNÁ PRAVIDLA:
 
     for tier_name, api_key in key_tiers:
         for model_name in models_to_try:
-            cfg = build_gemini_generation_config(model_name, desired_thinking, "application/json")
+            # Fallback model uses LOW thinking level to guarantee fast response without timeouts
+            effective_thinking = "LOW" if model_name != preferred_model else desired_thinking
+            cfg = build_gemini_generation_config(model_name, effective_thinking, "application/json")
             gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
             payload = {
                 "contents": [{"parts": parts}],
                 "generationConfig": cfg
             }
-            # Retry once on transient 503/429 for preferred model; no extra retry for fallback to respect timeout
+            analysis_timeout = 180.0
             max_attempts = 2 if model_name == preferred_model else 1
             for attempt in range(max_attempts):
                 try:
-                    async with httpx.AsyncClient(timeout=90.0) as client:
+                    async with httpx.AsyncClient(timeout=analysis_timeout) as client:
                         resp = await client.post(gemini_url, json=payload)
                         if resp.status_code == 400 and "thinkingConfig" in cfg:
                             # Defensive retry without thinkingConfig if model rejects it
@@ -915,7 +949,7 @@ ZÁVAZNÁ PRAVIDLA:
                                 details=f"Úspěšná AI analýza protokolu #{proto_id} modelem {model_name} ({tier_name} klíč, {len(parsed.get('annotations', []))} anotací, {len(parsed.get('deductions', []))} srážek)."
                             )
 
-                            effective_thinking = cfg.get("thinkingConfig", {}).get("thinkingLevel") or desired_thinking
+                            used_thinking = cfg.get("thinkingConfig", {}).get("thinkingLevel") or effective_thinking
                             return build_resolved_result(
                                 proto_id, 
                                 parsed, 
@@ -924,7 +958,7 @@ ZÁVAZNÁ PRAVIDLA:
                                 preferred_model=preferred_model,
                                 fallback_note=fallback_note,
                                 key_tier_used=tier_name,
-                                thinking_level_used=effective_thinking
+                                thinking_level_used=used_thinking
                             )
                         elif resp.status_code in [503, 429]:
                             err_msg = ""
@@ -947,11 +981,13 @@ ZÁVAZNÁ PRAVIDLA:
                             break
                 except Exception as e:
                     err_msg = str(e).strip() or type(e).__name__
-                    if isinstance(e, httpx.TimeoutException):
-                        err_msg = "vypršel časový limit (timeout po 90 s)"
+                    is_timeout = isinstance(e, httpx.TimeoutException)
+                    if is_timeout:
+                        err_msg = f"vypršel časový limit (timeout po {int(analysis_timeout)} s)"
                     last_error = f"chyba spojení ({tier_name} klíč, {model_name}: {err_msg})"
                     print(f"Exception connecting to {model_name} ({tier_name}, attempt {attempt+1}):", err_msg)
-                    if attempt == 0 and max_attempts > 1:
+                    # NEVER retry on timeout! Only retry on transient socket errors
+                    if not is_timeout and attempt == 0 and max_attempts > 1:
                         await asyncio.sleep(0.8 + random.uniform(0.1, 0.3))
                         continue
                     break
@@ -1364,17 +1400,19 @@ ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
 
         for tier_name, api_key in key_tiers:
             for model_name in models_to_try:
-                cfg = build_gemini_generation_config(model_name, desired_thinking, "application/json")
+                effective_thinking = "LOW" if model_name != preferred_model else desired_thinking
+                cfg = build_gemini_generation_config(model_name, effective_thinking, "application/json", max_output_tokens=8192)
                 payload = {
                     "contents": [{"parts": chat_parts}],
                     "generationConfig": cfg
                 }
                 gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+                chat_timeout = 90.0
                 max_attempts = 2 if model_name == preferred_model else 1
 
                 for attempt in range(max_attempts):
                     try:
-                        async with httpx.AsyncClient(timeout=60.0) as client:
+                        async with httpx.AsyncClient(timeout=chat_timeout) as client:
                             resp = await client.post(gemini_url, json=payload)
                             if resp.status_code == 400 and "thinkingConfig" in cfg:
                                 fallback_cfg = dict(cfg)
@@ -1400,7 +1438,7 @@ ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
                                 raw_response = robust_json_loads(raw_text)
                                 successful_model = model_name
                                 key_tier_used = tier_name
-                                thinking_level_used = cfg.get("thinkingConfig", {}).get("thinkingLevel") or desired_thinking
+                                thinking_level_used = cfg.get("thinkingConfig", {}).get("thinkingLevel") or effective_thinking
 
                                 notes = []
                                 if tier_name == "paid" and len(key_tiers) > 1:
@@ -1430,10 +1468,11 @@ ODPOVĚZ VÝHRADNĚ VE FORMÁTU PŘÍSNÉHO JSON S TOUTO STRUKTUROU:
                                 break
                     except Exception as e:
                         err_msg = str(e).strip() or type(e).__name__
-                        if isinstance(e, httpx.TimeoutException):
-                            err_msg = "vypršel časový limit (timeout po 60 s)"
+                        is_timeout = isinstance(e, httpx.TimeoutException)
+                        if is_timeout:
+                            err_msg = f"vypršel časový limit (timeout po {int(chat_timeout)} s)"
                         last_error = f"Model {model_name} ({tier_name} klíč) selhal na chybě spojení ({err_msg})"
-                        if attempt == 0 and max_attempts > 1:
+                        if not is_timeout and attempt == 0 and max_attempts > 1:
                             await asyncio.sleep(0.8 + random.uniform(0.1, 0.3))
                             continue
                         break

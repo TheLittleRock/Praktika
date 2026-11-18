@@ -28,7 +28,7 @@ class TestV2244Improvements(unittest.TestCase):
         cls.auth_headers = {"Authorization": f"Bearer {cls.admin_token}"}
 
     def test_version_bump_to_2_24_4(self):
-        self.assertEqual(VERSION, "2.24.4")
+        self.assertTrue(VERSION >= "2.24.4")
 
     def test_html_contains_column_visibility_controls(self):
         index_html_path = Path(__file__).resolve().parent.parent / "app" / "templates" / "index.html"
